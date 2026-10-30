@@ -23,7 +23,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-060: Host HEAD invariance in runLiveEvals (evals.mjs) and structural interval assertions in guards-shim-speed.test.mjs
+- [x] T-060: Host HEAD invariance in runLiveEvals (evals.mjs) and structural interval assertions in guards-shim-speed.test.mjs
   - Контекст: (1) `runLiveEvals` в `evals.mjs` сейчас проверяет только чистоту дерева (`git status --porcelain`), но не сдвиг `HEAD` хоста во время хода (например, если внутри хода был сделан коммит на хосте). Нужно фиксировать `preHostHead = runGit(realGit, hostDir, ['rev-parse', 'HEAD'])` до старта (бросать ошибку, если `!preHostHead`), после каждого хода проверять `postHostHead === preHostHead` (иначе бросать ошибку `runLiveEvals: Host repository HEAD changed during turn (${preHostHead} -> ${postHostHead})`), а при записи `results.md` использовать `Commit: ${preHostHead}`, сохраняя `evals.mjs <= 400` строк (`split('\n').length <= 400`). (2) В `guards-shim-speed.test.mjs` тест `T-041: askPermission, watch, and follow resolve intervals...` использует `performance.now()`, что запрещено `AGENTS.md §4` (`findTestTimers` в `selfcheck.mjs`). Нужно экспортировать `resolveInterval` из `feed.mjs` и `ask.mjs` и заменить все вызовы `performance.now()` в `guards-shim-speed.test.mjs` на структурные проверки `resolveInterval` и детерминированных кодов возврата `watch` (`code: 3` vs `code: 0`), `follow` и `askPermission` (`'2'` vs `null`), сохраняя `>= 2` тестов и `>= 19` вызовов `assert.*` и `0` таймеров реального времени (`performance.now(`, `Date.now(`, `process.hrtime`, `console.time(`).
   - Риск: высокий
   - Модель: Gemini Flash (subagent, уровень неизвестен)
