@@ -113,10 +113,7 @@ export function resolveEscalationResume({ realGit, workDir, task, layout = null,
   }
 
   const planPath = path.join(workDir, layout?.planPath ?? 'PLAN.md');
-  let planFrozen = [];
-  if (existsSync(planPath)) {
-    try { planFrozen = parsePlan(readFileSync(planPath, 'utf8')).frozen ?? []; } catch {}
-  }
+  const planFrozen = existsSync(planPath) ? (parsePlan(readFileSync(planPath, 'utf8')).frozen ?? []) : [];
   const frozenSet = new Set(planFrozen.map((p) => p.replace(/^\.\//, '')));
   for (const f of dirtyFiles) {
     const norm = f.replace(/^\.\//, '');
@@ -176,17 +173,15 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
   if (dirty) {
     const planFile = path.join(workDir, layout.planPath);
     if (existsSync(planFile)) {
-      try {
-        const plan = parsePlan(readFileSync(planFile, 'utf8'));
-        const curTask = nextTask(plan, only);
-        if (curTask) {
-          const res = resolveEscalationResume({ realGit, workDir, task: curTask, layout });
-          if (res.ok) {
-            treeOk = true;
-            treeDetail = `resuming ${curTask.id} after escalation (matches stop snapshot)`;
-          }
+      const plan = parsePlan(readFileSync(planFile, 'utf8'));
+      const curTask = nextTask(plan, only);
+      if (curTask) {
+        const res = resolveEscalationResume({ realGit, workDir, task: curTask, layout });
+        if (res.ok) {
+          treeOk = true;
+          treeDetail = `resuming ${curTask.id} after escalation (matches stop snapshot)`;
         }
-      } catch {}
+      }
     }
   }
   add(treeOk, 'clean working tree', treeDetail);
