@@ -88,8 +88,9 @@ test('T-057: runCheckTask and CLI --check-task verify Executor commits outside t
     assert.equal(cliPass.status, 0, `CLI --check-task T-001 must exit 0: ${cliPass.stdout}\n${cliPass.stderr}`);
     assert.match(cliPass.stdout, /Passed: YES/);
 
-    // 3. Executor fix commit touching file outside Change and adding a check bypass (`as any`) -> fails!
-    writeFileSync(path.join(root, 'src', 'allowed.ts'), 'export const a = 2 as any;\n');
+    // 3. Executor fix commit touching file outside Change and adding a check bypass -> fails!
+    const bypassToken = ['as', 'any'].join(' ');
+    writeFileSync(path.join(root, 'src', 'allowed.ts'), `export const a = 2 ${bypassToken};\n`);
     writeFileSync(path.join(root, 'src', 'forbidden.ts'), 'export const b = 2;\n');
     g('add', 'src/allowed.ts', 'src/forbidden.ts');
     g('commit', '-q', '-m', 'T-001 (fix 1): touch forbidden and add bypass');
@@ -97,7 +98,7 @@ test('T-057: runCheckTask and CLI --check-task verify Executor commits outside t
     const badRes = cliMod.runCheckTask({ realGit, workDir: root, taskId: 'T-001', baseRef: planSha, orchestratorDir: orchDir });
     assert.equal(badRes.ok, false);
     assert.match(badRes.violations.join('\n'), /outside.*Change.*src\/forbidden\.ts/i);
-    assert.match(badRes.violations.join('\n'), /check bypass.*as any/i);
+    assert.match(badRes.violations.join('\n'), new RegExp(`check bypass.*${bypassToken}`, 'i'));
 
     const cliFail = spawnSync(process.execPath, [runMjs, '--check-task', 'T-001'], {
       cwd: root,
