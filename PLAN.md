@@ -29,7 +29,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-051: Dynamic skill paths and root-install guard in layout.mjs, prompts.mjs, ask.mjs, and selfcheck.mjs
+- [x] T-051: Dynamic skill paths and root-install guard in layout.mjs, prompts.mjs, ask.mjs, and selfcheck.mjs
   - Риск: высокий.
   - Зависит от: —.
   - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
