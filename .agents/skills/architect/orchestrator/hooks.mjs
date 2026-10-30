@@ -151,7 +151,7 @@ const subject = (lines.find((l) => l.trim().length > 0) || '').trim();
 if (!subject) process.exit(0);
 
 let root = '.';
-try { root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(); } catch {}
+try { root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(); } catch { root = '.'; }
 
 let commitLanguage = null;
 for (const rel of ['.agents/orchestrator.json', '.architect/config.json']) {
@@ -160,7 +160,7 @@ for (const rel of ['.agents/orchestrator.json', '.architect/config.json']) {
     try {
       const cfg = JSON.parse(readFileSync(p, 'utf8'));
       if (cfg && cfg.commitLanguage) { commitLanguage = cfg.commitLanguage; break; }
-    } catch {}
+    } catch { commitLanguage = null; }
   }
 }
 
@@ -192,13 +192,13 @@ if (/^(?:arch:|arch\\s|arch$)/i.test(subject)) {
 let stagedFiles = [];
 try {
   stagedFiles = execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).split('\\n').map((f) => f.trim()).filter(Boolean);
-} catch {}
+} catch { stagedFiles = []; }
 
 if (stagedFiles.length === 1) {
   const f = stagedFiles[0].replace(/\\\\/g, '/');
   if (f === 'PLAN.md' || f === '.architect/PLAN.md' || f.endsWith('/PLAN.md')) {
     let diff = '';
-    try { diff = execFileSync('git', ['diff', '--cached', '-U0', '--', stagedFiles[0]], { cwd: root, encoding: 'utf8' }); } catch {}
+    try { diff = execFileSync('git', ['diff', '--cached', '-U0', '--', stagedFiles[0]], { cwd: root, encoding: 'utf8' }); } catch { diff = ''; }
     const diffLines = diff.split('\\n');
     const added = diffLines.filter((l) => l.startsWith('+') && !l.startsWith('+++'));
     const removed = diffLines.filter((l) => l.startsWith('-') && !l.startsWith('---'));
@@ -323,7 +323,7 @@ export function scanRangeCommitMessages({ realGit, workDir = process.cwd(), cwd 
     if (files.length === 1) {
       const f = files[0].replace(/\\/g, '/').replace(/^\.\//, '');
       if (f === 'PLAN.md' || f === '.architect/PLAN.md' || f.endsWith('/PLAN.md')) {
-        try { planDiff = git(realGit, dir, ['show', '-U0', sha, '--', files[0]]); } catch {}
+        try { planDiff = git(realGit, dir, ['show', '-U0', sha, '--', files[0]]); } catch { planDiff = ''; }
       }
     }
     const res = validateCommitMessage({ subject, commitLanguage, stagedFiles: files, planDiff });
