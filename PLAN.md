@@ -33,7 +33,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-057: Out-of-loop Executor commit verification (--check-task) and Executor model check in --check (ADR-039)
+- [x] T-057: Out-of-loop Executor commit verification (--check-task) and Executor model check in --check (ADR-039)
   - Контекст: при запуске Исполнителя субагентом или вручную в отдельном чате `--self-check` пропускает коммиты `T-NNN`, а `checkExecutorRun` вызывается только внутри `npm run agents`. Нужна отдельная команда `--check-task T-NNN [--base <ref>]` (работающая даже без созданного `.agents/orchestrator.json`), а также проверка `checkExecutorModelConfig` в `hooks.mjs` / `check.mjs`, которая предупреждает, если модель Исполнителя нигде не задана или `.claude/agents/executor.md` содержит `model: inherit` / не содержит `model:`. Все модули должны оставаться `<= 400` строк (`split('\n').length <= 400`).
   - Риск: высокий
   - Модель: Gemini Flash (subagent, уровень неизвестен)
