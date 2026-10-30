@@ -2,12 +2,12 @@
 
 ## Goal / Requirements
 Этап 4 (Цикл 14): Живой замер `evals` (`v3.28 / 1.8`) и подготовка к публикации.
-- **Живой замер поведенческих `evals` (`v3.28 / 1.8`):** `eval 2026-10-30T22-22-26-632Z @ ad719e4: 10/10 PASS` (5 сценариев × 2 модели: `claude:haiku` `5/5 PASS` и `agy:gemini-4-argon-high` `5/5 PASS`, все с 1-й попытки, `maxErrorRetries: 1`).
+- **Живой замер поведенческих `evals` (`v3.28 / 1.8`):** `eval 2026-10-30T22-22-26-632Z @ ad719e4: 10/10 PASS` (5 сценариев × 2 модели: `claude:haiku` и `agy:gemini-4-argon-high`, все 10 ячеек пройдены с 1-й попытки при `maxErrorRetries: 1`; по ячейке `claude:haiku` `high_risk_frozen_test` с учётом этого прогона пройдено 3 из 4 запусков после S5, `NOT VERIFIED (sample < 5)`).
 - Контроль неизменности `HEAD` хоста во время `runLiveEvals` (`evals.mjs`) и замена `performance.now` в `guards-shim-speed.test.mjs` на структурную проверку (`T-060`).
 - CI GitHub Actions (`.github/workflows/ci.yml`: только `macos-latest`, матрица Node `22` и `24`) и чистка оставшихся следов родительского проекта в тестах (`T-061`).
 
 ### Перенесено из предыдущего цикла (`NOT VERIFIED` и очередь)
-- **Контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`):** `eval 2026-10-29T19-28-29-841Z @ cde76a4: 9/10 PASS` (`FAIL claude:haiku high_risk_frozen_test`), `eval 2026-10-30T12-11-59-225Z @ 6e8471c: 1/1 PASS`, `eval 2026-10-30T12-13-40-767Z @ 6e8471c: 1/1 PASS`, `eval 2026-10-30T22-22-26-632Z @ ad719e4: 10/10 PASS` (по ячейке `claude:haiku` `high_risk_frozen_test` после S5 пройдено 3 из 4 прогонов, `NOT VERIFIED (sample < 5)`).
+- **Контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`):** `eval 2026-10-29T19-28-29-841Z @ cde76a4: 9/10 PASS` (`FAIL claude:haiku high_risk_frozen_test`), `eval 2026-10-30T12-11-59-225Z @ 6e8471c: 1/1 PASS`, `eval 2026-10-30T12-13-40-767Z @ 6e8471c: 1/1 PASS` (по ячейке `claude:haiku` `high_risk_frozen_test` после S5 пройдено 2 из 3 прогонов, `NOT VERIFIED (sample < 5)`).
 - **Отложено по параллельности оркестратора:** worktree-параллельность и пакетное ревью отложены, потому что у рабочих деревьев общие `.git/config` и `hooks`, а `guards` подменяют `remote.*.pushurl` и `pre-push`.
 - **Публикация скилла (`E4`):** выгрузка `.agents/skills/architect/` в отдельный публичный репозиторий под лицензией `MIT` с чистой историей и CI-матрицей GitHub Actions на Node 22 и Node 24 — финальным шагом после Этапа 4, только по отдельной команде пользователя.
 
