@@ -95,12 +95,10 @@ export async function runLiveEvals({
   const effectiveAgySettings = agySettingsFile ?? agySettingsPath(home);
 
   const preStatus = runGit(realGit, hostDir, ['status', '--porcelain']);
-  if (preStatus === null) {
-    throw new Error(`runLiveEvals: git status failed on host repository (${hostDir}) before evals`);
-  }
-  if (preStatus.length > 0) {
-    throw new Error(`runLiveEvals: Host project working tree is not clean (git status is not empty) before evals: ${preStatus}`);
-  }
+  if (preStatus === null) throw new Error(`runLiveEvals: git status failed on host repository (${hostDir}) before evals`);
+  if (preStatus.length > 0) throw new Error(`runLiveEvals: Host project working tree is not clean (git status is not empty) before evals: ${preStatus}`);
+  const preHostHead = runGit(realGit, hostDir, ['rev-parse', 'HEAD']);
+  if (!preHostHead) throw new Error(`runLiveEvals: git rev-parse HEAD failed on host repository (${hostDir}) before evals`);
 
   const agentRunsDir = path.join(hostDir, '.agent-runs');
   mkdirSync(agentRunsDir, { recursive: true });
@@ -229,6 +227,8 @@ export async function runLiveEvals({
             const postHostStatus = runGit(realGit, hostDir, ['status', '--porcelain']);
             if (postHostStatus === null) throw new Error(`runLiveEvals: git status failed on host repository (${hostDir}) after turn`);
             if (postHostStatus.length > 0) throw new Error(`runLiveEvals: Host project working tree is not clean (git status is not empty) after turn: ${postHostStatus}`);
+            const postHostHead = runGit(realGit, hostDir, ['rev-parse', 'HEAD']);
+            if (postHostHead !== preHostHead) throw new Error(`runLiveEvals: Host repository HEAD changed during turn (${preHostHead} -> ${postHostHead})`);
             if (getFileSha(effectiveAgySettings) !== agyShaBefore) throw new Error(`runLiveEvals: agy settings file (${effectiveAgySettings}) changed after turn (settings.json modified)`);
 
             if (turnResult?.denied === true) {
@@ -365,7 +365,7 @@ export async function runLiveEvals({
         const e = results.filter((r) => r.status === 'ERROR').length;
         const lines = [
           `# Live evals ${effectiveRunId}`,
-          `Commit: ${runGit(realGit, hostDir, ['rev-parse', 'HEAD']) || 'unknown'}`,
+          `Commit: ${preHostHead}`,
           ...results.map((r) => formatEvalCellLine(r)),
           `Total: ${p} passed, ${f} failed, ${e} errors (total: ${results.length})`,
           '',

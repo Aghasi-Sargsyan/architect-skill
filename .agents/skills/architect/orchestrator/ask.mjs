@@ -95,7 +95,7 @@ export function answerPendingPermission(targetDir, answer) {
   return { id: question.id, answer: ansStr, rule, label, command: question.command };
 }
 
-function resolveInterval(val, envKey, def) {
+export function resolveInterval(val, envKey, def) {
   if (val != null) {
     const n = Number(val);
     if (Number.isFinite(n) && n >= 10) return n;

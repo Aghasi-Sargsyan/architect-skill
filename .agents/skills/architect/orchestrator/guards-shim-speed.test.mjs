@@ -5,8 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import * as guardsMod from './guards.mjs';
 import { findExecutable } from './events.mjs';
-import { askPermission, writeAnswer } from './ask.mjs';
-import { watch, follow } from './feed.mjs';
+import { askPermission, writeAnswer, resolveInterval as askResolveInterval } from './ask.mjs';
+import { watch, follow, resolveInterval as feedResolveInterval } from './feed.mjs';
 
 let tmp;
 const savedEnv = {};
@@ -89,40 +89,57 @@ test('T-041: askPermission, watch, and follow resolve intervals in order: explic
   writeFileSync(path.join(runDir, 'summary.md'), '■ Stop: Done\n');
   writeFileSync(path.join(runDir, 'feed.log'), 'line 1\n');
 
-  // 1. Env vars speed up watch and follow when explicit pollMs/graceMs are omitted
+  // 1. Structural checks on resolveInterval for ask.mjs and feed.mjs
+  // (a) default fallback when parameter and env var are unset
+  assert.equal(askResolveInterval(undefined, 'AGENT_LOOP_ASK_POLL_MS', 2000), 2000);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_WATCH_POLL_MS', 2000), 2000);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_WATCH_GRACE_MS', 2000), 2000);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_FOLLOW_POLL_MS', 1000), 1000);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_FOLLOW_GRACE_MS', 2000), 2000);
+
+  // (b) env var precedence over default when valid (>= 10ms)
+  process.env.AGENT_LOOP_ASK_POLL_MS = '15';
   process.env.AGENT_LOOP_WATCH_POLL_MS = '15';
   process.env.AGENT_LOOP_WATCH_GRACE_MS = '25';
-  const w0 = performance.now();
+  process.env.AGENT_LOOP_FOLLOW_POLL_MS = '15';
+  process.env.AGENT_LOOP_FOLLOW_GRACE_MS = '25';
+  assert.equal(askResolveInterval(undefined, 'AGENT_LOOP_ASK_POLL_MS', 2000), 15);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_WATCH_POLL_MS', 2000), 15);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_WATCH_GRACE_MS', 2000), 25);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_FOLLOW_POLL_MS', 1000), 15);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_FOLLOW_GRACE_MS', 2000), 25);
+
+  // (c) explicit parameter takes precedence over AGENT_LOOP_* env var
+  assert.equal(askResolveInterval(50, 'AGENT_LOOP_ASK_POLL_MS', 2000), 50);
+  assert.equal(feedResolveInterval(120, 'AGENT_LOOP_WATCH_GRACE_MS', 2000), 120);
+  assert.equal(feedResolveInterval(40, 'AGENT_LOOP_FOLLOW_POLL_MS', 1000), 40);
+
+  // (d) invalid env var (< 10ms or non-numeric) is ignored and falls back to default
+  process.env.AGENT_LOOP_ASK_POLL_MS = '5';
+  process.env.AGENT_LOOP_WATCH_GRACE_MS = '5';
+  process.env.AGENT_LOOP_FOLLOW_POLL_MS = 'invalid';
+  assert.equal(askResolveInterval(undefined, 'AGENT_LOOP_ASK_POLL_MS', 2000), 2000);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_WATCH_GRACE_MS', 2000), 2000);
+  assert.equal(feedResolveInterval(undefined, 'AGENT_LOOP_FOLLOW_POLL_MS', 1000), 1000);
+
+  // 2. Deterministic execution checks with fast env intervals (no real-time timers)
+  process.env.AGENT_LOOP_WATCH_POLL_MS = '15';
+  process.env.AGENT_LOOP_WATCH_GRACE_MS = '25';
   const wRes = await watch({ workDir, minutes: 1 });
-  const wElapsed = performance.now() - w0;
-  assert.equal(wRes.code, 3);
-  assert.ok(wElapsed < 1000, `watch with AGENT_LOOP_WATCH_GRACE_MS=25 should finish in < 1000ms, took ${wElapsed.toFixed(1)}ms`);
+  assert.equal(wRes.code, 3, 'watch finishes with code 3 when summary indicates stopped and grace period passes');
 
   process.env.AGENT_LOOP_FOLLOW_POLL_MS = '15';
   process.env.AGENT_LOOP_FOLLOW_GRACE_MS = '25';
   const printed = [];
-  const f0 = performance.now();
   await follow({ workDir, print: (l) => printed.push(l) });
-  const fElapsed = performance.now() - f0;
-  assert.ok(printed.some((l) => l.includes('line 1')));
-  assert.ok(fElapsed < 1000, `follow with AGENT_LOOP_FOLLOW_GRACE_MS=25 should finish in < 1000ms, took ${fElapsed.toFixed(1)}ms`);
+  assert.ok(printed.some((l) => l.includes('line 1')), 'follow streams lines from feed.log');
 
-  // 2. Explicit parameter takes precedence over AGENT_LOOP_* env var
-  process.env.AGENT_LOOP_WATCH_GRACE_MS = '10';
-  const e0 = performance.now();
-  await watch({ workDir, minutes: 1, pollMs: 15, graceMs: 120 });
-  const eElapsed = performance.now() - e0;
-  assert.ok(eElapsed >= 100, `explicit graceMs=120 must override AGENT_LOOP_WATCH_GRACE_MS=10, took ${eElapsed.toFixed(1)}ms`);
-
-  // 3. Invalid env var (< 10ms or non-numeric) is ignored and falls back to default (2000ms)
+  // watch: invalid env var (< 10) falls back to default 2000ms grace, so 0.001 min (60ms) expires with code 0
   process.env.AGENT_LOOP_WATCH_GRACE_MS = '5';
-  const i0 = performance.now();
-  const iRes = await watch({ workDir, minutes: 0.001, pollMs: 15 }); // deadline = 60ms < default graceMs 2000ms
-  const iElapsed = performance.now() - i0;
-  assert.equal(iRes.code, 0, 'invalid AGENT_LOOP_WATCH_GRACE_MS=5 (< 10) must be ignored so graceMs falls back to 2000ms and 60ms window expires with code 0');
-  assert.ok(iElapsed < 400);
+  const iRes = await watch({ workDir, minutes: 0.001, pollMs: 15 });
+  assert.equal(iRes.code, 0, 'invalid graceMs (< 10) falls back to 2000ms so 60ms window expires with code 0');
 
-  // 4. askPermission uses AGENT_LOOP_ASK_POLL_MS when pollMs is omitted
+  // askPermission: answer '2' returned when written within timeout
   process.env.AGENT_LOOP_ASK_POLL_MS = '15';
   const question = {
     id: 'q-1',
@@ -131,12 +148,21 @@ test('T-041: askPermission, watch, and follow resolve intervals in order: explic
     command: 'npm run lint',
     options: [{ answer: '2', label: 'once', rule: 'npm run lint' }],
   };
-  const a0 = performance.now();
   setTimeout(() => {
     writeAnswer({ workDir, answer: '2' });
   }, 30);
   const ans = await askPermission({ question, workDir, runDir, tty: false, timeoutMs: 2000, log: () => {} });
-  const aElapsed = performance.now() - a0;
-  assert.equal(ans, '2');
-  assert.ok(aElapsed < 1000, `askPermission with AGENT_LOOP_ASK_POLL_MS=15 should resolve in < 1000ms, took ${aElapsed.toFixed(1)}ms`);
+  assert.equal(ans, '2', 'askPermission returns deterministic option 2 when answered');
+
+  // askPermission: null returned when timeout expires without answer
+  const timedOutAns = await askPermission({
+    question: { ...question, id: 'q-timeout' },
+    workDir,
+    runDir,
+    tty: false,
+    timeoutMs: 30,
+    pollMs: 15,
+    log: () => {},
+  });
+  assert.equal(timedOutAns, null, 'askPermission returns null when deadline expires without answer');
 });

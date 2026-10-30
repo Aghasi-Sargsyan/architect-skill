@@ -275,7 +275,7 @@ export function milestones(runLog) {
   return out;
 }
 
-function resolveInterval(val, envKey, def) {
+export function resolveInterval(val, envKey, def) {
   for (const v of [val, process.env[envKey]]) {
     if (v != null && String(v).trim() !== '' && Number.isFinite(Number(v)) && Number(v) >= 10) return Number(v);
   }
