@@ -114,8 +114,10 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 
 | Flag | Description |
 |---|---|
-| `--init` | Create `.architect/config.json` (or `.agents/orchestrator.json`), add `.agent-runs/` to `.gitignore`, and print the allowlist block |
-| `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `PLAN.md`, runner binaries, models, and allowlists |
+| `--init` | Create `.architect/config.json` (or `.agents/orchestrator.json`), install `.git/hooks/commit-msg`, add `.agent-runs/` to `.gitignore`, and print the allowlist block |
+| `--install-hooks` | Install the zero-dependency Node `.git/hooks/commit-msg` hook (without overwriting an existing custom hook or `core.hooksPath`) |
+| `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, Executor model config, `PLAN.md`, runner binaries, and allowlists |
+| `--check-task T-NNN [--base <ref>]` | Mechanically verify Executor commits for `T-NNN` outside the automated loop (`Change` boundaries, `Frozen`, check bypasses) |
 | `--write-permissions` | Write safe command/file allowlists for `agy` or `claude` (only after explicit user confirmation) |
 | `--dry-run` | Validate readiness, run `--self-check` (including `red-check`), and preview the next task prompt without calling any LLM |
 | `--self-check [--base <ref>]` | Run deterministic Architect self-check (bypasses, empty `catch`, test timers, monotonicity, `fix-frozen`, `eval` evidence, audit coverage, and `red-check`) |

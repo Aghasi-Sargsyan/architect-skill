@@ -114,8 +114,10 @@
 
 | Флаг | Назначение |
 |---|---|
-| `--init` | Создание `.architect/config.json` (или `.agents/orchestrator.json`), добавление `.agent-runs/` в `.gitignore` и вывод блока allowlist |
-| `--check` | Проверка ОС, Node.js 22+, git 2.31+, установки скилла в подпапку, совпадения копии `EXECUTOR.md`, `PLAN.md`, CLI раннеров, моделей и allowlist |
+| `--init` | Создание `.architect/config.json` (или `.agents/orchestrator.json`), установка `.git/hooks/commit-msg`, добавление `.agent-runs/` в `.gitignore` и вывод блока allowlist |
+| `--install-hooks` | Установка zero-dependency Node-хука `.git/hooks/commit-msg` (без перезаписи существующего хука или `core.hooksPath`) |
+| `--check` | Проверка ОС, Node.js 22+, git 2.31+, установки скилла в подпапку, совпадения копии `EXECUTOR.md`, хука `commit-msg`, модели Исполнителя, `PLAN.md`, CLI раннеров и allowlist |
+| `--check-task T-NNN [--base <ref>]` | Механическая проверка коммитов Исполнителя по задаче `T-NNN` вне цикла оркестратора (границы `Change`, `Frozen`, обходы проверок) |
 | `--write-permissions` | Запись безопасного allowlist команд и путей для `agy` или `claude` (после явного согласия пользователя) |
 | `--dry-run` | Проверка готовности, `--self-check` (включая `red-check`) и показ промпта следующей задачи без вызова LLM |
 | `--self-check [--base <ref>]` | Детерминированная самопроверка Архитектора (обходы, пустой `catch`, таймеры в тестах, монотонность, `fix-frozen`, сверка `eval`, покрытие аудита и `red-check`) |
