@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "severity": { "type": "string", "enum": ["blocker", "important", "minor"] },
+          "category": { "type": "string", "enum": ["frozen_tests", "regex_contracts", "change_frozen_overlap"] },
+          "file": { "type": "string" },
+          "summary": { "type": "string" },
+          "recommendation": { "type": "string" }
+        },
+        "required": ["id", "severity", "category", "file", "summary", "recommendation"]
+      }
+    },
+    "summary": { "type": "string" }
+  },
+  "required": ["findings", "summary"]
+}

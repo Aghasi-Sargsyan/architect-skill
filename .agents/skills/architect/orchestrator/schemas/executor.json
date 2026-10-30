@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "task_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["done", "escalation"] },
+    "commits": { "type": "array", "items": { "type": "string" } },
+    "report_markdown": { "type": "string" }
+  },
+  "required": ["task_id", "status", "commits", "report_markdown"]
+}

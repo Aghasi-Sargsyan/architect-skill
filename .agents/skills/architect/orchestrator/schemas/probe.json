@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "properties": {
+    "git_status": { "type": "string", "enum": ["ok", "denied", "failed"] },
+    "rev_parse": { "type": "string", "enum": ["ok", "denied", "failed"] },
+    "write": { "type": "string", "enum": ["ok", "denied", "failed"] },
+    "edit": { "type": "string", "enum": ["ok", "denied", "failed"] },
+    "note": { "type": "string" }
+  },
+  "required": ["git_status", "rev_parse", "write", "edit", "note"]
+}

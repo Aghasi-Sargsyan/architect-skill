@@ -1,0 +1,214 @@
+// Asking the person whether a denied command may run. In a terminal: a prompt right there. Without one
+// (--background): the question goes to .agent-runs/question.json and the answer comes back through
+// `run.mjs --answer <n>` (any terminal, or the interactive Architect relaying the person's answer).
+import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { createInterface } from 'node:readline/promises';
+import { RUNS_DIR } from './config.mjs';
+
+export const questionPath = (workDir) => path.join(workDir, RUNS_DIR, 'question.json');
+export const answerPath = (workDir) => path.join(workDir, RUNS_DIR, 'answer.json');
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const errText = (err) => (err instanceof Error ? err.message : String(err));
+
+function writeAtomic(file, text) {
+  const tmp = `${file}.tmp-${process.pid}`;
+  writeFileSync(tmp, text);
+  renameSync(tmp, file);
+}
+
+const validAnswers = (question) => [...(question.options || []).map((o) => o.answer), '3'];
+
+/** "`1`, `2` or `3`" — the answer codes for the last line of the question. */
+const answersText = (codes) => {
+  const quoted = codes.map((c) => `\`${c}\``);
+  return quoted.length > 1 ? `${quoted.slice(0, -1).join(', ')} or ${quoted.at(-1)}` : quoted.join('');
+};
+
+/**
+ * The question as the person sees it, in Markdown format, ready to paste into a chat.
+ * List numbers are the answer codes themselves: without option 1 the list starts at 2.
+ */
+export function questionText(question) {
+  const options = (question.options || []).map((o) => (o.answer === '1'
+    ? `1. **Always** — rule \`command(${o.rule})\`, with any arguments`
+    : `2. **This command only** — rule \`command(${o.rule})\`; extra arguments will also pass`));
+  return [
+    '### 🔐 Command Permission',
+    '',
+    `**Who:** ${question.who}, task ${question.taskId}`,
+    '',
+    `**Command:** \`${question.command}\``,
+    '',
+    '**Options:**',
+    ...options,
+    '3. **No** — the agent will continue without it or escalate',
+    '',
+    `**Reply:** ${answersText(validAnswers(question))}`,
+  ].join('\n');
+}
+
+/** Removes the fixed question and answer files (after an answer, on timeout, on stop). */
+export function clearQuestion(workDir) {
+  rmSync(questionPath(workDir), { force: true });
+  rmSync(answerPath(workDir), { force: true });
+}
+
+/**
+ * Answers a pending permission request in targetDir.
+ * @param {string} targetDir
+ * @param {string} answer '1' | '2' | '3'
+ * @returns {{ id: string, answer: string, rule: string | null, label: string, command: string }}
+ */
+export function answerPendingPermission(targetDir, answer) {
+  const candidateFiles = [
+    path.join(targetDir, 'question.json'),
+    questionPath(targetDir),
+  ];
+  const qFile = candidateFiles.find((f) => existsSync(f));
+  if (!qFile) {
+    throw new Error(`No active permission request in ${targetDir}`);
+  }
+  const aFile = qFile.endsWith(path.join(RUNS_DIR, 'question.json'))
+    ? answerPath(targetDir)
+    : path.join(path.dirname(qFile), 'answer.json');
+
+  const question = JSON.parse(readFileSync(qFile, 'utf8'));
+  const valid = validAnswers(question);
+  const ansStr = String(answer).trim();
+  if (!valid.includes(ansStr)) {
+    throw new Error(`Invalid answer "${answer}": expected 1, 2, or 3`);
+  }
+
+  let rule = null;
+  let label = 'Do not allow (stop / escalate)';
+  if (ansStr !== '3') {
+    const opt = (question.options || []).find((o) => o.answer === ansStr);
+    rule = opt?.rule ?? null;
+    label = ansStr === '1' ? `Always: command(${rule})` : `This command only: command(${rule})`;
+  }
+
+  writeAtomic(aFile, `${JSON.stringify({ id: question.id, answer: ansStr, at: new Date().toISOString() })}\n`);
+  return { id: question.id, answer: ansStr, rule, label, command: question.command };
+}
+
+function resolveInterval(val, envKey, def) {
+  if (val != null) {
+    const n = Number(val);
+    if (Number.isFinite(n) && n >= 10) return n;
+  }
+  const envVal = process.env[envKey];
+  if (envVal != null && String(envVal).trim() !== '') {
+    const n = Number(envVal);
+    if (Number.isFinite(n) && n >= 10) return n;
+  }
+  return def;
+}
+
+/**
+ * Asks and waits. Supports both direct orchestrator step mode and interactive question mode.
+ */
+export async function askPermission(opts) {
+  const isDirect = !opts.question && Boolean(opts.proposal);
+  const command = opts.step?.command ?? opts.command ?? '';
+  const who = opts.who ?? (opts.role === 'executor' ? 'Executor' : opts.role === 'architect' ? 'Architect' : 'Agent');
+  const taskId = opts.taskId ?? opts.question?.taskId ?? '';
+  const question = opts.question ?? {
+    id: `${taskId || 'perm'}-${Date.now()}-q`,
+    who,
+    taskId,
+    command,
+    options: opts.proposal?.options ?? [],
+  };
+
+  const workDir = opts.workDir ?? opts.runDir;
+  const runDir = opts.runDir ?? workDir;
+  const timeoutMs = opts.timeoutMs ?? 5000;
+  const pollMs = resolveInterval(opts.pollMs, 'AGENT_LOOP_ASK_POLL_MS', opts.tty ? 100 : 2000);
+  const valid = validAnswers(question);
+
+  const tty = Boolean(opts.tty || opts.interactive);
+  if (tty) {
+    const own = opts.rl ?? createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      for (;;) {
+        const a = (await own.question(`\n${questionText(question)}\nReply (${valid.join('/')}): `)).trim();
+        if (valid.includes(a)) {
+          if (isDirect) {
+            if (a === '3') return { allow: false, reason: 'denied by user' };
+            const opt = (question.options || []).find((o) => o.answer === a);
+            return { allow: true, rule: opt?.rule, label: opt?.rule };
+          }
+          return a;
+        }
+      }
+    } finally {
+      if (!opts.rl) own.close();
+    }
+  }
+
+  const qFile = opts.workDir ? questionPath(workDir) : path.join(runDir, 'question.json');
+  const aFile = opts.workDir ? answerPath(workDir) : path.join(runDir, 'answer.json');
+
+  writeAtomic(qFile, `${JSON.stringify(question, null, 2)}\n`);
+  if (runDir && runDir !== path.dirname(qFile)) {
+    copyFileSync(qFile, path.join(runDir, `${question.id}.question.json`));
+  }
+
+  const rendered = questionText(question);
+  if (opts.out?.write) opts.out.write(`${rendered}\n`);
+  opts.log?.(`permission request:\n${rendered}\n  reply: npm run agents -- --answer <${valid.join('|')}> (or node .agents/skills/architect/orchestrator/run.mjs --answer …)`);
+  opts.notify?.(`permission required: ${question.command}`);
+
+  const deadline = Date.now() + timeoutMs;
+  try {
+    while (Date.now() < deadline) {
+      if (existsSync(aFile)) {
+        let answer = null;
+        try {
+          answer = JSON.parse(readFileSync(aFile, 'utf8'));
+        } catch (err) {
+          opts.log?.(`answer.json cannot be read (${errText(err)}) — waiting for reply`);
+        }
+        if (answer && answer.id === question.id && valid.includes(answer.answer)) {
+          if (runDir && runDir !== path.dirname(aFile)) {
+            copyFileSync(aFile, path.join(runDir, `${question.id}.answer.json`));
+          }
+          if (isDirect) {
+            if (answer.answer === '3') return { allow: false, reason: 'denied by user' };
+            const opt = (question.options || []).find((o) => o.answer === answer.answer);
+            return { allow: true, rule: opt?.rule, label: opt?.rule };
+          }
+          return answer.answer;
+        }
+        rmSync(aFile, { force: true });
+      }
+      await sleep(pollMs);
+    }
+    if (isDirect) return { allow: false, reason: 'permission wait timeout' };
+    return null;
+  } finally {
+    if (opts.workDir) clearQuestion(workDir);
+    else {
+      rmSync(qFile, { force: true });
+      rmSync(aFile, { force: true });
+    }
+  }
+}
+
+/**
+ * `--answer <n>`: passes the person's answer to the waiting loop. Throws when there is no question or the
+ * answer is not one of its options. Returns the question for the console.
+ */
+export function writeAnswer({ workDir, answer }) {
+  if (!existsSync(questionPath(workDir))) {
+    throw new Error(`the loop is not asking anything (is not asking anything: missing ${RUNS_DIR}/question.json)`);
+  }
+  const question = JSON.parse(readFileSync(questionPath(workDir), 'utf8'));
+  const valid = validAnswers(question);
+  if (!valid.includes(answer)) {
+    throw new Error(`answer "${answer}" is not one of the options ${valid.join(', ')}`);
+  }
+  writeAtomic(answerPath(workDir), `${JSON.stringify({ id: question.id, answer, at: new Date().toISOString() })}\n`);
+  return question;
+}

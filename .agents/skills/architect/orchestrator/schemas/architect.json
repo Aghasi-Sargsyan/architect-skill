@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "task_id": { "type": "string" },
+    "verdict": { "type": "string", "enum": ["accepted", "rework", "needs_user"] },
+    "issues": { "type": "array", "items": { "type": "string" } },
+    "rework_instructions": { "type": "string" },
+    "arch_commits": { "type": "array", "items": { "type": "string" } },
+    "summary": { "type": "string" }
+  },
+  "required": ["task_id", "verdict", "issues", "rework_instructions", "arch_commits", "summary"]
+}

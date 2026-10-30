@@ -1,0 +1,33 @@
+{
+  "agyBin": "agy",
+  "executor": { "model": "gemini-3.8-flash-high" },
+  "architect": { "model": "gemini-4-argon-high" },
+  "permissions": "allowlist",
+  "blockedNpmScripts": [],
+  "allowedCommands": [
+    "npm test"
+  ],
+  "protectedConfigFiles": [
+    "package.json",
+    "tsconfig.json",
+    "tsconfig.*.json",
+    "vitest.config.*",
+    "vite.config.*",
+    "jest.config.*",
+    "eslint.config.*",
+    ".eslintrc*"
+  ],
+  "bypassScanPaths": [".agents/skills/architect/orchestrator"],
+  "bypassPatterns": [
+    "[:<,|=>&[(]\\s*any\\b",
+    "\\bas\\s+any\\b",
+    "as unknown as",
+    "@ts-(ignore|expect-error|nocheck)",
+    "eslint-disable",
+    "\\.(skip|only)\\(",
+    "(?:Object\\.assign|(?:Object|Reflect)\\.(?:defineProperty|defineProperties|setPrototypeOf))\\s*\\(\\s*(?:[A-Za-z_$][\\w$]*\\s*\\.\\s*prototype|globalThis)\\b|\\b(?:[A-Za-z_$][\\w$]*\\s*\\.\\s*prototype|globalThis)\\s*(?:\\.\\s*[A-Za-z_$][\\w$]*|\\[[^\\]]+\\])\\s*=(?!=)|(?:^|[^\\w$])__proto__\\s*(?:=(?!=)|:)"
+  ],
+  "maxFixRounds": 2,
+  "timeoutMinutes": 30,
+  "notify": true
+}
