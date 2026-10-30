@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { git, head, isIgnored, porcelain } from './git.mjs';
 import { nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
 import { DEFAULTS, RUNS_DIR } from './config.mjs';
-import { resolveLayout } from './layout.mjs';
+import { isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
 import { acquireLock, defaultSandboxRoot, installGuards, lockHolder } from './guards.mjs';
 import { findExecutable } from './events.mjs';
 import { getAdapter } from './adapters/index.mjs';
@@ -32,10 +32,51 @@ export function findBinary(bin, envPath = process.env.PATH) {
 }
 
 /**
+ * Verifies skill installation layout, EXECUTOR.md copy parity, and AGENTS.md orchestrator command flags.
+ * @returns {Array<{ name: string, detail: string }>}
+ */
+export function checkSkillInstallation({ workDir = process.cwd(), layout = resolveLayout({}), orchestratorDir } = {}) {
+  const problems = [];
+  if (isSkillAtWorkDirRoot(workDir, orchestratorDir)) {
+    problems.push({
+      name: 'skill directory',
+      detail: 'putting the skill in the repository root is not supported — install it into a subfolder (e.g. .agents/skills/architect/ or .claude/skills/architect/)',
+    });
+  }
+  const skillDir = resolveInstalledSkillDir(workDir, orchestratorDir);
+  if (skillDir && existsSync(path.join(skillDir, 'EXECUTOR.md'))) {
+    const projectExecPath = path.join(workDir, layout.executorPath);
+    const skillExecPath = path.join(skillDir, 'EXECUTOR.md');
+    if (!existsSync(projectExecPath)) {
+      problems.push({
+        name: 'EXECUTOR.md',
+        detail: `${layout.executorPath} not found in working directory (must match skill EXECUTOR.md)`,
+      });
+    } else if (!readFileSync(projectExecPath).equals(readFileSync(skillExecPath))) {
+      problems.push({
+        name: 'EXECUTOR.md',
+        detail: `${layout.executorPath} does not match skill EXECUTOR.md byte-for-byte`,
+      });
+    }
+  }
+  const agentsPath = path.join(workDir, 'AGENTS.md');
+  if (existsSync(agentsPath)) {
+    const agentsText = readFileSync(agentsPath, 'utf8');
+    if (agentsText.includes('npm run agents') && (!agentsText.includes('--check') || !agentsText.includes('--self-check'))) {
+      problems.push({
+        name: 'AGENTS.md',
+        detail: 'AGENTS.md documents "npm run agents" but is missing --check or --self-check',
+      });
+    }
+  }
+  return problems;
+}
+
+/**
  * Checks that need no model: OS, Node, git, repository, PLAN.md, ignore rule, clean tree, permissions mode.
  * @returns {Array<{ ok: boolean, name: string, detail: string }>}
  */
-export function localChecks({ config, workDir, realGit, platform = process.platform, nodeVersion = process.versions.node }) {
+export function localChecks({ config, workDir, realGit, platform = process.platform, nodeVersion = process.versions.node, orchestratorDir }) {
   const out = [];
   const add = (ok, name, detail) => out.push({ ok, name, detail });
   add(platform !== 'win32', 'OS', platform === 'win32' ? 'Windows is not supported (git/npm wrappers are sh scripts)' : platform);
@@ -67,6 +108,9 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
     if ((hasExecutor || hasFrozenHeading) && !plan.frozen.includes(layout.executorPath) && !plan.frozen.includes('EXECUTOR.md')) {
       add(false, 'Frozen', `section ## Frozen is missing ${layout.executorPath}`);
     }
+  }
+  for (const p of checkSkillInstallation({ workDir, layout, orchestratorDir })) {
+    add(false, p.name, p.detail);
   }
   const ignored = isIgnored(realGit, workDir, `${RUNS_DIR}/`);
   add(ignored, `${RUNS_DIR}/ in .gitignore`, ignored ? 'yes' : 'no — run with --init');

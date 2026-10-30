@@ -8,6 +8,7 @@ import { effectiveBlockedScripts } from './runners.mjs';
 import { runSelfCheckGit } from './selfcheck.mjs';
 import { checkEvalEvidence, runRedCheck } from './evidence.mjs';
 import { checkAuditCoverage, runPlanAudit } from './audit.mjs';
+import { checkSkillInstallation } from './check.mjs';
 
 /** Checks whether the Node.js version satisfies the orchestrator requirement (>= 22). */
 export function nodeVersionProblem(version = process.versions.node) {
@@ -135,17 +136,23 @@ export function safeLoadConfig(configPath) {
   }
 }
 
-export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = null, baseRef = null }) {
+export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = null, baseRef = null, orchestratorDir }) {
   const g = realGit ?? which('git');
   const cfg = config ?? safeLoadConfig(resolveConfigPath({ workDir }));
-  const gitRes = runSelfCheckGit({ realGit: g, cwd: workDir, config: cfg, baseRef });
+  const gitRes = runSelfCheckGit({ realGit: g, cwd: workDir, config: cfg, baseRef, orchestratorDir });
   const evidenceRes = checkEvalEvidence({ realGit: g, cwd: workDir, baseSha: gitRes.baseSha });
   const auditRes = checkAuditCoverage({ workDir, cycleBaseSha: gitRes.baseSha });
+  const installProblems = checkSkillInstallation({
+    workDir,
+    layout: cfg?.paths ?? resolveLayout({ config: cfg }),
+    orchestratorDir,
+  });
 
   const violations = [
     ...gitRes.violations,
     ...evidenceRes.violations,
     ...auditRes.violations,
+    ...installProblems.map((p) => `${p.name}: ${p.detail}`),
   ];
   const notVerified = [...(evidenceRes.notVerified ?? [])];
   const waivers = gitRes.waivers ?? [];
@@ -166,10 +173,10 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
   };
 }
 
-export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = null, baseRef = null, env = process.env }) {
+export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = null, baseRef = null, env = process.env, orchestratorDir }) {
   const g = realGit ?? which('git');
   const cfg = config ?? safeLoadConfig(resolveConfigPath({ workDir }));
-  const fast = runFastSelfCheck({ realGit: g, workDir, config: cfg, baseRef });
+  const fast = runFastSelfCheck({ realGit: g, workDir, config: cfg, baseRef, orchestratorDir });
   const redCheck = runRedCheck({ realGit: g, cwd: workDir, baseSha: fast.baseSha, config: cfg, env });
 
   const violations = [
