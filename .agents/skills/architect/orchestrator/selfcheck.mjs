@@ -1,9 +1,12 @@
 // Deterministic Architect self-check (base resolution, commit scan, monotonicity, fix-frozen, WAIVER).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { git, commitsSince } from './git.mjs';
 import { isTestFile, findBypasses } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const EVAL_FIXTURE_ANCHORS = [
   'Module `src/app.js` exports `x = 2`.',
@@ -16,8 +19,24 @@ export const EVAL_FIXTURE_ANCHORS = [
 const CONFIG_FILES = [
   '.agents/orchestrator.json',
   '.architect/config.json',
-  '.agents/skills/architect/orchestrator/config.example.json',
 ];
+
+function resolveProtectedConfigFiles({ cwd, orchestratorDir = here, baseFiles = [], headFiles = [] }) {
+  const set = new Set(CONFIG_FILES);
+  if (orchestratorDir && cwd) {
+    const rel = path.relative(path.resolve(cwd), path.resolve(orchestratorDir, 'config.example.json')).replace(/\\/g, '/');
+    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+      set.add(rel);
+    }
+  }
+  for (const f of [...baseFiles, ...headFiles]) {
+    const nf = f.replace(/\\/g, '/').replace(/^\.\//, '');
+    if (nf === 'config.example.json' || nf.endsWith('/orchestrator/config.example.json')) {
+      set.add(nf);
+    }
+  }
+  return set;
+}
 
 const CONFIG_ARRAY_KEYS = [
   'bypassPatterns',
@@ -149,7 +168,7 @@ function getModifiedOrDeletedFiles(realGit, cwd, sha) {
   }
 }
 
-export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText = null, requireFixFrozen = false }) {
+export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText = null, requireFixFrozen = false, orchestratorDir = here }) {
   const { sha: baseSha } = resolveSelfCheckBase({ realGit, cwd, baseRef });
   const headSha = git(realGit, cwd, ['rev-parse', 'HEAD']);
   const violations = [];
@@ -225,7 +244,9 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     }
   }
 
-  for (const cfgFile of CONFIG_FILES) {
+  const protectedConfigFiles = resolveProtectedConfigFiles({ cwd, orchestratorDir, baseFiles, headFiles });
+
+  for (const cfgFile of protectedConfigFiles) {
     if (!baseFiles.includes(cfgFile)) continue;
     if (!headFileSet.has(cfgFile)) {
       violations.push(`monotonicity: config file ${cfgFile} deleted on HEAD`);
@@ -282,7 +303,14 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
     const isProtected = (f) => {
       const nf = norm(f);
-      return frozenTests.has(nf) || nf.endsWith('/eval-fixtures.mjs') || nf === 'eval-fixtures.mjs' || CONFIG_FILES.includes(nf);
+      return (
+        frozenTests.has(nf)
+        || nf.endsWith('/eval-fixtures.mjs')
+        || nf === 'eval-fixtures.mjs'
+        || protectedConfigFiles.has(nf)
+        || nf === 'config.example.json'
+        || nf.endsWith('/orchestrator/config.example.json')
+      );
     };
 
     for (const c of commitsToCheck) {

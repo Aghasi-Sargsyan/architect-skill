@@ -1,6 +1,10 @@
 // Orchestrator prompts, auto-refusal hints, and review prompt routing.
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { skillFilePath } from './layout.mjs';
 import { suggestAllowedCommand } from './permissions.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 export { suggestAllowedCommand };
 
@@ -80,15 +84,16 @@ export function architectPrompt(
   report,
   mechText,
   executorModel,
-  { planPath = 'PLAN.md', reviewPath = null, skillPath = '.agents/skills/architect/SKILL.md' } = {},
+  { planPath = 'PLAN.md', reviewPath = null, skillPath = null, workDir = process.cwd(), orchestratorDir = here } = {},
 ) {
-  const effectiveReviewPath = reviewPath ?? path.posix.join(path.posix.dirname(String(skillPath).replace(/\\/g, '/')), 'references', 'auto-review.md');
+  const effectiveSkillPath = skillPath ?? skillFilePath(workDir, orchestratorDir);
+  const effectiveReviewPath = reviewPath ?? path.posix.join(path.posix.dirname(String(effectiveSkillPath).replace(/\\/g, '/')), 'references', 'auto-review.md');
   const taskTitle = task.title ? ` (${task.title})` : '';
   const reportText = typeof report === 'object' && report !== null ? JSON.stringify(report, null, 2) : String(report ?? '');
 
   return `Role: Chief Architect — automatic acceptance of task ${task.id}${taskTitle}.
 Step 1: Read ONLY ${effectiveReviewPath} and follow its acceptance checklist step by step.
-Step 2: Only if escalation is returned or you need to revise the plan/contract, additionally consult ${skillPath}.
+Step 2: Only if escalation is returned or you need to revise the plan/contract, additionally consult ${effectiveSkillPath}.
 
 You were launched by the orchestrator without user interaction: do not ask questions. If a user decision is required, return verdict "needs_user". Do NOT push.
 ${TOOLS_RULE}

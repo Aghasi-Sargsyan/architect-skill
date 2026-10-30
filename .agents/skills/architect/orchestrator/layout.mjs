@@ -50,7 +50,7 @@ export function resolveLayout({ config = {}, configPath = '' } = {}) {
   return { ...LAYOUTS[layout] };
 }
 
-export function skillFilePath(workDir, orchestratorDir) {
+export function skillFilePath(workDir = process.cwd(), orchestratorDir = here) {
   const skillFile = path.resolve(path.dirname(orchestratorDir), 'SKILL.md');
   const root = path.resolve(workDir);
   const rel = path.relative(root, skillFile);
@@ -60,7 +60,7 @@ export function skillFilePath(workDir, orchestratorDir) {
   return skillFile.replace(/\\/g, '/');
 }
 
-export function reviewFilePath(workDir, orchestratorDir = here) {
+export function reviewFilePath(workDir = process.cwd(), orchestratorDir = here) {
   const reviewFile = path.resolve(path.dirname(orchestratorDir), 'references', 'auto-review.md');
   const root = path.resolve(workDir);
   const rel = path.relative(root, reviewFile);
@@ -68,6 +68,28 @@ export function reviewFilePath(workDir, orchestratorDir = here) {
     return rel.replace(/\\/g, '/');
   }
   return reviewFile.replace(/\\/g, '/');
+}
+
+export function isSkillAtWorkDirRoot(workDir = process.cwd(), orchestratorDir = here) {
+  if (!orchestratorDir) return false;
+  return path.resolve(path.dirname(orchestratorDir)) === path.resolve(workDir);
+}
+
+export function resolveInstalledSkillDir(workDir = process.cwd(), orchestratorDir = here) {
+  const root = path.resolve(workDir);
+  if (orchestratorDir) {
+    const candidate = path.resolve(path.dirname(orchestratorDir));
+    const rel = path.relative(root, candidate);
+    if (rel === '') return null;
+    if (!rel.startsWith('..') && !path.isAbsolute(rel) && existsSync(path.join(candidate, 'SKILL.md'))) {
+      return candidate;
+    }
+  }
+  for (const dotDir of ['.agents', '.claude']) {
+    const sub = path.join(root, dotDir, 'skills', 'architect');
+    if (existsSync(path.join(sub, 'SKILL.md'))) return sub;
+  }
+  return null;
 }
 
 export function isAlwaysFrozenFile(filePath, opts = {}) {
@@ -88,15 +110,12 @@ export function isAlwaysFrozenFile(filePath, opts = {}) {
     const skillDir = path.dirname(orchestratorDir);
     const root = path.resolve(workDir);
     const rel = path.relative(root, skillDir).replace(/\\/g, '/');
-    if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
-      const prefix = rel ? `${rel}/` : '';
-      if (prefix && norm.startsWith(prefix)) {
+    if (!rel.startsWith('..') && !path.isAbsolute(rel) && rel !== '') {
+      const prefix = `${rel}/`;
+      if (norm.startsWith(prefix)) {
         const sub = norm.slice(prefix.length);
         if (sub.startsWith('references/')) return true;
         if (!sub.includes('/') && sub.endsWith('.md')) return true;
-      } else if (!prefix) {
-        if (norm.startsWith('references/')) return true;
-        if (!norm.includes('/') && norm.endsWith('.md')) return true;
       }
     }
   }
@@ -116,9 +135,6 @@ export function alwaysFrozenFiles(configPath = '', opts = {}) {
     '.architect/EXECUTOR.md',
     '.agents/orchestrator.json',
     '.architect/config.json',
-    '.agents/skills/architect/SKILL.md',
-    '.agents/skills/architect/EXECUTOR.md',
-    '.agents/skills/architect/MAINTAINING.md',
   ];
   if (orchestratorDir) {
     const skillDir = path.dirname(orchestratorDir);

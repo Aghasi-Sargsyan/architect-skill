@@ -4,7 +4,10 @@
 import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
 import { RUNS_DIR } from './config.mjs';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const questionPath = (workDir) => path.join(workDir, RUNS_DIR, 'question.json');
 export const answerPath = (workDir) => path.join(workDir, RUNS_DIR, 'answer.json');
@@ -108,8 +111,10 @@ function resolveInterval(val, envKey, def) {
 /**
  * Asks and waits. Supports both direct orchestrator step mode and interactive question mode.
  */
-export async function askPermission(opts) {
-  const isDirect = !opts.question && Boolean(opts.proposal);
+export async function askPermission(optsOrQuestion, maybeOpts) {
+  const twoArg = Boolean(maybeOpts && typeof maybeOpts === 'object');
+  const opts = twoArg ? { ...maybeOpts, question: optsOrQuestion } : (optsOrQuestion ?? {});
+  const isDirect = twoArg || (!opts.question && Boolean(opts.proposal));
   const command = opts.step?.command ?? opts.command ?? '';
   const who = opts.who ?? (opts.role === 'executor' ? 'Executor' : opts.role === 'architect' ? 'Architect' : 'Agent');
   const taskId = opts.taskId ?? opts.question?.taskId ?? '';
@@ -123,6 +128,7 @@ export async function askPermission(opts) {
 
   const workDir = opts.workDir ?? opts.runDir;
   const runDir = opts.runDir ?? workDir;
+  const orchestratorDir = opts.orchestratorDir ?? here;
   const timeoutMs = opts.timeoutMs ?? 5000;
   const pollMs = resolveInterval(opts.pollMs, 'AGENT_LOOP_ASK_POLL_MS', opts.tty ? 100 : 2000);
   const valid = validAnswers(question);
@@ -155,9 +161,13 @@ export async function askPermission(opts) {
     copyFileSync(qFile, path.join(runDir, `${question.id}.question.json`));
   }
 
+  const runAbs = path.resolve(orchestratorDir, 'run.mjs');
+  const relRun = workDir ? path.relative(path.resolve(workDir), runAbs) : '';
+  const runCmdPath = (relRun && !relRun.startsWith('..') && !path.isAbsolute(relRun) ? relRun : runAbs).replace(/\\/g, '/');
+
   const rendered = questionText(question);
   if (opts.out?.write) opts.out.write(`${rendered}\n`);
-  opts.log?.(`permission request:\n${rendered}\n  reply: npm run agents -- --answer <${valid.join('|')}> (or node .agents/skills/architect/orchestrator/run.mjs --answer …)`);
+  opts.log?.(`permission request:\n${rendered}\n  reply: npm run agents -- --answer <${valid.join('|')}> (or node ${runCmdPath} --answer …)`);
   opts.notify?.(`permission required: ${question.command}`);
 
   const deadline = Date.now() + timeoutMs;
