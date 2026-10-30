@@ -1,100 +1,26 @@
 # PLAN
 
 ## Goal / Requirements
-Этап 1 (Цикл 11): Развязка скилла от хост-проекта.
-1. Тесты из папки скилла не читают файлы проекта вне папки скилла; проверки установки (`EXECUTOR.md`, `AGENTS.md`, запрет установки скилла в корень репо) переносятся в `--check` и `--self-check`; проверка файлов этого репозитория выносится в `tests/repo-install.test.mjs`.
-2. Все пути к скиллу (`layout.mjs`, `prompts.mjs`, `ask.mjs`, `selfcheck.mjs`) вычисляются динамически от `orchestratorDir` без жёсткого `.agents/skills/architect`.
-3. Шаблоны тест-файлов (`testFilePatterns`), подсчёта тестов (`testPatterns`) и утверждений (`assertPatterns`, включая `expect(` по умолчанию) и команда `redCheckCommand` настраиваются в конфиге; эталонный тест без подходящей `redCheckCommand` и тест-файл с 0 утверждений дают `NOT VERIFIED` с именем файла (без шума на вспомогательных файлах вроде `tests/setup.ts`).
-4. Из комментариев модулей оркестратора убираются `T-NNN`, а 39 тест-файлов с суффиксами `-sN` / `tNNN` переименовываются по модулям (`ADR-037`) без уменьшения числа тестов и утверждений.
+Этап 2 (Цикл 12): Готовность для других (`v3.28`).
+- П6: Ядро `SKILL.md` — только правила, нейтральные к стеку и раннеру (вынос порядка `--self-check` / `--audit-plan` / `red-check`, `fix-frozen` и `WAIVER` в `references/orchestrator.md`, eval-дисциплины — в `MAINTAINING.md`, условный `--self-check` в `references/retro.md` §1; размер `SKILL.md` `<= 27780` байт).
+- П7: Два уровня установки («Ядро» и «Оркестратор») и процедура обновления скилла без потери конфига и копии `EXECUTOR.md` синхронно в `README.ru.md` и `README.en.md`.
+- П8: Раздел «Когда скилл не использовать» в `README.*.md` и одно предложение в режиме `NEW PROJECT` (`SKILL.md`).
+- П9: Контроль роста правил в `references/retro.md` и `MAINTAINING.md`.
+- П10: Правила эскалаций `(а)–(г)` в `references/auto-review.md`; технические детали от пользователя как предложения в `SKILL.md`; пояснение простым языком к `### 🔐 Command Permission` в `references/orchestrator.md`; расширение `BASE_COMMANDS` в `permissions.mjs` командами только для чтения; продолжение после эскалации на грязном дереве и валидный патч `stop.diff` (`check.mjs`, `prompts.mjs`, `run.mjs`, `git.mjs`).
 
-### Очередь следующих этапов
-- **Этап 2 (`v3.28`):** нейтральное ядро `SKILL.md`, два уровня установки и обновление в `README.ru.md` / `README.en.md`, раздел «Когда не использовать», контроль роста правил (`references/retro.md`, `MAINTAINING.md`), правила эскалаций `(а)–(г)` в `references/auto-review.md`, технические детали пользователя как предложения в `SKILL.md`, пояснение к `### 🔐 Command Permission` в `references/orchestrator.md`, расширение `BASE_COMMANDS` в `permissions.mjs`, продолжение после эскалации и валидный `stop.diff`.
+### Перенесено из предыдущего цикла (Этапы 3–4 и очередь после Этапа 3)
 - **Этап 3:** приёмка «глазами чужого человека» на временных репо (TS + Vitest, Python + pytest) в `.claude/skills/architect/` и `.agents/skills/architect/`, обновление скилла в `~/Desktop/Workspace`.
-- **Этап 4 и после Этапа 3:** CI GitHub Actions (ubuntu + macos, Node 22 + 24), проверка на личные данные перед публичным push; контроль ячейки `claude:haiku`, `HEAD` в `runLiveEvals` и замена таймера в `shim-speed`.
+- **Этап 4:** CI на GitHub Actions (ubuntu + macos, Node 22 + 24; Linux до первого зелёного прогона CI — `NOT VERIFIED`), grep на личные данные перед первым публичным push.
+- **После Этапа 3:** контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`), контроль неизменности `HEAD` хоста во время `runLiveEvals` (`evals.mjs`), замена проверки времени в `guards-shim-speed.test.mjs`.
 
 ## Decisions (ADR)
-Актуальный реестр долговечных решений (`ADR-008`…`ADR-036`) хранится в `docs/decisions.md`.
-- **ADR-037:** Полная автономия пакета `.agents/skills/architect/`: (1) тесты внутри `orchestrator/` работают во временном каталоге, где нет ничего кроме папки скилла, а проверки установки скилла в хост-проекте (`checkSkillInstallation`: запрет раскладки скилла в корне `workDir`, побайтное совпадение проектной копии `EXECUTOR.md` с `<skillDir>/EXECUTOR.md` и наличие `--check`/`--self-check` при описании `npm run agents` в `AGENTS.md`) выполняются в `localChecks` и `runFastSelfCheck`; (2) `layout.mjs`, `prompts.mjs`, `ask.mjs` и `selfcheck.mjs` определяют пути скилла и `config.example.json` от `orchestratorDir` без литерала `.agents/skills/architect`; (3) `config.example.json` (`DEFAULTS`) и `validateConfig` задают настраиваемые `testFilePatterns`, `testPatterns`, `assertPatterns` (по умолчанию `\bassert\.` и `\bexpect\s*\(`) и `redCheckCommand` (`"node --test {file}"`), а `runSelfCheckGit` и `runRedCheck` возвращают `NOT VERIFIED` с именем файла при 0 распознанных утверждений в явном тест-файле (пропуская вспомогательные файлы в `tests/` без тестов и без тестового имени вроде `tests/setup.ts`) или при отсутствии подходящей `redCheckCommand`; (4) 39 тест-файлов оркестратора переименовываются с циклов/задач (`-sN`, `tNNN`) на имена по модулям с сохранением `>= 49` файлов, `>= 207` `test`/`it` и `>= 1258` `assert.`.
+Актуальный реестр долговечных решений (`ADR-008`…`ADR-037`) хранится в `docs/decisions.md`. Следующий номер: `ADR-038`.
 
 ## Frozen
 - `EXECUTOR.md`
-- `.agents/skills/architect/orchestrator/skill-path.test.mjs`
-- `.agents/skills/architect/orchestrator/install-check.test.mjs`
-- `.agents/skills/architect/orchestrator/stack-config.test.mjs`
-- `.agents/skills/architect/orchestrator/packaging-clean.test.mjs`
-- `tests/repo-install.test.mjs`
 
 ## Rules
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-
-- [x] T-051: Dynamic skill paths and root-install guard in layout.mjs, prompts.mjs, ask.mjs, and selfcheck.mjs
-  - Риск: высокий.
-  - Зависит от: —.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
-  - Читать: `.agents/skills/architect/orchestrator/layout.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/ask.mjs` (строки 145–175), `.agents/skills/architect/orchestrator/selfcheck.mjs` (строки 15–35, 225–298), `.agents/skills/architect/orchestrator/skill-path.test.mjs`.
-  - Менять: `.agents/skills/architect/orchestrator/layout.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/ask.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`.
-  - Задача и инварианты:
-    - В `layout.mjs`: убрать жёсткие пути `.agents/skills/architect/...` из `alwaysFrozenFiles`; убрать ветку `else if (!prefix)` в `isAlwaysFrozenFile`, чтобы при `rel === ''` (скилл в корне `workDir`) корневые `*.md` и `references/` не замораживались; экспортировать `isSkillAtWorkDirRoot(workDir = process.cwd(), orchestratorDir = here)` (возвращает `true`, когда `path.resolve(path.dirname(orchestratorDir)) === path.resolve(workDir)`) и `resolveInstalledSkillDir(workDir = process.cwd(), orchestratorDir = here)` (возвращает абсолютный путь папки скилла внутри `workDir`, если `path.dirname(orchestratorDir)` находится строго внутри `workDir` и содержит `SKILL.md`, иначе проверяет стандартные подпапки внутри `workDir`, иначе `null`).
-    - В `prompts.mjs`: убрать литерал `.agents/skills/architect/SKILL.md` из `architectPrompt`; принимать `{ planPath = 'PLAN.md', reviewPath = null, skillPath = null, workDir = process.cwd(), orchestratorDir = here } = {}` и вычислять `effectiveSkillPath = skillPath ?? skillFilePath(workDir, orchestratorDir)`.
-    - В `ask.mjs`: принимать `opts.orchestratorDir ?? here` и формировать подсказку `(or node <runCmdPath> --answer …)` через путь к `run.mjs` относительно `workDir` (или абсолютный, если вне `workDir`), без литерала `.agents/skills/architect`.
-    - В `selfcheck.mjs`: убрать литерал `.agents/skills/architect/orchestrator/config.example.json` из `CONFIG_FILES`; вычислять список защищаемых конфигов через `orchestratorDir` (по умолчанию `here`) относительно `cwd` плюс любые файлы в `baseFiles`/`headFiles`, оканчивающиеся на `/orchestrator/config.example.json` или равные `config.example.json`; принимать опциональный `orchestratorDir` в `runSelfCheckGit`.
-  - Граничные случаи: установка скилла в `.claude/skills/architect/`, внешняя папка скилла вне `workDir`, скилл в корне `workDir` (`rel === ''`). Все файлы `<= 400` строк.
-  - Тест-кейсы: `.agents/skills/architect/orchestrator/skill-path.test.mjs`.
-  - Готово, когда: `skill-path.test.mjs` и существующие тесты `layout`, `prompts`, `ask`, `selfcheck` проходят.
-  - Проверка: `node --test .agents/skills/architect/orchestrator/skill-path.test.mjs`.
-
-- [x] T-052: Skill installation checks in check.mjs and cli.mjs (--check and --self-check)
-  - Риск: высокий.
-  - Зависит от: T-051.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
-  - Читать: `.agents/skills/architect/orchestrator/check.mjs` (строки 35–85), `.agents/skills/architect/orchestrator/cli.mjs` (строки 135–186), `.agents/skills/architect/orchestrator/layout.mjs`, `.agents/skills/architect/orchestrator/install-check.test.mjs`.
-  - Менять: `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`.
-  - Задача и инварианты:
-    - В `check.mjs`: экспортировать `checkSkillInstallation({ workDir = process.cwd(), layout = resolveLayout({}), orchestratorDir } = {})`, возвращающую массив проблем `{ name, detail }`:
-      1. если `isSkillAtWorkDirRoot(workDir, orchestratorDir)` — проблема `{ name: 'skill directory', detail: 'putting the skill in the repository root is not supported — install it into a subfolder (e.g. .agents/skills/architect/ or .claude/skills/architect/)' }`;
-      2. если `skillDir = resolveInstalledSkillDir(workDir, orchestratorDir)` найден и существует `path.join(skillDir, 'EXECUTOR.md')`: проверить наличие `path.join(workDir, layout.executorPath)` и побайтное совпадение с `path.join(skillDir, 'EXECUTOR.md')`, иначе проблема `{ name: 'EXECUTOR.md', detail: ... }`;
-      3. если существует `path.join(workDir, 'AGENTS.md')` и текст содержит `npm run agents`, проверить наличие `--check` и `--self-check`, иначе проблема `{ name: 'AGENTS.md', detail: 'AGENTS.md documents "npm run agents" but is missing --check or --self-check' }`.
-    - В `localChecks` (`check.mjs`): принимать опциональный `orchestratorDir` и добавлять проблемы из `checkSkillInstallation({ workDir, layout, orchestratorDir })` через `add(false, p.name, p.detail)`.
-    - В `runFastSelfCheck` и `runFullSelfCheck` (`cli.mjs`): принимать опциональный `orchestratorDir`, передавать его в `runSelfCheckGit`, вызывать `checkSkillInstallation({ workDir, layout: cfg?.paths ?? resolveLayout({ config: cfg }), orchestratorDir })` и добавлять `${p.name}: ${p.detail}` в `violations`.
-  - Граничные случаи: во временных репо старых тестов, где папка скилла не скопирована внутрь `workDir` и `orchestratorDir` не передан (`resolveInstalledSkillDir` возвращает `null`), проверка `EXECUTOR.md` не даёт ложных срабатываний. Все файлы `<= 400` строк.
-  - Тест-кейсы: `.agents/skills/architect/orchestrator/install-check.test.mjs`.
-  - Готово, когда: `install-check.test.mjs`, `check.test.mjs` и `cli-run-s10.test.mjs` проходят.
-  - Проверка: `node --test .agents/skills/architect/orchestrator/install-check.test.mjs`.
-
-- [x] T-053: Stack-configurable test/assert patterns, redCheckCommand, and fail-loud NOT VERIFIED
-  - Риск: высокий.
-  - Зависит от: T-052.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
-  - Читать: `.agents/skills/architect/orchestrator/config.example.json`, `.agents/skills/architect/orchestrator/config.mjs`, `.agents/skills/architect/orchestrator/mechanics.mjs` (строки 19–70), `.agents/skills/architect/orchestrator/selfcheck.mjs` (строки 20–35, 110–135, 200–247), `.agents/skills/architect/orchestrator/evidence.mjs` (строки 193–280), `.agents/skills/architect/orchestrator/cli.mjs` (строки 138–186), `.agents/skills/architect/orchestrator/stack-config.test.mjs`.
-  - Менять: `.agents/skills/architect/orchestrator/config.example.json`, `.agents/skills/architect/orchestrator/config.mjs`, `.agents/skills/architect/orchestrator/mechanics.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`, `.agents/skills/architect/orchestrator/evidence.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`.
-  - Задача и инварианты:
-    - В `config.example.json`: добавить поля `"testFilePatterns": ["(?:^|/)tests/", "\\.(?:test|spec)\\.[^/]+$", "(?:^|/)test_[^/]+\\.py$", "(?:^|/)[^/]+_test\\.(?:py|go)$"]`, `"testPatterns": ["\\b(?:test|it)\\s*\\("]`, `"assertPatterns": ["\\bassert\\.", "\\bexpect\\s*\\("]`, `"redCheckCommand": "node --test {file}"`.
-    - В `config.mjs`: валидировать `testFilePatterns`, `testPatterns`, `assertPatterns` как массивы валидных регулярных выражений JS, а `redCheckCommand` как строку (если непустая — проверять через `commandProblem` с подстановкой `file`).
-    - В `mechanics.mjs`: обновить `isTestFile(filePath, patterns)` с дефолтами из `testFilePatterns`, чтобы распознавать `*_test.go`, `test_*.py`, `*.spec.*`, `*.test.*` и `tests/**`; прокидывать `config?.testFilePatterns` при вызовах.
-    - В `selfcheck.mjs`: добавить `testFilePatterns`, `testPatterns`, `assertPatterns` в `CONFIG_ARRAY_KEYS`; считать тесты и утверждения по `config?.testPatterns` и `config?.assertPatterns` (дефолты: `\b(?:test|it)\s*\(` и `[\bassert\., \bexpect\s*\(]`); для тест-файлов на `HEAD` (под `bypassScanPaths` или в `frozenTests`), которые имеют `countTests > 0`, входят в `frozenTests` или совпадают с именованным тестовым шаблоном (не просто директорией `(?:^|/)tests/`), при `countAsserts === 0` добавлять в `notVerified` строку с именем файла (вспомогательные файлы вроде `tests/setup.ts` с 0 тестов и без тестового суффикса не шумят); возвращать `notVerified` из `runSelfCheckGit`.
-    - В `evidence.mjs`: в `runRedCheck` использовать `config?.redCheckCommand ?? 'node --test {file}'` с подстановкой `{file}` (или добавлением файла через пробел); если `redCheckCommand` пустая или является дефолтной `node --test ...` для файла не `.js`/`.mjs`/`.cjs` (например `.py`, `.go`, `.ts`), не запускать `node --test`, а добавлять в `notVerified` запись с именем файла и возвращать `notVerified` из `runRedCheck`.
-    - В `cli.mjs`: объединять `gitRes.notVerified` в `runFastSelfCheck` и `redCheck.notVerified` в `runFullSelfCheck`.
-  - Граничные случаи: сохранение монотонности массивов конфига; все модули `<= 400` строк.
-  - Тест-кейсы: `.agents/skills/architect/orchestrator/stack-config.test.mjs`.
-  - Готово, когда: `stack-config.test.mjs` и существующие тесты `config`, `mechanics`, `selfcheck`, `evidence`, `cli` проходят.
-  - Проверка: `node --test .agents/skills/architect/orchestrator/stack-config.test.mjs`.
-
-- [x] T-054: Clean Workspace task IDs from orchestrator comments and rename -sN/tNNN test files by module (ADR-037)
-  - Риск: высокий.
-  - Зависит от: T-053.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
-  - Читать: `.agents/skills/architect/orchestrator/packaging-clean.test.mjs`, `.agents/skills/architect/orchestrator/events.mjs` (строки 1–5, 140–160), `.agents/skills/architect/orchestrator/evals.mjs` (строка 1), `.agents/skills/architect/orchestrator/run.mjs` (строка 369), `.agents/skills/architect/orchestrator/adapters/claude.mjs` (строка 1), `.agents/skills/architect/orchestrator/adapters/index.mjs` (строка 1), `.agents/skills/architect/MAINTAINING.md`, `package.json`, `AGENTS.md`.
-  - Менять: `.agents/skills/architect/orchestrator/evals.mjs`, `.agents/skills/architect/orchestrator/events.mjs`, `.agents/skills/architect/orchestrator/run.mjs`, `.agents/skills/architect/orchestrator/adapters/claude.mjs`, `.agents/skills/architect/orchestrator/adapters/index.mjs`, `.agents/skills/architect/MAINTAINING.md`, `package.json`, `AGENTS.md`, `.agents/skills/architect/orchestrator/audit-s10.test.mjs`, `.agents/skills/architect/orchestrator/audit.test.mjs`, `.agents/skills/architect/orchestrator/bypass-s9.test.mjs`, `.agents/skills/architect/orchestrator/mechanics-bypass.test.mjs`, `.agents/skills/architect/orchestrator/cli-run-s10.test.mjs`, `.agents/skills/architect/orchestrator/cli.test.mjs`, `.agents/skills/architect/orchestrator/evals-s4.test.mjs`, `.agents/skills/architect/orchestrator/evals.test.mjs`, `.agents/skills/architect/orchestrator/evals-s4-t034.test.mjs`, `.agents/skills/architect/orchestrator/evals-runner.test.mjs`, `.agents/skills/architect/orchestrator/evals-s4-t034-fix1.test.mjs`, `.agents/skills/architect/orchestrator/evals-integrity.test.mjs`, `.agents/skills/architect/orchestrator/evals-s4-t035.test.mjs`, `.agents/skills/architect/orchestrator/evals-permissions.test.mjs`, `.agents/skills/architect/orchestrator/evals-s4-t036.test.mjs`, `.agents/skills/architect/orchestrator/evals-fixtures.test.mjs`, `.agents/skills/architect/orchestrator/events-s3.test.mjs`, `.agents/skills/architect/orchestrator/events.test.mjs`, `.agents/skills/architect/orchestrator/evidence-s10.test.mjs`, `.agents/skills/architect/orchestrator/evidence.test.mjs`, `.agents/skills/architect/orchestrator/guards-s1.test.mjs`, `.agents/skills/architect/orchestrator/guards-git.test.mjs`, `.agents/skills/architect/orchestrator/guards-s2.test.mjs`, `.agents/skills/architect/orchestrator/guards-runners.test.mjs`, `.agents/skills/architect/orchestrator/guards-s4.test.mjs`, `.agents/skills/architect/orchestrator/guards-read.test.mjs`, `.agents/skills/architect/orchestrator/guards-s4-t034.test.mjs`, `.agents/skills/architect/orchestrator/guards-git-path.test.mjs`, `.agents/skills/architect/orchestrator/layout-s2.test.mjs`, `.agents/skills/architect/orchestrator/layout.test.mjs`, `.agents/skills/architect/orchestrator/maintaining-s2.test.mjs`, `.agents/skills/architect/orchestrator/maintaining.test.mjs`, `.agents/skills/architect/orchestrator/mechanics-s1.test.mjs`, `.agents/skills/architect/orchestrator/mechanics-frozen.test.mjs`, `.agents/skills/architect/orchestrator/node-version-s10.test.mjs`, `.agents/skills/architect/orchestrator/cli-node-version.test.mjs`, `.agents/skills/architect/orchestrator/permissions-s1.test.mjs`, `.agents/skills/architect/orchestrator/permissions-unwrap.test.mjs`, `.agents/skills/architect/orchestrator/permissions-s2.test.mjs`, `.agents/skills/architect/orchestrator/permissions-runners.test.mjs`, `.agents/skills/architect/orchestrator/permissions-s3.test.mjs`, `.agents/skills/architect/orchestrator/permissions-paths.test.mjs`, `.agents/skills/architect/orchestrator/permissions-s3-reg.test.mjs`, `.agents/skills/architect/orchestrator/permissions-symlink.test.mjs`, `.agents/skills/architect/orchestrator/plan-evals-s10.test.mjs`, `.agents/skills/architect/orchestrator/plan-reference-tests.test.mjs`, `.agents/skills/architect/orchestrator/prompts-s4.test.mjs`, `.agents/skills/architect/orchestrator/prompts.test.mjs`, `.agents/skills/architect/orchestrator/prompts-s9.test.mjs`, `.agents/skills/architect/orchestrator/prompts-verify.test.mjs`, `.agents/skills/architect/orchestrator/selfcheck-s10.test.mjs`, `.agents/skills/architect/orchestrator/selfcheck.test.mjs`, `.agents/skills/architect/orchestrator/shim-speed-s9.test.mjs`, `.agents/skills/architect/orchestrator/guards-shim-speed.test.mjs`, `.agents/skills/architect/orchestrator/skill-s4.test.mjs`, `.agents/skills/architect/orchestrator/skill-structure.test.mjs`, `.agents/skills/architect/orchestrator/skill-s5.test.mjs`, `.agents/skills/architect/orchestrator/skill-packaging.test.mjs`, `.agents/skills/architect/orchestrator/t037-en-s5.test.mjs`, `.agents/skills/architect/orchestrator/prompts-en.test.mjs`, `.agents/skills/architect/orchestrator/t038-en-s5.test.mjs`, `.agents/skills/architect/orchestrator/check-en.test.mjs`, `.agents/skills/architect/orchestrator/t039-en-s5.test.mjs`, `.agents/skills/architect/orchestrator/events-en.test.mjs`, `.agents/skills/architect/orchestrator/t040-en-s5.test.mjs`, `.agents/skills/architect/orchestrator/feed-en.test.mjs`, `.agents/skills/architect/orchestrator/verify-s9.test.mjs`, `.agents/skills/architect/orchestrator/mechanics-verify.test.mjs`, `.agents/skills/architect/orchestrator/adapters/adapter-s3.test.mjs`, `.agents/skills/architect/orchestrator/adapters/index.test.mjs`, `.agents/skills/architect/orchestrator/adapters/agy-s2.test.mjs`, `.agents/skills/architect/orchestrator/adapters/agy-parse.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude-s3.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude-s3-t028.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude-permissions.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude-s4.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude-transcript.test.mjs`.
-  - Задача и инварианты:
-    - Переименовать 39 тест-файлов с суффиксами `-sN` / `tNNN` в модульные имена по списку в `Менять` без уменьшения числа `test`/`it` и `assert.`.
-    - В `mechanics-bypass.test.mjs` (бывший `bypass-s9.test.mjs`) обновить строковую константу `prompts-s9.test.mjs` на `prompts-verify.test.mjs`.
-    - В `MAINTAINING.md` обновить имена тест-файлов (`maintaining.test.mjs`, `skill-structure.test.mjs`, `skill-packaging.test.mjs`).
-    - Убрать коды циклов/задач из комментариев в `evals.mjs`, `events.mjs`, `run.mjs`, `adapters/claude.mjs`, `adapters/index.mjs`.
-    - В `package.json` и `AGENTS.md` включить запуск `tests/*.test.mjs` в `npm test`.
-    - В сообщении коммита `T-054: ... (ADR-037)` обязательно указать `ADR-037` (требование `selfcheck.mjs` при переименовании/удалении старых путей тест-файлов).
-  - Граничные случаи: полное сохранение всех тестов и утверждений; зелёный прогон в изолированной временной папке, где есть только папка скилла.
-  - Тест-кейсы: `.agents/skills/architect/orchestrator/packaging-clean.test.mjs`.
-  - Готово, когда: `packaging-clean.test.mjs` и `npm test` полностью зелёные.
-  - Проверка: `node --test .agents/skills/architect/orchestrator/packaging-clean.test.mjs`.
+Следующий номер задачи: `T-055`.
