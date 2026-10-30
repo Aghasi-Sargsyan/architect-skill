@@ -87,7 +87,7 @@ test('T-042: mechanics.mjs skips prototype/globalThis pattern (index 9) on test 
   mkdirSync(path.join(tmp, 'tests'), { recursive: true });
 
   const prodOrch = '.agents/skills/architect/orchestrator/prompts.mjs';
-  const testOrch = '.agents/skills/architect/orchestrator/prompts-s9.test.mjs';
+  const testOrch = '.agents/skills/architect/orchestrator/prompts-verify.test.mjs';
   const testDirFile = 'tests/helper.ts';
 
   writeFileSync(path.join(tmp, prodOrch), 'export const x = 1;\n');

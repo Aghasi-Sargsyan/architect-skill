@@ -18,8 +18,8 @@
 
 | Команда | Назначение |
 |---|---|
-| `npm test` | запуск всех тестов оркестратора и скилла |
-| `node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs` | полный набор тестов напрямую через `node --test` (совместимо с Node 22 и Node 24) |
+| `npm test` | запуск всех тестов оркестратора, скилла и `tests/*.test.mjs` |
+| `node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs tests/*.test.mjs` | полный набор тестов напрямую через `node --test` (совместимо с Node 22 и Node 24) |
 | `VERIFY_STEP_A1=1 npm test` | полная проверка упаковки скилла и синхронизации `README.*.md` (`MAINTAINING.md` Step A1) |
 | `npm run agents` | автоматический цикл по `PLAN.md` (Исполнитель → проверка механики → приёмка Архитектором). Флаги: `-- --init`, `-- --check`, `-- --write-permissions` (только после явного «да» пользователя), `-- --dry-run`, `-- --self-check [--base <ref>]`, `-- --audit-plan`, `-- --background`, `-- --watch [мин] [--since N]`, `-- --status`, `-- --follow`, `-- --answer <1\|2\|3>`, `-- --pause`, `-- --only T-NNN` |
 

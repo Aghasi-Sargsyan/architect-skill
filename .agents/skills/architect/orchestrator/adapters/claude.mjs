@@ -1,4 +1,4 @@
-// Claude Code CLI adapter (`claude -p`), designed from Probe A0 facts (C3, C4, C5).
+// Claude Code CLI adapter (`claude -p`).
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';

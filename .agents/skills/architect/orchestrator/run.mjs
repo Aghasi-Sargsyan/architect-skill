@@ -366,7 +366,7 @@ async function main() {
   } finally {
     rl?.close();
     try {
-      // K5: what the agents left behind, so a stop never needs a manual `git diff` to see the state.
+      // What the agents left behind, so a stop never needs a manual `git diff` to see the state.
       let state = '';
       try {
         state = git(realGit, workDir, ['status', '--porcelain', '--untracked-files=all']);

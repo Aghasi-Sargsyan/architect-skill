@@ -1,4 +1,4 @@
-// Structured event log (.agent-runs/<run>/events.jsonl), cross-platform binary lookup (D10), and privacy-safe notifications (C1).
+// Structured event log (.agent-runs/<run>/events.jsonl), cross-platform binary lookup, and privacy-safe notifications.
 import { appendFileSync, closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
@@ -139,7 +139,7 @@ export function classifyStopReason(stopReason = '') {
   const m = str.match(/^(T-\d+):/);
   const taskId = m ? m[1] : 'none';
 
-  // Backward compatibility with legacy object expectations (events-s3.test.mjs)
+  // Backward compatibility with legacy object expectations (events.test.mjs)
   if (str.includes('сбой Исполнителя')) {
     return { category: 'executor_failed', status: 'failed', taskId };
   }
@@ -150,7 +150,7 @@ export function classifyStopReason(stopReason = '') {
     return { category: 'permission_prompt', status: 'question', taskId };
   }
 
-  // Dual-language (EN + RU) classifications returning string categories (t039-en-s5.test.mjs)
+  // Dual-language (EN + RU) classifications returning string categories (events-en.test.mjs)
   if (/escalat|эскалирован/i.test(str)) {
     return 'stop_escalation';
   }

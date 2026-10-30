@@ -15,7 +15,7 @@ Whenever you change process rules in `SKILL.md`, `EXECUTOR.md`, or `references/*
 
 ## 2. Automated Verification
 
-Run the maintenance and structural sync test suites (`maintaining-s2.test.mjs`, `skill-s4.test.mjs`, `skill-s5.test.mjs`) and verify the full orchestrator test suite on both **Node 22** (minimum supported version) and **Node 24**:
+Run the maintenance and structural sync test suites (`maintaining.test.mjs`, `skill-structure.test.mjs`, `skill-packaging.test.mjs`) and verify the full orchestrator test suite on both **Node 22** (minimum supported version) and **Node 24**:
 ```bash
 VERIFY_STEP_A1=1 node --test <path-to-skill>/orchestrator/*.test.mjs <path-to-skill>/orchestrator/adapters/*.test.mjs
 npx -y -p node@22 -c 'node --test <path-to-skill>/orchestrator/*.test.mjs <path-to-skill>/orchestrator/adapters/*.test.mjs'

@@ -1,4 +1,4 @@
-// Behavioral prompt evaluation scenarios and workspace-state rubric evaluator (E3 / F2 / G1-G5).
+// Behavioral prompt evaluation scenarios and workspace-state rubric evaluator.
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';

@@ -1,4 +1,4 @@
-// Unified runner adapter registry (D2): agy and claude.
+// Unified runner adapter registry: agy and claude.
 import { listModels, runAgent, validateAnswer, checkAgyEnv } from './agy.mjs';
 import {
   CLAUDE_SETTINGS_SHOWN,
