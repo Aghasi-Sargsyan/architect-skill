@@ -39,8 +39,8 @@ const toAbsPattern = (p) => `//${p.replace(/\\/g, '/').replace(/^\/+/, '')}`;
 beforeEach(() => {
   root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orch-perm-s3-')));
   home = path.join(root, 'home');
-  workDir = path.join(home, 'projects', 'Workspace');
-  siblingPrefixDir = path.join(home, 'projects', 'Workspace-old');
+  workDir = path.join(home, 'projects', 'my-app');
+  siblingPrefixDir = path.join(home, 'projects', 'my-app-old');
   otherProjectDir = path.join(home, 'projects', 'other-project');
   externalSkillDir = path.join(root, 'external-skills', 'architect');
 
@@ -136,7 +136,7 @@ test('Invariants 1, 2, 3, 4 (claude): claudePermissionsCheck enforces allowlist 
   const projSettings = claudeSettingsPath(home, workDir);
   const otherSettings = claudeSettingsPath(home, otherProjectDir);
   assert.equal( path.dirname(projSettings), path.join(home, '.config', 'architect', 'claude'));
-  assert.match(path.basename(projSettings), /^Workspace-[0-9a-f]{8}\.json$/);
+  assert.match(path.basename(projSettings), /^my-app-[0-9a-f]{8}\.json$/);
   assert.notEqual(projSettings, otherSettings, 'different projects must get distinct claude settings files');
 
   const externalSkillFile = path.join(externalSkillDir, 'SKILL.md');
@@ -171,9 +171,9 @@ test('Invariants 1, 2, 3, 4 (claude): claudePermissionsCheck enforces allowlist 
     `Edit(${toAbsPattern(path.join(workDir, 'ssh-link'))}/**)`,
     `Read(${toAbsPattern(path.join(workDir, 'ssh-link'))}/**)`,
     `Read(${toAbsPattern(path.join(home, '.ssh'))}/**)`,
-    'Edit(~/projects/Workspace/**)',
+    'Edit(~/projects/my-app/**)',
     'Write(~/.ssh/**)',
-    'Read(~/projects/Workspace/**)',
+    'Read(~/projects/my-app/**)',
     'Edit(src/**)',
     'Write(./src/index.ts)',
     'Read(README.md)',

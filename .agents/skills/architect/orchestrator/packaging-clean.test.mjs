@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ test('T-054: orchestrator production modules have no T-NNN task IDs in comments,
           assert.doesNotMatch(
             trimmed,
             /\bT-\d{3}\b/,
-            `${entry}:${idx + 1} comment must not contain Workspace task ID T-NNN: ${trimmed}`,
+            `${entry}:${idx + 1} comment must not contain host task ID T-NNN: ${trimmed}`,
           );
         }
       }
@@ -88,3 +88,49 @@ test('T-054: skill test suite passes in an isolated temporary directory containi
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('T-061: skill files contain no host-specific leak strings and host ci.yml uses macos-latest Node 22/24 without ubuntu', () => {
+  const forbidden = [
+    ['PRIVATE', 'USER', 'TAKEOUT', 'DATA'].join('_'),
+    ['MyActivity', 'json'].join('.'),
+    ['', 'Users', 'aghasi'].join('/'),
+  ];
+
+  function listFilesRec(dir) {
+    const files = [];
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        files.push(...listFilesRec(full));
+      } else if (ent.isFile()) {
+        files.push(full);
+      }
+    }
+    return files;
+  }
+
+  const allSkillFiles = listFilesRec(skillDir);
+  assert.ok(allSkillFiles.length >= 20, `expected >= 20 skill files, found ${allSkillFiles.length}`);
+
+  for (const f of allSkillFiles) {
+    const text = readFileSync(f, 'utf8');
+    for (const needle of forbidden) {
+      assert.equal(
+        text.includes(needle),
+        false,
+        `${path.relative(skillDir, f)} must not contain forbidden leak substring ${needle}`,
+      );
+    }
+  }
+
+  const hostRoot = path.resolve(skillDir, '../../..');
+  const ciPath = path.join(hostRoot, '.github', 'workflows', 'ci.yml');
+  if (existsSync(ciPath)) {
+    const ciContent = readFileSync(ciPath, 'utf8');
+    assert.ok(ciContent.includes('macos-latest'), 'ci.yml must use macos-latest runner');
+    assert.ok(ciContent.includes('22'), 'ci.yml must include Node 22');
+    assert.ok(ciContent.includes('24'), 'ci.yml must include Node 24');
+    assert.equal(ciContent.includes('ubuntu'), false, 'ci.yml must not use ubuntu');
+  }
+});
+

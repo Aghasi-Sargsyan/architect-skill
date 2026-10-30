@@ -165,7 +165,7 @@ test('C1: resolveWebhookUrl reads only from env or user file outside repo, and s
     return { ok: true, status: 200 };
   };
   const osascriptCalls = [];
-  const sensitiveStopReason = 'T-024: сбой Исполнителя — ответ не JSON: {"secret_note":"PRIVATE_USER_TAKEOUT_DATA_42"}';
+  const sensitiveStopReason = 'T-024: сбой Исполнителя — ответ не JSON: {"secret_note":"PRIVATE_SECRET_PAYLOAD_42"}';
 
   const res = await sendNotification({
     config: { notify: true },
@@ -183,15 +183,15 @@ test('C1: resolveWebhookUrl reads only from env or user file outside repo, and s
   assert.equal(calls[0].url, 'https://ntfy.example.invalid/secret-topic-env');
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.body, 'agent-loop: stop task=T-024 status=failed category=executor_failed');
-  assert.equal(calls[0].init.body.includes('PRIVATE_USER_TAKEOUT_DATA_42'), false, 'stopReason / raw.response must never leak into webhook body');
-  assert.equal(JSON.stringify(calls[0].init).includes('PRIVATE_USER_TAKEOUT_DATA_42'), false, 'stopReason must never leak into headers or options');
+  assert.equal(calls[0].init.body.includes('PRIVATE_SECRET_PAYLOAD_42'), false, 'stopReason / raw.response must never leak into webhook body');
+  assert.equal(JSON.stringify(calls[0].init).includes('PRIVATE_SECRET_PAYLOAD_42'), false, 'stopReason must never leak into headers or options');
   assert.equal(JSON.stringify(calls[0].init).includes('сбой Исполнителя'), false, 'human stopReason text is excluded from webhook payload');
 
   // 6. Question notification also strips command text
   const qCalls = [];
   await sendNotification({
     config: { notify: true },
-    text: 'нужно разрешение: npx tsx scripts/test-takeout-pipeline.ts /Users/secret/MyActivity.json',
+    text: 'нужно разрешение: npx tsx scripts/run-migration.ts /Users/secret/secrets.json',
     eventType: 'question',
     taskId: 'T-024',
     role: 'executor',
@@ -202,7 +202,7 @@ test('C1: resolveWebhookUrl reads only from env or user file outside repo, and s
   });
   assert.equal(qCalls.length, 1);
   assert.equal(qCalls[0].init.body, 'agent-loop: question task=T-024 status=question category=permission_prompt role=executor');
-  assert.equal(qCalls[0].init.body.includes('MyActivity.json'), false);
+  assert.equal(qCalls[0].init.body.includes('secrets.json'), false);
 
   // 7. formatWebhookBody sanitizes untrusted inputs
   assert.equal(
