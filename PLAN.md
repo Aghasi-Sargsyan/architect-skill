@@ -63,7 +63,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: `install-check.test.mjs`, `check.test.mjs` и `cli-run-s10.test.mjs` проходят.
   - Проверка: `node --test .agents/skills/architect/orchestrator/install-check.test.mjs`.
 
-- [ ] T-053: Stack-configurable test/assert patterns, redCheckCommand, and fail-loud NOT VERIFIED
+- [x] T-053: Stack-configurable test/assert patterns, redCheckCommand, and fail-loud NOT VERIFIED
   - Риск: высокий.
   - Зависит от: T-052.
   - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
