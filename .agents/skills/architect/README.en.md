@@ -3,7 +3,7 @@
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
-2. **Automated Orchestrator (`orchestrator/run.mjs`):** zero-dependency Node.js loop requiring **Node.js 22+**, **git 2.31+**, and **macOS or Linux** (Windows is not supported because git/npm guards are POSIX `sh` shims); supports only headless runners **`agy`** (Antigravity) and **`claude`** (Claude Code); native desktop notifications work only on **macOS** (`osascript`), otherwise use `AGENT_LOOP_WEBHOOK_URL` webhook notifications.
+2. **Automated Orchestrator (`orchestrator/run.mjs`):** zero-dependency Node.js loop requiring **Node.js 22+** and **git 2.31+**. **The orchestrator officially supports macOS only. Linux and WSL2 are untested, Windows is not supported. The core rules work on any OS.** Supports only headless runners **`agy`** (Antigravity) and **`claude`** (Claude Code); native desktop notifications work on **macOS** (`osascript`), and `AGENT_LOOP_WEBHOOK_URL` webhook notifications are also supported.
 
 - **Active prompts (English, single source of truth):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks}.md`.
 - **Human guides (`<= 25 KB` each):** `README.en.md` (English) and `README.ru.md` (Russian).
@@ -49,7 +49,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 ### A. Antigravity (`agy`) — Core + Orchestrator
 1. Place the skill in a subfolder: `.agents/skills/architect/`.
 2. Copy `.agents/skills/architect/EXECUTOR.md` to `EXECUTOR.md` in the project root.
-3. For the automated loop (`runner: "agy"`, macOS/Linux, Node 22+), run `--init` to create `.architect/config.json` (or `.agents/orchestrator.json`), then after reviewing the rules write the allowlist to `~/.gemini/antigravity-cli/settings.json`:
+3. For the automated loop (`runner: "agy"`, macOS only, Node 22+), run `--init` to create `.architect/config.json` (or `.agents/orchestrator.json`), then after reviewing the rules write the allowlist to `~/.gemini/antigravity-cli/settings.json`:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -58,7 +58,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 ### B. Claude Code (`claude`) — Core + Orchestrator or Subagent
 1. Place the skill at `.agents/skills/architect/` or `.claude/skills/architect/` and copy `EXECUTOR.md` to the project root.
 2. **Subagent mode:** copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and verify `model:` is set explicitly (e.g. `model: sonnet`, never `inherit`).
-3. **Orchestrator mode (macOS/Linux, Node 22+):** set `"runner": "claude"`, `"executor": { "model": "sonnet" }`, and `"architect": { "model": "opus" }` in `.architect/config.json` (or `.agents/orchestrator.json`), then run:
+3. **Orchestrator mode (macOS only, Node 22+):** set `"runner": "claude"`, `"executor": { "model": "sonnet" }`, and `"architect": { "model": "opus" }` in `.architect/config.json` (or `.agents/orchestrator.json`), then run:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -146,7 +146,7 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 
 ## 8. When to Use and When Not to Use the Skill
 
-- **Full skill (Core + Orchestrator):** long-lived products with critical risk areas (authentication, access control, billing, database migrations, concurrency, data invariants) on macOS or Linux using `agy` or `claude`.
-- **Core only (`SKILL.md` + `EXECUTOR.md`):** medium-sized projects, other agents (`Gemini CLI`, `Codex`, `Cursor`), or Windows environments where Two-Phase planning, `Frozen` contracts, and context-isolated tasks pay off without the headless Node.js runner.
+- **Full skill (Core + Orchestrator):** long-lived products with critical risk areas (authentication, access control, billing, database migrations, concurrency, data invariants) on macOS using `agy` or `claude`.
+- **Core only (`SKILL.md` + `EXECUTOR.md`):** medium-sized projects, other agents (`Gemini CLI`, `Codex`, `Cursor`), Linux/WSL2, or Windows environments where Two-Phase planning, `Frozen` contracts, and context-isolated tasks pay off without the headless Node.js runner.
 - **Do not use:** throwaway prototypes, quick hypothesis validation, game jams, one-off scripts, or tasks where acceptance is purely visual.
 - **Team repositories with existing PR review and CI:** adopt the core practices (read-only Phase 1 brainstorm, `Frozen` reference tests written before implementation, context-isolated Executor) without enforcing the `arch:` / `T-NNN:` commit message conventions.

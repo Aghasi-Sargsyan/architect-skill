@@ -3,7 +3,7 @@
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
-2. **Автоматический оркестратор (`orchestrator/run.mjs`):** цикл на чистом Node.js без npm-зависимостей; требует **Node.js 22+**, **git 2.31+** и **macOS или Linux** (Windows не поддерживается, так как защиты git/npm — POSIX `sh`-скрипты); поддерживает только раннеры **`agy`** (Antigravity) и **`claude`** (Claude Code); системные уведомления работают только на **macOS** (`osascript`), на остальных системах используется вебхук `AGENT_LOOP_WEBHOOK_URL`.
+2. **Автоматический оркестратор (`orchestrator/run.mjs`):** цикл на чистом Node.js без npm-зависимостей; требует **Node.js 22+** и **git 2.31+**. **Оркестратор — только macOS. Linux и WSL2 не тестируются, Windows не поддерживается. Ядро правил работает в любой ОС.** Поддерживает только раннеры **`agy`** (Antigravity) и **`claude`** (Claude Code); системные уведомления работают на **macOS** (`osascript`), также поддерживается вебхук `AGENT_LOOP_WEBHOOK_URL`.
 
 - **Рабочие промпты (единый источник правил на английском):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks}.md`.
 - **Руководства для человека (`<= 25 КБ` каждое):** `README.ru.md` (на русском) и `README.en.md` (на английском).
@@ -49,7 +49,7 @@
 ### A. Antigravity (`agy`) — Ядро + Оркестратор
 1. Положите скилл в подпапку `.agents/skills/architect/`.
 2. Скопируйте `.agents/skills/architect/EXECUTOR.md` в `EXECUTOR.md` в корне проекта.
-3. Для автоматического цикла (`runner: "agy"`, macOS/Linux, Node 22+) выполните `--init` для создания `.architect/config.json` (или `.agents/orchestrator.json`), затем после проверки правил запишите allowlist в `~/.gemini/antigravity-cli/settings.json`:
+3. Для автоматического цикла (`runner: "agy"`, только macOS, Node 22+) выполните `--init` для создания `.architect/config.json` (или `.agents/orchestrator.json`), затем после проверки правил запишите allowlist в `~/.gemini/antigravity-cli/settings.json`:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -58,7 +58,7 @@
 ### B. Claude Code (`claude`) — Ядро + Оркестратор или Субагент
 1. Положите скилл в `.agents/skills/architect/` или `.claude/skills/architect/` и скопируйте `EXECUTOR.md` в корень проекта.
 2. **Режим субагента:** скопируйте `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и проверьте, что поле `model:` задано явно (например, `model: sonnet`, никогда `inherit`).
-3. **Режим оркестратора (macOS/Linux, Node 22+):** укажите `"runner": "claude"`, `"executor": { "model": "sonnet" }` и `"architect": { "model": "opus" }` в `.architect/config.json` (или `.agents/orchestrator.json`), затем выполните:
+3. **Режим оркестратора (только macOS, Node 22+):** укажите `"runner": "claude"`, `"executor": { "model": "sonnet" }` и `"architect": { "model": "opus" }` в `.architect/config.json` (или `.agents/orchestrator.json`), затем выполните:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -146,7 +146,7 @@
 
 ## 8. Когда скилл использовать и когда не использовать
 
-- **Полностью (Ядро + Оркестратор):** долгоживущие продукты с зонами высокого риска (аутентификация и права доступа, биллинг, миграции БД, конкурентность, инварианты данных) на macOS или Linux с раннерами `agy` или `claude`.
-- **Только ядро (`SKILL.md` + `EXECUTOR.md`):** проекты среднего размера, другие стеки и агенты (`Gemini CLI`, `Codex`, `Cursor`) или Windows, где важны двухфазное планирование, замороженные контракты (`Frozen`) и изоляция контекста Исполнителя без цикла на Node.js.
+- **Полностью (Ядро + Оркестратор):** долгоживущие продукты с зонами высокого риска (аутентификация и права доступа, биллинг, миграции БД, конкурентность, инварианты данных) на macOS с раннерами `agy` или `claude`.
+- **Только ядро (`SKILL.md` + `EXECUTOR.md`):** проекты среднего размера, другие стеки и агенты (`Gemini CLI`, `Codex`, `Cursor`), Linux/WSL2 или Windows, где важны двухфазное планирование, замороженные контракты (`Frozen`) и изоляция контекста Исполнителя без цикла на Node.js.
 - **Не использовать:** одноразовые прототипы, быстрая проверка продуктовых гипотез, геймджемы, разовые скрипты и задачи с чисто визуальной приёмкой.
 - **Командные проекты с существующими PR и CI:** берите ключевые идеи (Фаза 1 только для чтения, эталонные тесты в `Frozen` до реализации, изолированный контекст Исполнителя) без обязательных конвенций сообщений коммитов `arch:` / `T-NNN:`.
