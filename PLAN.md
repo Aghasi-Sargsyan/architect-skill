@@ -30,7 +30,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-055: Read-only commands in BASE_COMMANDS, commandProblem, and git shim (П10d)
+- [x] T-055: Read-only commands in BASE_COMMANDS, commandProblem, and git shim (П10d)
   - Контекст: в реальных прогонах агенты регулярно запрашивают безопасные команды чтения (`git grep`, `git ls-files`, `git branch -a` / `-r` / `--list`, `git tag -l`, `git stash list`, `node --version`, `pwd`, `which`, `npm ls`). Необходимо включить их в `BASE_COMMANDS` и синхронизировать проверки аргументов в `commandProblem` (`permissions.mjs`) и git-shim (`guards.mjs`), удерживая оба модуля `<= 400` строк.
   - Риск: высокий
   - Модель: Claude Opus 4.6 (Thinking) — субагент Antigravity (`inherit`, изолированный контекст без истории чата)
