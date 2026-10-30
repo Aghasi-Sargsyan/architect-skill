@@ -17,7 +17,6 @@ import {
 } from './cli.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(orchDir, '..', '..', '..', '..');
 const realGit = which('git');
 
 function initTempRepo(prefix) {
@@ -162,19 +161,28 @@ test('T-049: runFastSelfCheck and runFullSelfCheck combine selfcheck, evidence, 
   }
 });
 
-test('T-049: run.mjs delegates parseArgs to cli.mjs, both files stay <= 400 lines, and AGENTS.md documents --self-check, --audit-plan, and cross-Node test command', () => {
-  const runText = readFileSync(path.join(orchDir, 'run.mjs'), 'utf8');
-  const cliText = readFileSync(path.join(orchDir, 'cli.mjs'), 'utf8');
-  const agentsText = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
+test('T-049: run.mjs delegates parseArgs to cli.mjs, both files stay <= 400 lines, and temp repo fixture documents --self-check, --audit-plan, and cross-Node test command', () => {
+  const { root } = initTempRepo('s10-t049-agents-');
+  try {
+    const runText = readFileSync(path.join(orchDir, 'run.mjs'), 'utf8');
+    const cliText = readFileSync(path.join(orchDir, 'cli.mjs'), 'utf8');
+    writeFileSync(
+      path.join(root, 'AGENTS.md'),
+      '# Rules\nCommands: `npm run agents` (`--self-check`, `--audit-plan`) and `node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs`.\n',
+    );
+    const agentsText = readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
 
-  assert.equal(/function\s+parseArgs\s*\(/.test(runText), false, 'parseArgs must be moved out of run.mjs into cli.mjs');
-  assert.ok(runText.split('\n').length <= 400, `run.mjs must stay <= 400 lines (got ${runText.split('\n').length})`);
-  assert.ok(cliText.split('\n').length <= 400, `cli.mjs must stay <= 400 lines (got ${cliText.split('\n').length})`);
+    assert.equal(/function\s+parseArgs\s*\(/.test(runText), false, 'parseArgs must be moved out of run.mjs into cli.mjs');
+    assert.ok(runText.split('\n').length <= 400, `run.mjs must stay <= 400 lines (got ${runText.split('\n').length})`);
+    assert.ok(cliText.split('\n').length <= 400, `cli.mjs must stay <= 400 lines (got ${cliText.split('\n').length})`);
 
-  assert.match(agentsText, /--self-check/);
-  assert.match(agentsText, /--audit-plan/);
-  assert.ok(
-    agentsText.includes('node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs'),
-    'AGENTS.md §8 must use the Node 20/22+ compatible node --test glob form',
-  );
+    assert.match(agentsText, /--self-check/);
+    assert.match(agentsText, /--audit-plan/);
+    assert.ok(
+      agentsText.includes('node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs'),
+      'AGENTS.md fixture must use the Node 22+ compatible node --test glob form',
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

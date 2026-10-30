@@ -1,4 +1,4 @@
-// Committed cycle plans for eval fixtures that review or escalate T-001 (T-036 / Р1). Frozen: the Architect owns the texts.
+// Committed cycle plans for eval fixtures that review or escalate a task. Frozen: the Architect owns the texts.
 const planOf = (goal, task) => `# PLAN
 
 ## Goal / Requirements

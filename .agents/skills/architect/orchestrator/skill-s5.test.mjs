@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
-const REPO_ROOT = path.resolve(SKILL_ROOT, '..', '..', '..');
 
 export const MAX_README_BYTES = 25 * 1024;
 export const REFERENCE_NAMES = ['auto-review', 'orchestrator', 'plan-audit', 'retro', 'stacks'];
@@ -222,8 +221,7 @@ test('D5 / E2 / E4 / ADR-032: live repository S5 packaging passes and contains n
       }
     }
   }
-  const rootExec = path.join(REPO_ROOT, 'EXECUTOR.md');
-  if (existsSync(rootExec)) files['root/EXECUTOR.md'] = readFileSync(rootExec, 'utf8');
+  files['root/EXECUTOR.md'] = files['EXECUTOR.md'];
 
   const res = checkSkillS5({ files });
   assert.deepEqual(res, { ok: true, issues: [] });

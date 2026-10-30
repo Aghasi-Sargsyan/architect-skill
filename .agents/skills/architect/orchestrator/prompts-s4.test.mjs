@@ -113,8 +113,10 @@ test('T-030 (Ф4): suggestAllowedCommand and proposeRules suggest stripping lead
 });
 
 test('T-030 (D4, Ф5): reviewFilePath and architectPrompt point to references/auto-review.md instead of loading full SKILL.md', () => {
-  const repoRoot = path.resolve(orchDir, '..', '..', '..', '..');
-  const revRel = reviewFilePath(repoRoot, orchDir);
+  const simRepo = path.join(tmp, 'sim-repo');
+  const simOrchDir = path.join(simRepo, '.agents', 'skills', 'architect', 'orchestrator');
+  mkdirSync(simOrchDir, { recursive: true });
+  const revRel = reviewFilePath(simRepo, simOrchDir);
   assert.equal(revRel, '.agents/skills/architect/references/auto-review.md');
 
   const extWork = path.join(tmp, 'ext-project');
@@ -136,7 +138,7 @@ test('T-030 (D4, Ф5): reviewFilePath and architectPrompt point to references/au
     'Отчёт',
     'ok (1 коммит.)',
     'gemini-3.8-flash-high',
-    { planPath: 'PLAN.md', reviewPath: revRel, skillPath: skillFilePath(repoRoot, orchDir) },
+    { planPath: 'PLAN.md', reviewPath: revRel, skillPath: skillFilePath(simRepo, simOrchDir) },
   );
   assert.match(archText, /references\/auto-review\.md/, 'architectPrompt must reference references/auto-review.md');
   assert.match(archText, /T-030/);

@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 const skillDir = path.dirname(orchDir);
-const repoRoot = path.resolve(skillDir, '..', '..', '..');
 
 /**
  * Validates version markers, README section structure, EXECUTOR.md copy identity,
@@ -124,22 +124,23 @@ test('E1: live skill files in repository have synchronized versions, README sect
   const maintainingPath = path.join(skillDir, 'MAINTAINING.md');
   const maintainingText = existsSync(maintainingPath) ? readFileSync(maintainingPath, 'utf8') : null;
 
-  const rootExecutorPath = path.join(repoRoot, 'EXECUTOR.md');
-  const compactExecutorPath = path.join(repoRoot, '.architect', 'EXECUTOR.md');
-  const projectExecutorText = existsSync(compactExecutorPath)
-    ? readFileSync(compactExecutorPath, 'utf8')
-    : existsSync(rootExecutorPath)
-      ? readFileSync(rootExecutorPath, 'utf8')
-      : null;
+  const tmpRepo = mkdtempSync(path.join(os.tmpdir(), 'maintaining-proj-'));
+  try {
+    const rootExecutorPath = path.join(tmpRepo, 'EXECUTOR.md');
+    writeFileSync(rootExecutorPath, executorText);
+    const projectExecutorText = readFileSync(rootExecutorPath, 'utf8');
 
-  const problems = checkSkillMaintenance({
-    skillText,
-    executorText,
-    projectExecutorText,
-    readmeRuText,
-    readmeEnText,
-    maintainingText,
-    requireStepA1: process.env.VERIFY_STEP_A1 === '1',
-  });
-  assert.deepEqual(problems, [], problems.join('\n'));
+    const problems = checkSkillMaintenance({
+      skillText,
+      executorText,
+      projectExecutorText,
+      readmeRuText,
+      readmeEnText,
+      maintainingText,
+      requireStepA1: process.env.VERIFY_STEP_A1 === '1',
+    });
+    assert.deepEqual(problems, [], problems.join('\n'));
+  } finally {
+    rmSync(tmpRepo, { recursive: true, force: true });
+  }
 });

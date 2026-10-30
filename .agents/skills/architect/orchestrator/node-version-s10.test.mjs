@@ -8,7 +8,6 @@ import { localChecks } from './check.mjs';
 import * as cliMod from './cli.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(orchDir, '../../../..');
 
 test('T-050: nodeVersionProblem returns exact diagnostic for < 22 and null for 22+, and localChecks requires Node 22+', () => {
   assert.equal(typeof cliMod.nodeVersionProblem, 'function', 'cli.mjs must export nodeVersionProblem(version)');
@@ -26,7 +25,7 @@ test('T-050: nodeVersionProblem returns exact diagnostic for < 22 and null for 2
 
   const checks20 = localChecks({
     config: DEFAULTS,
-    workDir: repoRoot,
+    workDir: orchDir,
     realGit: 'git',
     platform: 'darwin',
     nodeVersion: '20.19.0',
@@ -38,7 +37,7 @@ test('T-050: nodeVersionProblem returns exact diagnostic for < 22 and null for 2
 
   const checks22 = localChecks({
     config: DEFAULTS,
-    workDir: repoRoot,
+    workDir: orchDir,
     realGit: 'git',
     platform: 'darwin',
     nodeVersion: '22.0.0',

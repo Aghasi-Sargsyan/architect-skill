@@ -133,7 +133,8 @@ test('T-021 (C3): skillFilePath resolves relative path inside workDir and absolu
 });
 
 test('T-021 (П6, П1): checkExecutorRun always freezes orchestrator config files, EXECUTOR.md and SKILL.md even for high-risk tasks', () => {
-  const mustFreeze = alwaysFrozenFiles('custom/orch.json');
+  const simOrchDir = path.join(dir, '.agents', 'skills', 'architect', 'orchestrator');
+  const mustFreeze = alwaysFrozenFiles('custom/orch.json', { workDir: dir, orchestratorDir: simOrchDir });
   for (const f of [
     'EXECUTOR.md',
     '.architect/EXECUTOR.md',
@@ -167,6 +168,7 @@ test('T-021 (П6, П1): checkExecutorRun always freezes orchestrator config file
     const res = checkExecutorRun({
       realGit,
       cwd: dir,
+      orchestratorDir: simOrchDir,
       base: b,
       task: { id: 'T-021', risk: 'высокий', change: [protectedFile] },
       frozen: [],
