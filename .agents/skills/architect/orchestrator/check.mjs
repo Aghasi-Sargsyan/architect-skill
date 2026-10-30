@@ -130,7 +130,7 @@ export function resolveEscalationResume({ realGit, workDir, task, layout = null,
 export function localChecks({ config, workDir, realGit, platform = process.platform, nodeVersion = process.versions.node, orchestratorDir, only = null }) {
   const out = [];
   const add = (ok, name, detail) => out.push({ ok, name, detail });
-  add(platform !== 'win32', 'OS', platform === 'win32' ? 'Windows is not supported (git/npm wrappers are sh scripts)' : platform);
+  add(platform !== 'win32', 'OS', platform === 'win32' ? 'Windows is not supported (git/npm wrappers are sh scripts)' : platform === 'linux' ? 'linux (untested, use at your own risk — officially supported: macOS)' : platform);
   const nodeMajor = Number(nodeVersion.split('.')[0]);
   add(nodeMajor >= MIN_NODE, 'Node.js', `v${nodeVersion}${nodeMajor >= MIN_NODE ? '' : ` — requires ${MIN_NODE}+`}`);
   const gv = git(realGit, workDir, ['--version']).match(/(\d+)\.(\d+)/);

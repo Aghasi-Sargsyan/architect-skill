@@ -52,6 +52,16 @@ test('a ready repository passes every local check', () => {
   assert.ok(!r.some((x) => x.detail.includes(dir)), 'no absolute paths in the output');
 });
 
+test('local checks: Linux returns ok: true with an untested warning detail', () => {
+  const r = localChecks({ config: config(), workDir: dir, realGit, platform: 'linux' });
+  const osCheck = r.find((x) => x.name === 'OS');
+  assert.ok(osCheck, 'expected OS check');
+  assert.equal(osCheck.ok, true);
+  assert.match(osCheck.detail, /untested/);
+  assert.match(osCheck.detail, /use at your own risk/);
+  assert.equal(osCheck.detail, 'linux (untested, use at your own risk — officially supported: macOS)');
+});
+
 test('local checks name the problem: Windows, old Node, no PLAN.md, empty Change, not ignored, dirty tree, skip outside the sandbox', () => {
   const f1 = failed(localChecks({ config: config(), workDir: dir, realGit, platform: 'win32', nodeVersion: '16.20.0' }));
   assert.equal(f1.length, 2);
