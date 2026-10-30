@@ -14,9 +14,9 @@
 ### Очередь следующих циклов
 - **Замена проверки времени в `guards-shim-speed.test.mjs`:** перевод существующего теста скорости с `performance.now` на структурную проверку (счётчик вызовов/чтений или размер файла).
 - **Контроль неизменности `HEAD` хоста во время `runLiveEvals` (`evals.mjs`):** `preStatus` / `postHostStatus` сейчас проверяют только чистоту дерева (`git status --porcelain`), но не сдвиг `HEAD` — фиксировать `Commit:` на старте прогона и сверять с `HEAD` при записи `results.md`.
-- **Контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`):** `eval 2026-10-29T19-28-29-841Z @ cde76a4: 9/10 PASS` (`FAIL claude:haiku high_risk_frozen_test`), `eval 2026-10-30T12-11-59-225Z @ 6e8471c: 1/1 PASS`, `eval 2026-10-30T12-13-40-767Z @ 6e8471c: 1/1 PASS` (по ячейке `claude:haiku` `high_risk_frozen_test` после S5 пройдено 2 из 3 прогонов, `NOT VERIFIED (sample < 5)`; при следующем живом замере — довести выборку до ≥ 5 прогонов или завести задачу при повторном FAIL).
+- **Контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`):** `eval 2026-10-29T19-28-29-841Z @ cde76a4: 9/10 PASS` (`FAIL claude:haiku high_risk_frozen_test`), `eval 2026-10-30T12-11-59-225Z @ 6e8471c: 1/1 PASS`, `eval 2026-10-30T12-13-40-767Z @ 6e8471c: 1/1 PASS` (по ячейке `claude:haiku` `high_risk_frozen_test` после S5 пройдено 2 из 3 прогонов, `NOT VERIFIED (sample < 5)`; перед Этапом 4 запускается живой прогон 5 сценариев × 2 модели: `agy` Argon и `claude` haiku).
 - **Отложено по параллельности оркестратора:** worktree-параллельность и пакетное ревью отложены, потому что у рабочих деревьев общие `.git/config` и `hooks`, а `guards` подменяют `remote.*.pushurl` и `pre-push`.
-- **Этап 4 (Подготовка к публикации):** CI GitHub Actions (`.github/workflows/ci.yml`: `ubuntu-latest` + `macos-latest`, Node 22 + Node 24; Linux до первого зелёного прогона — `NOT VERIFIED`) и финальная чистка личных данных (`/Users/...`, почта, имена проектов, Supabase, ключи).
+- **Этап 4 (Подготовка к публикации):** CI GitHub Actions (`.github/workflows/ci.yml`: только `macos-latest`, Node 22 + Node 24) и финальная чистка личных данных (`/Users/...`, почта, имена проектов, Supabase, ключи).
 - **Публикация скилла (`E4`):** выгрузка `.agents/skills/architect/` в отдельный публичный репозиторий под лицензией `MIT` с чистой историей и CI-матрицей GitHub Actions на Node 22 и Node 24 — финальным шагом после Этапа 4, только по отдельной команде пользователя.
 
 ## Decisions (ADR)
@@ -69,3 +69,15 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - Все изменённые модули остаются `<= 400` строк (`split('\n').length <= 400`) без пустых блоков `catch {}`.
   - Проверка: `node --test .agents/skills/architect/orchestrator/commit-hooks.test.mjs .agents/skills/architect/orchestrator/check-task.test.mjs .agents/skills/architect/orchestrator/config.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/guards-git.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs`
   - Критерий приёмки: проверка зелёная.
+
+- [ ] T-059: Non-blocking Linux warning in --check / localChecks
+  - Контекст: оркестратор официально поддерживает только macOS; Linux и WSL2 не тестируются, Windows не поддерживается. В `localChecks` (`check.mjs`) проверка `OS` на `platform === 'linux'` должна возвращать `ok: true` (не блок), но с предупреждением в `detail`: `"linux (untested, use at your own risk — officially supported: macOS)"`. Код для Linux не удалять.
+  - Риск: низкий
+  - Модель: Gemini Flash (subagent, уровень неизвестен)
+  - Зависит от: T-058
+  - Читать: `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/check.test.mjs`
+  - Менять: `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/check.test.mjs`
+  - Не трогать: `PLAN.md`, `EXECUTOR.md`
+  - Тест-кейсы: в `check.test.mjs`: `localChecks({ config: config(), workDir: dir, realGit, platform: 'linux' })` возвращает `OS` с `ok: true` и `detail`, содержащим `untested` и `use at your own risk`.
+  - Проверка: `node --test .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/check-en.test.mjs`
+  - Критерий приёмки: проверка зелёная, `check.mjs <= 400` строк.
