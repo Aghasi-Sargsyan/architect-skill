@@ -32,7 +32,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 - [x] T-051: Dynamic skill paths and root-install guard in layout.mjs, prompts.mjs, ask.mjs, and selfcheck.mjs
   - Риск: высокий.
   - Зависит от: —.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
+  - Модель: Gemini 4 Argon / High (subagent).
   - Читать: `.agents/skills/architect/orchestrator/layout.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/ask.mjs` (строки 145–175), `.agents/skills/architect/orchestrator/selfcheck.mjs` (строки 15–35, 225–298), `.agents/skills/architect/orchestrator/skill-path.test.mjs`.
   - Менять: `.agents/skills/architect/orchestrator/layout.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/ask.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`.
   - Задача и инварианты: динамическое определение путей скилла и `config.example.json` от `orchestratorDir` без `.agents/skills/architect`; `isSkillAtWorkDirRoot` и `resolveInstalledSkillDir` в `layout.mjs`.
@@ -44,7 +44,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 - [x] T-052: Skill installation checks in check.mjs and cli.mjs (--check and --self-check)
   - Риск: высокий.
   - Зависит от: T-051.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
+  - Модель: Gemini 4 Argon / High (subagent).
   - Читать: `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`, `.agents/skills/architect/orchestrator/layout.mjs`, `.agents/skills/architect/orchestrator/install-check.test.mjs`.
   - Менять: `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`.
   - Задача и инварианты: `checkSkillInstallation` в `check.mjs` (запрет установки скилла в корень `workDir`, сверка копии `EXECUTOR.md`, сверка `--check`/`--self-check` в `AGENTS.md`), подключение в `localChecks` и `runFastSelfCheck`.
@@ -56,7 +56,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 - [x] T-053: Stack-configurable test/assert patterns, redCheckCommand, and fail-loud NOT VERIFIED
   - Риск: высокий.
   - Зависит от: T-052.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
+  - Модель: Gemini 4 Argon / High (subagent).
   - Читать: `.agents/skills/architect/orchestrator/config.example.json`, `.agents/skills/architect/orchestrator/config.mjs`, `.agents/skills/architect/orchestrator/mechanics.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`, `.agents/skills/architect/orchestrator/evidence.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`, `.agents/skills/architect/orchestrator/stack-config.test.mjs`.
   - Менять: `.agents/skills/architect/orchestrator/config.example.json`, `.agents/skills/architect/orchestrator/config.mjs`, `.agents/skills/architect/orchestrator/mechanics.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`, `.agents/skills/architect/orchestrator/evidence.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`.
   - Задача и инварианты: настраиваемые `testFilePatterns`, `testPatterns`, `assertPatterns` (`expect(` по умолчанию) и `redCheckCommand` (`node --test {file}`); `NOT VERIFIED` с именем файла при 0 утверждений в тест-файле (без шума на `tests/setup.ts`) или неподходящей `redCheckCommand`.
@@ -68,7 +68,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 - [x] T-054: Clean Workspace task IDs from orchestrator comments and rename -sN/tNNN test files by module (ADR-037)
   - Риск: высокий.
   - Зависит от: T-053.
-  - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
+  - Модель: Gemini 4 Argon / High (subagent).
   - Читать: `.agents/skills/architect/orchestrator/packaging-clean.test.mjs`, `.agents/skills/architect/orchestrator/events.mjs`, `.agents/skills/architect/orchestrator/evals.mjs`, `.agents/skills/architect/orchestrator/run.mjs`, `.agents/skills/architect/orchestrator/adapters/claude.mjs`, `.agents/skills/architect/orchestrator/adapters/index.mjs`, `.agents/skills/architect/MAINTAINING.md`, `package.json`, `AGENTS.md`.
   - Менять: 5 модулей оркестратора, `MAINTAINING.md`, `package.json`, `AGENTS.md`, 39 переименованных `.test.mjs` файлов.
   - Задача и инварианты: удаление кодов задач/циклов из комментариев модулей, переименование 39 тест-файлов по модулям (`ADR-037`), прогон в изолированном временном каталоге только с папкой скилла.
@@ -92,4 +92,4 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 | Escalations | OK | 0 эскалаций, 0 молчаливых отступлений от плана. |
 | Acceptance | OK | 4 из 4 задач высокого риска приняты с первой попытки (0 раундов `rework`). |
 | Context | OK | `PLAN.md`, `EXECUTOR.md` и эталонных тестов было достаточно изолированным сессиям Исполнителя без истории чата. |
-| Профили Исполнителей | Обновлено | `Gemini 3.8 Flash / High`: добавлены `T-051`…`T-054` в подтверждённые сильные стороны. |
+| Профили Исполнителей | Обновлено | `Gemini 4 Argon / High (subagent)`: добавлены `T-051`…`T-054` в отдельный раздел профиля субагента. |

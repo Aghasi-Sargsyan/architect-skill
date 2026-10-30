@@ -7,7 +7,7 @@
 - П6–П10a–c (шаг Архитектора по `MAINTAINING.md`): нейтральное ядро `SKILL.md` (`v3.28`, размер не больше `27780` байт), честные два уровня установки и обновление в `README.ru.md` / `README.en.md`, раздел «Когда скилл не использовать», контроль роста правил (`references/retro.md`, `MAINTAINING.md`), правила эскалаций (а)–(г) в `references/auto-review.md` и пояснение к `### 🔐 Command Permission` в `references/orchestrator.md`.
 
 ### Очередь следующих циклов
-- **Этап 3 (Приёмка «глазами чужого человека»):** временные репо (TS + Vitest, Python + pytest), установка скилла в `.claude/skills/architect/` и `.agents/skills/architect/` по README, ручной режим и `--check` / `--dry-run` / `--self-check`, обновление копии скилла в `~/Desktop/Workspace`.
+- **Этап 3 (Приёмка «глазами чужого человека»):** временные репо (TS + Vitest, Python + pytest), установка скилла в `.claude/skills/architect/` и `.agents/skills/architect/` по README, ручной режим и `--check` / `--dry-run` / `--self-check`, обновление копии скилла в `~/Desktop/Workspace`; команда для механической проверки коммитов Исполнителя вне цикла оркестратора (границы `Change`, `Frozen`, обходы проверок через `mechanics.mjs`), так как при запуске субагентом или вручную `--self-check` пропускает коммиты `T-NNN`, а `mechanics.mjs` вызывается только внутри `npm run agents`.
 - **Замена проверки времени в `guards-shim-speed.test.mjs`:** перевод существующего теста скорости с `performance.now` на структурную проверку (счётчик вызовов/чтений или размер файла).
 - **Контроль неизменности `HEAD` хоста во время `runLiveEvals` (`evals.mjs`):** `preStatus` / `postHostStatus` сейчас проверяют только чистоту дерева (`git status --porcelain`), но не сдвиг `HEAD` — фиксировать `Commit:` на старте прогона и сверять с `HEAD` при записи `results.md`.
 - **Контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`):** `eval 2026-10-29T19-28-29-841Z @ cde76a4: 9/10 PASS` (`FAIL claude:haiku high_risk_frozen_test`), `eval 2026-10-30T12-11-59-225Z @ 6e8471c: 1/1 PASS`, `eval 2026-10-30T12-13-40-767Z @ 6e8471c: 1/1 PASS` (по ячейке `claude:haiku` `high_risk_frozen_test` после S5 пройдено 2 из 3 прогонов, `NOT VERIFIED (sample < 5)`; при следующем живом замере — довести выборку до ≥ 5 прогонов или завести задачу при повторном FAIL).
@@ -33,7 +33,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 - [x] T-055: Read-only commands in BASE_COMMANDS, commandProblem, and git shim (П10d)
   - Контекст: в реальных прогонах агенты регулярно запрашивают безопасные команды чтения (`git grep`, `git ls-files`, `git branch -a` / `-r` / `--list`, `git tag -l`, `git stash list`, `node --version`, `pwd`, `which`, `npm ls`). Необходимо включить их в `BASE_COMMANDS` и синхронизировать проверки аргументов в `commandProblem` (`permissions.mjs`) и git-shim (`guards.mjs`), удерживая оба модуля `<= 400` строк.
   - Риск: высокий
-  - Модель: Claude Opus 4.6 (Thinking) — субагент Antigravity (`inherit`, изолированный контекст без истории чата)
+  - Модель: Gemini 4 Argon / High (subagent)
   - Зависит от: —
   - Читать: `.agents/skills/architect/orchestrator/permissions.mjs`, `.agents/skills/architect/orchestrator/guards.mjs`, `.agents/skills/architect/orchestrator/permissions-readonly.test.mjs`
   - Менять: `.agents/skills/architect/orchestrator/permissions.mjs`, `.agents/skills/architect/orchestrator/guards.mjs`
@@ -49,7 +49,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 - [ ] T-056: Valid stop.diff via gitRaw and escalation resume on matching dirty working tree (П10e)
   - Контекст: (1) `git()` в `git.mjs` вызывает `.trim()`, обрезая пробел в пустой контекстной строке в конце `git diff HEAD`, из-за чего `stop.diff` не проходит `git apply --check`. (2) Согласно `EXECUTOR.md:25`, при эскалации Исполнитель не откатывает свои правки; оркестратор должен разрешать повторный старт после эскалации, если грязные файлы входят в `Change` текущей задачи и совпадают со слепком `stop.status.txt` и `stop.diff` последнего прогона, остановившегося на эскалации этой задачи, и передавать отчёт об эскалации в `executorPrompt`. Все изменяемые модули должны оставаться `<= 400` строк (`split('\n').length <= 400`).
   - Риск: высокий
-  - Модель: Claude Opus 4.6 (Thinking) — субагент Antigravity (`inherit`, изолированный контекст без истории чата)
+  - Модель: Gemini 3.8 Flash / High
   - Зависит от: T-055
   - Читать: `.agents/skills/architect/orchestrator/git.mjs`, `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/run.mjs`, `.agents/skills/architect/orchestrator/escalation-resume.test.mjs`
   - Менять: `.agents/skills/architect/orchestrator/git.mjs`, `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/run.mjs`
