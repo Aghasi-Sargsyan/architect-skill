@@ -12,8 +12,9 @@ export const agySettingsPath = (home = os.homedir()) => path.join(home, '.gemini
 
 /** Safe base set: read-only git, local commits, verification commands and read-only listings. */
 export const BASE_COMMANDS = [
-  'git status', 'git diff', 'git log', 'git show', 'git rev-parse', 'git branch --show-current', 'git add', 'git commit',
-  'node --test', 'wc -l', 'grep', 'ls',
+  'git status', 'git diff', 'git log', 'git show', 'git rev-parse', 'git branch --show-current', 'git ls-files', 'git grep', 'git blame', 'git ls-tree',
+  'git merge-base', 'git rev-list', 'git describe', 'git shortlog', 'git stash list', 'git tag -l', 'git branch -a', 'git branch -r', 'git branch --list',
+  'git check-ignore', 'git add', 'git commit', 'node --test', 'node --version', 'npm ls', 'wc -l', 'grep', 'ls', 'pwd', 'which',
 ];
 
 const TOO_BROAD = new Set([
@@ -101,27 +102,25 @@ export function commandProblem(command, blockedScripts = []) {
   const unwrappedTokens = unwrapTokens(rawWords);
   if (unwrappedTokens.length === 0) return `command wrapper "${rawFirst}" is not allowed`;
   const unwrappedBin = binName(unwrappedTokens[0]);
-  const unwrappedNorm = [unwrappedBin, ...unwrappedTokens.slice(1)];
-  const unwrappedStr = unwrappedNorm.join(' ');
+  const unwrappedStr = [unwrappedBin, ...unwrappedTokens.slice(1)].join(' ');
   const unwrappedSecond = unwrappedTokens[1] ?? '';
   if (TOO_BROAD.has(c) || TOO_BROAD.has(unwrappedStr)) return `rule is too broad: allows any command "${c} ..."`;
   const isPython = unwrappedBin === 'python' || unwrappedBin === 'python3';
   const isPythonTestRunner = isPython && unwrappedSecond === '-m' && (unwrappedTokens[2] === 'pytest' || unwrappedTokens[2] === 'unittest');
-  if ((isPython || FILE_BINARIES.has(unwrappedBin)) && !isPythonTestRunner) {
-    return `"${unwrappedBin}" is forbidden in the terminal: use built-in file tools for reading and modifying files`;
-  }
-  const hit = forbiddenCommands(blockedScripts).find(
-    (f) => startsWithWords(f, c) || startsWithWords(c, f) || startsWithWords(f, unwrappedStr) || startsWithWords(unwrappedStr, f),
-  );
+  if ((isPython || FILE_BINARIES.has(unwrappedBin)) && !isPythonTestRunner) return `"${unwrappedBin}" is forbidden in the terminal: use built-in file tools for reading and modifying files`;
+  const hit = forbiddenCommands(blockedScripts).find((f) => startsWithWords(f, c) || startsWithWords(c, f) || startsWithWords(f, unwrappedStr) || startsWithWords(unwrappedStr, f));
   if (hit) return `covers forbidden command "${hit}"`;
   if (DENIED_BINARIES.has(unwrappedBin) && !isPythonTestRunner) return `"${unwrappedBin}" is forbidden for agents with any arguments`;
   if (unwrappedBin === 'git') {
+    const rest = unwrappedTokens.slice(2);
     if (unwrappedTokens.some((t) => t === '--output' || t.startsWith('--output='))) return 'git with --output argument is forbidden: use built-in tools to output to a file';
-    if (unwrappedSecond === 'branch' && unwrappedTokens.slice(1).join(' ') !== 'branch --show-current') return 'git branch is allowed only for reading (--show-current / -a / -r / --list)';
-    if (unwrappedSecond === 'add' && unwrappedTokens.slice(2).some((t) => t === '.' || t === '-A' || t === '-u' || t === '--all')) return 'forbidden git add without explicit file paths (git add . / -A / -u)';
-    if (unwrappedSecond === 'tag' && !unwrappedTokens.slice(2).some((t) => t === '-l' || t === '--list')) return 'git tag is allowed only for reading (-l / --list)';
+    if (unwrappedSecond === 'grep' && rest.some((t) => t.startsWith('-O') || t === '--open-files-in-pager' || t.startsWith('--open-files-in-pager='))) return 'git grep with -O / --open-files-in-pager is forbidden';
+    const okBranch = (rest.length === 1 && (rest[0] === '--show-current' || rest[0] === '-a' || rest[0] === '-r')) || (rest[0] === '--list' && rest.slice(1).every((t) => !t.startsWith('-')));
+    if (unwrappedSecond === 'branch' && !okBranch) return 'git branch is allowed only for reading (--show-current / -a / -r / --list)';
+    if (unwrappedSecond === 'add' && rest.some((t) => t === '.' || t === '-A' || t === '-u' || t === '--all')) return 'forbidden git add without explicit file paths (git add . / -A / -u)';
+    if (unwrappedSecond === 'tag' && ((rest[0] !== '-l' && rest[0] !== '--list') || rest.slice(1).some((t) => t.startsWith('-')))) return 'git tag is allowed only for reading (-l / --list)';
   }
-  if (unwrappedBin === 'node' && unwrappedSecond !== '--test') return 'node executes arbitrary code; only node --test is allowed';
+  if (unwrappedBin === 'node' && unwrappedSecond !== '--test' && !((unwrappedSecond === '--version' || unwrappedSecond === '-v') && unwrappedTokens.length === 2)) return 'node executes arbitrary code; only node --test and node --version are allowed';
   if (unwrappedBin === 'npx') {
     if (unwrappedSecond === 'tsx' || unwrappedSecond === 'ts-node') return `npx ${unwrappedSecond} executes arbitrary scripts (including release)`;
     if (!STANDALONE_TOOLS.has(unwrappedSecond)) return 'arbitrary script execution via npx is not allowed for agents (use npm test / npx tsc / npx vitest)';

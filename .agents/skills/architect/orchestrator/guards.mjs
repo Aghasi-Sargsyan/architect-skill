@@ -94,14 +94,8 @@ WORK_DIR=${shQuote(workDir)}
 if [ "$AGENT_LOOP" = "1" ]; then
   for a in "$@"; do
     case "$a" in
-      --output|--output=*)
-        echo "agent-loop guard: --output is blocked for agents" >&2
-        exit 97
-        ;;
-      --no-index)
-        echo "agent-loop guard: --no-index is blocked for agents" >&2
-        exit 97
-        ;;
+      --output|--output=*) echo "agent-loop guard: --output is blocked for agents" >&2; exit 97 ;;
+      --no-index) echo "agent-loop guard: --no-index is blocked for agents" >&2; exit 97 ;;
     esac
   done
   sub=""; dir="."; skip=""; remote=""; branch_args=""
@@ -112,10 +106,7 @@ if [ "$AGENT_LOOP" = "1" ]; then
     fi
     if [ -z "$sub" ]; then
       case "$a" in
-        -c|-c*|--config-env|--config-env=*)
-          echo "agent-loop guard: git configuration override ($a) is blocked for agents" >&2
-          exit 97
-          ;;
+        -c|-c*|--config-env|--config-env=*) echo "agent-loop guard: git configuration override ($a) is blocked for agents" >&2; exit 97 ;;
         -C) skip="C" ;;
         --git-dir|--work-tree|--namespace|--exec-path) skip="x" ;;
         -*) ;;
@@ -124,14 +115,19 @@ if [ "$AGENT_LOOP" = "1" ]; then
     elif [ "$sub" = "push" ] && [ -z "$remote" ]; then
       case "$a" in -*) ;; *) remote="$a" ;; esac
     elif [ "$sub" = "branch" ]; then
-      branch_args="\${branch_args:+\$branch_args }\$a"
+      case "$branch_args:$a" in
+        :--show-current|:-a|:-r|:--list) branch_args="$a" ;;
+        --list:[!-]*|--list-pat:[!-]*) branch_args="--list-pat" ;;
+        *) branch_args="bad" ;;
+      esac
+    elif [ "$sub" = "grep" ]; then
+      case "$a" in
+        -O|-O*|--open-files-in-pager|--open-files-in-pager=*) echo "agent-loop guard: git grep $a is blocked for agents" >&2; exit 97 ;;
+      esac
     fi
   done
-  if [ "$sub" = "branch" ]; then
-    if [ "$branch_args" != "--show-current" ]; then
-      echo "agent-loop guard: git branch is blocked for agents" >&2
-      exit 97
-    fi
+  if [ "$sub" = "branch" ] && { [ -z "$branch_args" ] || [ "$branch_args" = "bad" ]; }; then
+    echo "agent-loop guard: git branch is blocked for agents" >&2; exit 97
   fi
   if [ "$sub" = "diff" ] && [ -n "$WORK_REAL" ]; then
     eff_dir=$(cd "$dir" 2>/dev/null && pwd -P)
