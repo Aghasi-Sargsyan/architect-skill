@@ -46,7 +46,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Проверка: `node --test .agents/skills/architect/orchestrator/permissions-readonly.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/permissions-unwrap.test.mjs .agents/skills/architect/orchestrator/permissions-runners.test.mjs .agents/skills/architect/orchestrator/guards-git.test.mjs`
   - Критерий приёмки: проверка зелёная.
 
-- [ ] T-056: Valid stop.diff via gitRaw and escalation resume on matching dirty working tree (П10e)
+- [x] T-056: Valid stop.diff via gitRaw and escalation resume on matching dirty working tree (П10e)
   - Контекст: (1) `git()` в `git.mjs` вызывает `.trim()`, обрезая пробел в пустой контекстной строке в конце `git diff HEAD`, из-за чего `stop.diff` не проходит `git apply --check`. (2) Согласно `EXECUTOR.md:25`, при эскалации Исполнитель не откатывает свои правки; оркестратор должен разрешать повторный старт после эскалации, если грязные файлы входят в `Change` текущей задачи и совпадают со слепком `stop.status.txt` и `stop.diff` последнего прогона, остановившегося на эскалации этой задачи, и передавать отчёт об эскалации в `executorPrompt`. Все изменяемые модули должны оставаться `<= 400` строк (`split('\n').length <= 400`).
   - Риск: высокий
   - Модель: Gemini Flash (subagent, уровень неизвестен)
