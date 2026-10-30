@@ -66,11 +66,11 @@ test('T-055: commandProblem allows read-only git grep, branch, tag, stash, node 
     'git tag -d v1.0',
     'git tag -l -d v1.0',
     'git tag -a v1.0 -m msg',
-    'git stash',
-    'git stash push',
-    'git stash pop',
-    'git stash drop',
-    'git stash clear',
+    'git tag -f v1.0',
+    'git tag --delete v1.0',
+    'git tag --annotate v1.0',
+    'git tag --sign v1.0',
+    'git tag --force v1.0',
     'node -e 1',
     'node script.js',
     'node --version script.js',
@@ -78,6 +78,8 @@ test('T-055: commandProblem allows read-only git grep, branch, tag, stash, node 
     assert.ok(commandProblem(badCmd, BLOCKED), `expected commandProblem to reject: ${badCmd}`);
     assert.equal(proposeRules(badCmd, BLOCKED).auto, true, `expected auto-refusal for: ${badCmd}`);
   }
+  assert.ok(!BASE_COMMANDS.includes('git stash'), 'bare git stash must not be in BASE_COMMANDS');
+  assert.deepEqual(proposeRules('git stash list', BLOCKED).options.map((o) => o.rule), ['git stash', 'git stash list']);
 });
 
 test('T-055: git shim allows read-only git branch (-a, -r, --list, --show-current) and blocks branch mutation and git grep -O while AGENT_LOOP=1', () => {

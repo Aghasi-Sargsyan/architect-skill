@@ -136,7 +136,7 @@ test('--check reads only the allow / deny rules; fails on a missing file, unsafe
   writeAgyAllowlist({ settingsPath: settings, ...rulesFor(config(), workDir) });
   const ok = check();
   assert.equal(ok.ok, true, ok.detail);
-  assert.match(ok.detail, /(?:правил command\(…\): 12, запись в проект без \.git, опасных нет|command\(…\) rules: 12, project write without \.git, no unsafe rules)/);
+  assert.match(ok.detail, /(?:правил command\(…\): 30, запись в проект без \.git, опасных нет|command\(…\) rules: 30, project write without \.git, no unsafe rules)/);
   assert.ok(rulesFor(config(), workDir).allow.includes('command(ls)'), 'ls is in the base set');
   writeFileSync(settings, '{ broken');
   assert.equal(check().ok, false);
