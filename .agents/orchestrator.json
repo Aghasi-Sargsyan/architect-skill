@@ -2,6 +2,7 @@
   "agyBin": "agy",
   "executor": { "model": "gemini-3.8-flash-high" },
   "architect": { "model": "gemini-4-argon-high" },
+  "commitLanguage": "en",
   "permissions": "allowlist",
   "blockedNpmScripts": [],
   "allowedCommands": [
