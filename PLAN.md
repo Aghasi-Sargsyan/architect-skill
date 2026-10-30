@@ -70,7 +70,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Проверка: `node --test .agents/skills/architect/orchestrator/commit-hooks.test.mjs .agents/skills/architect/orchestrator/check-task.test.mjs .agents/skills/architect/orchestrator/config.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/guards-git.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs`
   - Критерий приёмки: проверка зелёная.
 
-- [ ] T-059: Non-blocking Linux warning in --check / localChecks
+- [x] T-059: Non-blocking Linux warning in --check / localChecks
   - Контекст: оркестратор официально поддерживает только macOS; Linux и WSL2 не тестируются, Windows не поддерживается. В `localChecks` (`check.mjs`) проверка `OS` на `platform === 'linux'` должна возвращать `ok: true` (не блок), но с предупреждением в `detail`: `"linux (untested, use at your own risk — officially supported: macOS)"`. Код для Linux не удалять.
   - Риск: низкий
   - Модель: Gemini Flash (subagent, уровень неизвестен)
