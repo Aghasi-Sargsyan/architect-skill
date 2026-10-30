@@ -1,26 +1,62 @@
 # PLAN
 
 ## Goal / Requirements
-Этап 2 (Цикл 12): Готовность для других (`v3.28`).
-- П6: Ядро `SKILL.md` — только правила, нейтральные к стеку и раннеру (вынос порядка `--self-check` / `--audit-plan` / `red-check`, `fix-frozen` и `WAIVER` в `references/orchestrator.md`, eval-дисциплины — в `MAINTAINING.md`, условный `--self-check` в `references/retro.md` §1; размер `SKILL.md` `<= 27780` байт).
-- П7: Два уровня установки («Ядро» и «Оркестратор») и процедура обновления скилла без потери конфига и копии `EXECUTOR.md` синхронно в `README.ru.md` и `README.en.md`.
-- П8: Раздел «Когда скилл не использовать» в `README.*.md` и одно предложение в режиме `NEW PROJECT` (`SKILL.md`).
-- П9: Контроль роста правил в `references/retro.md` и `MAINTAINING.md`.
-- П10: Правила эскалаций `(а)–(г)` в `references/auto-review.md`; технические детали от пользователя как предложения в `SKILL.md`; пояснение простым языком к `### 🔐 Command Permission` в `references/orchestrator.md`; расширение `BASE_COMMANDS` в `permissions.mjs` командами только для чтения; продолжение после эскалации на грязном дереве и валидный патч `stop.diff` (`check.mjs`, `prompts.mjs`, `run.mjs`, `git.mjs`).
+Этап 2 (Цикл 12, `v3.28`): Готовность для других (П6–П10).
+- П10d (`T-055`): расширение `BASE_COMMANDS` командами только для чтения (`git ls-files`, `git grep` без `-O` / `--open-files-in-pager`, `git blame`, `git ls-tree`, `git merge-base`, `git rev-list`, `git describe`, `git shortlog`, `git stash list`, `git tag -l`, `git branch -a` / `-r` / `--list`, `git check-ignore`, `pwd`, `which`, `node --version`, `npm ls`) с синхронизацией `commandProblem` и git-shim в `guards.mjs`.
+- П10e (`T-056`): валидный патч `stop.diff` (`gitRaw` без `.trim()`) и продолжение работы оркестратора после эскалации на грязном дереве, когда грязные файлы входят в `Change` текущей задачи и совпадают со слепком эскалации (`stop.status.txt` и `stop.diff`), с передачей отчёта об эскалации в `executorPrompt`.
+- П6–П10a–c (шаг Архитектора по `MAINTAINING.md`): нейтральное ядро `SKILL.md` (`v3.28`, размер не больше `27780` байт), честные два уровня установки и обновление в `README.ru.md` / `README.en.md`, раздел «Когда скилл не использовать», контроль роста правил (`references/retro.md`, `MAINTAINING.md`), правила эскалаций (а)–(г) в `references/auto-review.md` и пояснение к `### 🔐 Command Permission` в `references/orchestrator.md`.
 
-### Перенесено из предыдущего цикла (Этапы 3–4 и очередь после Этапа 3)
-- **Этап 3:** приёмка «глазами чужого человека» на временных репо (TS + Vitest, Python + pytest) в `.claude/skills/architect/` и `.agents/skills/architect/`, обновление скилла в `~/Desktop/Workspace`.
-- **Этап 4:** CI на GitHub Actions (ubuntu + macos, Node 22 + 24; Linux до первого зелёного прогона CI — `NOT VERIFIED`), grep на личные данные перед первым публичным push.
-- **После Этапа 3:** контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`), контроль неизменности `HEAD` хоста во время `runLiveEvals` (`evals.mjs`), замена проверки времени в `guards-shim-speed.test.mjs`.
+### Очередь следующих циклов
+- **Этап 3 (Приёмка «глазами чужого человека»):** временные репо (TS + Vitest, Python + pytest), установка скилла в `.claude/skills/architect/` и `.agents/skills/architect/` по README, ручной режим и `--check` / `--dry-run` / `--self-check`, обновление копии скилла в `~/Desktop/Workspace`.
+- **Пункты очереди после Этапа 3 и Этап 4 (Подготовка к публикации):**
+  - замена `performance.now` в `guards-shim-speed.test.mjs` на структурную проверку;
+  - контроль неизменности `HEAD` хоста во время `runLiveEvals` (`evals.mjs`);
+  - контроль ячейки eval `claude:haiku` `high_risk_frozen_test` (`NOT VERIFIED (sample < 5)`);
+  - CI GitHub Actions (`.github/workflows/ci.yml`: `ubuntu-latest` + `macos-latest`, Node 22 + Node 24) и финальная чистка личных данных.
 
 ## Decisions (ADR)
-Актуальный реестр долговечных решений (`ADR-008`…`ADR-037`) хранится в `docs/decisions.md`. Следующий номер: `ADR-038`.
+Актуальный реестр долговечных решений (`ADR-008`…`ADR-037`) хранится в `docs/decisions.md`.
+- **ADR-038 (Чтение в `BASE_COMMANDS`, валидный `stop.diff` и продолжение после эскалации):** (1) `BASE_COMMANDS` дополняется командами чтения (`git ls-files`, `git grep`, `git blame`, `git ls-tree`, `git merge-base`, `git rev-list`, `git describe`, `git shortlog`, `git stash list`, `git tag -l`, `git branch -a`, `git branch -r`, `git branch --list`, `git check-ignore`, `pwd`, `which`, `node --version`, `npm ls`); `commandProblem` и git-shim в `guards.mjs` разрешают только безопасные аргументы чтения для `git branch`, `git tag`, `git stash`, `git grep` (без `-O` / `--open-files-in-pager`) и `node --version` / `-v`. (2) `gitRaw` в `git.mjs` сохраняет пробельные контекстные строки unified diff при записи `stop.diff`; `resolveEscalationResume` в `check.mjs` разрешает старт после эскалации, только если грязные файлы входят в `Change` текущей задачи и совпадают со слепком `stop.status.txt` и `stop.diff` последнего прогона с `stop_escalation`, а `executorPrompt` включает отчёт об эскалации (`EXECUTOR.md:25`).
 
 ## Frozen
 - `EXECUTOR.md`
+- `.agents/skills/architect/orchestrator/permissions-readonly.test.mjs` — эталонный тест `T-055`
+- `.agents/skills/architect/orchestrator/escalation-resume.test.mjs` — эталонный тест `T-056`
 
 ## Rules
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-Следующий номер задачи: `T-055`.
+
+- [ ] T-055: Read-only commands in BASE_COMMANDS, commandProblem, and git shim (П10d)
+  - Контекст: в реальных прогонах агенты регулярно запрашивают безопасные команды чтения (`git grep`, `git ls-files`, `git branch -a` / `-r` / `--list`, `git tag -l`, `git stash list`, `node --version`, `pwd`, `which`, `npm ls`). Необходимо включить их в `BASE_COMMANDS` и синхронизировать проверки аргументов в `commandProblem` (`permissions.mjs`) и git-shim (`guards.mjs`), удерживая оба модуля `<= 400` строк.
+  - Риск: высокий
+  - Модель: inherit
+  - Зависит от: —
+  - Читать: `.agents/skills/architect/orchestrator/permissions.mjs`, `.agents/skills/architect/orchestrator/guards.mjs`, `.agents/skills/architect/orchestrator/permissions-readonly.test.mjs`
+  - Менять: `.agents/skills/architect/orchestrator/permissions.mjs`, `.agents/skills/architect/orchestrator/guards.mjs`
+  - Не трогать: `.agents/skills/architect/orchestrator/permissions-readonly.test.mjs`, `PLAN.md`, `EXECUTOR.md`
+  - Тест-кейсы: `.agents/skills/architect/orchestrator/permissions-readonly.test.mjs`
+    - Вход `BASE_COMMANDS` -> включает все 30 нейтральных к стеку команд чтения и локальной верификации (`git status`, `git diff`, `git log`, `git show`, `git rev-parse`, `git branch --show-current`, `git ls-files`, `git grep`, `git blame`, `git ls-tree`, `git merge-base`, `git rev-list`, `git describe`, `git shortlog`, `git stash list`, `git tag -l`, `git branch -a`, `git branch -r`, `git branch --list`, `git check-ignore`, `git add`, `git commit`, `node --test`, `node --version`, `npm ls`, `wc -l`, `grep`, `ls`, `pwd`, `which`).
+    - Вход `commandProblem(cmd, blocked)` -> возвращает `null` для всех `BASE_COMMANDS`, `git branch -a` / `-r` / `--list` / `--list <pattern>`, `git tag -l` / `--list`, `git stash list`, `git grep -n ...`, `node --version` / `node -v` (без доп. аргументов), `pwd`, `which`, `npm ls`; отклоняет `git grep -O` / `-O*` / `--open-files-in-pager` / `--open-files-in-pager=*`, мутирующие и пустые вызовы `git branch` (`git branch`, `git branch new-branch`, `git branch -d/-D/-m/-M`, `git branch -a new-branch`, `git branch --list -D feat`), `git tag` без `-l`/`--list` или с `-d/-a/-s/-f/-m/-F/-u`, `git stash` кроме `git stash list`, и `node` кроме `node --test` и одиночного `node --version` / `node -v`.
+    - Вход `writeGitShim` в `guards.mjs` при `AGENT_LOOP=1` -> разрешает `git branch --show-current`, `git branch -a`, `git branch -r`, `git branch --list [<pattern>]` и блокирует (exit `97`) прочие формы `git branch` (включая `git branch --list -D ...`), а также блокирует `git grep -O` / `-O*` / `--open-files-in-pager` / `--open-files-in-pager=*`.
+    - `permissions.mjs` и `guards.mjs` остаются `<= 400` строк (`split('\n').length <= 400`).
+  - Проверка: `node --test .agents/skills/architect/orchestrator/permissions-readonly.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/permissions-unwrap.test.mjs .agents/skills/architect/orchestrator/permissions-runners.test.mjs .agents/skills/architect/orchestrator/guards-git.test.mjs`
+  - Критерий приёмки: проверка зелёная.
+
+- [ ] T-056: Valid stop.diff via gitRaw and escalation resume on matching dirty working tree (П10e)
+  - Контекст: (1) `git()` в `git.mjs` вызывает `.trim()`, обрезая пробел в пустой контекстной строке в конце `git diff HEAD`, из-за чего `stop.diff` не проходит `git apply --check`. (2) Согласно `EXECUTOR.md:25`, при эскалации Исполнитель не откатывает свои правки; оркестратор должен разрешать повторный старт после эскалации, если грязные файлы входят в `Change` текущей задачи и совпадают со слепком `stop.status.txt` и `stop.diff` последнего прогона, остановившегося на эскалации этой задачи, и передавать отчёт об эскалации в `executorPrompt`. Все изменяемые модули должны оставаться `<= 400` строк (`split('\n').length <= 400`).
+  - Риск: высокий
+  - Модель: inherit
+  - Зависит от: T-055
+  - Читать: `.agents/skills/architect/orchestrator/git.mjs`, `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/run.mjs`, `.agents/skills/architect/orchestrator/escalation-resume.test.mjs`
+  - Менять: `.agents/skills/architect/orchestrator/git.mjs`, `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`, `.agents/skills/architect/orchestrator/run.mjs`
+  - Не трогать: `.agents/skills/architect/orchestrator/escalation-resume.test.mjs`, `PLAN.md`, `EXECUTOR.md`
+  - Тест-кейсы: `.agents/skills/architect/orchestrator/escalation-resume.test.mjs`
+    - `gitRaw(realGit, cwd, args)` в `git.mjs` возвращает вывод `git` без `.trim()`, а `run.mjs` записывает `stop.diff` через `gitRaw(realGit, workDir, ['diff', 'HEAD'])` (с ровно одним завершающим `\n` для непустого diff), так что `git apply --check --reverse stop.diff` проходит с кодом `0` даже при пустой строке контекста в конце файла.
+    - `resolveEscalationResume({ realGit, workDir, task })` в `check.mjs` проверяет последний прогон в `.agent-runs/`: если он остановился с категорией `stop_escalation` (или `status === 'escalation'`) на `task.id`, содержит `stop.status.txt`, `stop.diff` и `<taskId>-*.report.md`, все грязные файлы текущего дерева входят в `task.change` (и не входят в `Frozen`), а текущие `git status --porcelain --untracked-files=all` и `gitRaw(realGit, workDir, ['diff', 'HEAD'])` совпадают со слепком `stop.status.txt` и `stop.diff` — возвращает `{ ok: true, taskId: task.id, runDir, reportText }`; иначе `{ ok: false, reason }`.
+    - `localChecks` в `check.mjs` при грязном дереве проверяет `resolveEscalationResume` для следующей открытой задачи плана (`nextTask(plan, only)`): при `ok: true` проверка `'clean working tree'` проходит (`ok: true`), иначе падает (`ok: false`).
+    - `executorPrompt` в `prompts.mjs` принимает `escalationReport` (через `layout.escalationReport` или `rework.escalationReport`) и включает инструкции продолжения после эскалации по `EXECUTOR.md` и текст отчёта об эскалации; `run.mjs` передаёт `escalationReport` в `executorPrompt` при старте `round === 0` после эскалации.
+    - `git.mjs`, `check.mjs`, `prompts.mjs` и `run.mjs` остаются `<= 400` строк (`split('\n').length <= 400`).
+  - Проверка: `node --test .agents/skills/architect/orchestrator/escalation-resume.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/cli-node-version.test.mjs`
+  - Критерий приёмки: проверка зелёная.
