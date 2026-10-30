@@ -45,7 +45,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: `skill-path.test.mjs` и существующие тесты `layout`, `prompts`, `ask`, `selfcheck` проходят.
   - Проверка: `node --test .agents/skills/architect/orchestrator/skill-path.test.mjs`.
 
-- [ ] T-052: Skill installation checks in check.mjs and cli.mjs (--check and --self-check)
+- [x] T-052: Skill installation checks in check.mjs and cli.mjs (--check and --self-check)
   - Риск: высокий.
   - Зависит от: T-051.
   - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
