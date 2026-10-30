@@ -50,7 +50,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Проверка: `node --test .agents/skills/architect/orchestrator/check-task.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
   - Критерий приёмки: проверка зелёная.
 
-- [ ] T-058: Mechanical commit language & format enforcement: commitLanguage, commit-msg hook, --self-check warnings, and --no-verify guard (ADR-039)
+- [x] T-058: Mechanical commit language & format enforcement: commitLanguage, commit-msg hook, --self-check warnings, and --no-verify guard (ADR-039)
   - Контекст: язык и формат коммитов должны проверяться механически: (а) опциональное поле конфига `commitLanguage` (`"en"` запрещает нелатинские буквы в теме коммита); (б) zero-dependency Node-хук `.git/hooks/commit-msg`, устанавливаемый через `--install-hooks` и `--init` и проверяемый в `--check` (не перезаписывает чужой хук и не ставится при `core.hooksPath`; отклоняет коммиты не на том языке, кривые `arch:` / `T-NNN` и коммиты, которые только отмечают задачу `[x]` в `PLAN.md` без префикса `arch: accept T-NNN` или `arch: приёмка T-NNN`); (в) предупреждения (`warnings`) в `--self-check` без падения (`ok: true`); (г) блокировка `git commit --no-verify` (`-n`) в `guards.mjs` и `permissions.mjs`. Все модули должны оставаться `<= 400` строк (`split('\n').length <= 400`).
   - Риск: высокий
   - Модель: Gemini Flash (subagent, уровень неизвестен)
