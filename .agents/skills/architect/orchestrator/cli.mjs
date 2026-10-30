@@ -154,7 +154,10 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
     ...auditRes.violations,
     ...installProblems.map((p) => `${p.name}: ${p.detail}`),
   ];
-  const notVerified = [...(evidenceRes.notVerified ?? [])];
+  const notVerified = [
+    ...(gitRes.notVerified ?? []),
+    ...(evidenceRes.notVerified ?? []),
+  ];
   const waivers = gitRes.waivers ?? [];
   const rejectedBlockers = auditRes.rejectedBlockers ?? [];
 
@@ -183,11 +186,16 @@ export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = nu
     ...fast.violations,
     ...(redCheck.violations ?? []),
   ];
+  const notVerified = [
+    ...fast.notVerified,
+    ...(redCheck.notVerified ?? []),
+  ];
 
   return {
     ...fast,
     ok: violations.length === 0,
     violations,
+    notVerified,
     redCheck,
   };
 }

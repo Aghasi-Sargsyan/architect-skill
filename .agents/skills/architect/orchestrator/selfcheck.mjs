@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { git, commitsSince } from './git.mjs';
-import { isTestFile, findBypasses } from './mechanics.mjs';
+import { DEFAULT_TEST_FILE_PATTERNS, isTestFile, findBypasses } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -43,6 +43,9 @@ const CONFIG_ARRAY_KEYS = [
   'bypassScanPaths',
   'protectedConfigFiles',
   'blockedNpmScripts',
+  'testFilePatterns',
+  'testPatterns',
+  'assertPatterns',
 ];
 
 const TIMER_RE = /(?:performance\.now\(|Date\.now\(|process\.hrtime\b|console\.time\()/;
@@ -127,10 +130,10 @@ export function findEmptyCatches(diffText) {
   return result;
 }
 
-export function findTestTimers(diffText) {
+export function findTestTimers(diffText, testFilePatterns) {
   const result = [];
   for (const { file, hunks } of splitDiffByFiles(diffText)) {
-    if (!isTestFile(file)) continue;
+    if (!isTestFile(file, testFilePatterns)) continue;
     for (const hunk of hunks) {
       for (const line of hunk) {
         if (TIMER_RE.test(line)) result.push({ file, line: line.trim() });
@@ -140,12 +143,33 @@ export function findTestTimers(diffText) {
   return result;
 }
 
-function countTests(content) {
-  return (content.match(/\b(?:test|it)\s*\(/g) ?? []).length;
+const DEFAULT_TEST_PATTERNS = ['\\b(?:test|it)\\s*\\('];
+const DEFAULT_ASSERT_PATTERNS = ['\\bassert\\.', '\\bexpect\\s*\\('];
+
+function countByPatterns(content, patterns, fallback) {
+  const list = Array.isArray(patterns) && patterns.length > 0 ? patterns : fallback;
+  let total = 0;
+  for (const p of list) {
+    const re = new RegExp(p instanceof RegExp ? p.source : String(p), 'gm');
+    total += (content.match(re) ?? []).length;
+  }
+  return total;
 }
 
-function countAsserts(content) {
-  return (content.match(/\bassert\./g) ?? []).length;
+function countTests(content, config) {
+  return countByPatterns(content, config?.testPatterns, DEFAULT_TEST_PATTERNS);
+}
+
+function countAsserts(content, config) {
+  return countByPatterns(content, config?.assertPatterns, DEFAULT_ASSERT_PATTERNS);
+}
+
+function isNamedTestFile(filePath, patterns = DEFAULT_TEST_FILE_PATTERNS) {
+  if (!filePath || typeof filePath !== 'string') return false;
+  const normalized = filePath.replace(/\\/g, '/').replace(/^\.\//, '');
+  const list = (Array.isArray(patterns) && patterns.length > 0 ? patterns : DEFAULT_TEST_FILE_PATTERNS)
+    .filter((p) => String(p) !== '(?:^|/)tests/' && !String(p).endsWith('/'));
+  return list.some((p) => (p instanceof RegExp ? p : new RegExp(p)).test(normalized));
 }
 
 function isUnderScanPaths(file, scanPaths) {
@@ -180,13 +204,35 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     }
   }
   const waivers = parseWaivers(effectivePlanText);
-  if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, waivers };
+  const notVerified = [];
+  if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, waivers, notVerified };
 
   const allCommits = commitsSince(realGit, cwd, baseSha);
   const nonExecCommits = allCommits.filter((c) => !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
   const bypassPatterns = config?.bypassRegexps ?? (config?.bypassPatterns ?? []).map((p) => new RegExp(p));
   const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean);
   const headFileSet = new Set(headFiles);
+  const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '');
+  const planIdx = allCommits.findIndex((c) => /^arch:\s*(?:plan|план)\b/i.test(c.subject));
+  const frozenTests = new Set();
+  if (planIdx !== -1) {
+    try {
+      const planAtCommit = parsePlan(git(realGit, cwd, ['show', `${allCommits[planIdx].sha}:PLAN.md`]));
+      for (const f of planAtCommit.frozen ?? []) {
+        const nf = norm(f);
+        if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
+      }
+    } catch {}
+  }
+  if (effectivePlanText) {
+    try {
+      const planAtHead = parsePlan(effectivePlanText);
+      for (const f of planAtHead.frozen ?? []) {
+        const nf = norm(f);
+        if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
+      }
+    } catch {}
+  }
 
   // 1. Content scans over non-executor commits (remediability check on HEAD)
   for (const c of nonExecCommits) {
@@ -201,7 +247,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
         ...fileDiff.hunks.flatMap((h) => ['@@ -1,0 +1,0 @@', ...h.map((l) => `+${l}`)]),
       ].join('\n');
 
-      for (const added of findBypasses(fileDiffText, bypassPatterns)) {
+      for (const added of findBypasses(fileDiffText, bypassPatterns, config?.testFilePatterns)) {
         if (headContent.includes(added)) {
           violations.push(`bypass in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${added.slice(0, 100)}`);
         }
@@ -211,7 +257,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
           violations.push(`empty catch in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${catchItem.lines.join(' ')}`);
         }
       }
-      for (const timer of findTestTimers(fileDiffText)) {
+      for (const timer of findTestTimers(fileDiffText, config?.testFilePatterns)) {
         if (headContent.includes(timer.line)) {
           violations.push(`test timer in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${timer.line}`);
         }
@@ -221,7 +267,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   // 2. Monotonicity checks
   const baseFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', baseSha]).split('\n').filter(Boolean);
-  const baseTestFiles = baseFiles.filter((f) => isTestFile(f) && isUnderScanPaths(f, config?.bypassScanPaths));
+  const baseTestFiles = baseFiles.filter((f) => isTestFile(f, config?.testFilePatterns) && isUnderScanPaths(f, config?.bypassScanPaths));
 
   for (const testFile of baseTestFiles) {
     if (!headFileSet.has(testFile)) {
@@ -231,16 +277,30 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     } else {
       const baseContent = git(realGit, cwd, ['show', `${baseSha}:${testFile}`]);
       const headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
-      const baseTests = countTests(baseContent);
-      const headTests = countTests(headContent);
+      const baseTests = countTests(baseContent, config);
+      const headTests = countTests(headContent, config);
       if (headTests < baseTests) {
         violations.push(`monotonicity: in ${testFile} test/it count decreased from ${baseTests} to ${headTests}`);
       }
-      const baseAsserts = countAsserts(baseContent);
-      const headAsserts = countAsserts(headContent);
+      const baseAsserts = countAsserts(baseContent, config);
+      const headAsserts = countAsserts(headContent, config);
       if (headAsserts < baseAsserts) {
         violations.push(`monotonicity: in ${testFile} assert count decreased from ${baseAsserts} to ${headAsserts}`);
       }
+    }
+  }
+
+  for (const testFile of headFiles) {
+    if (!isTestFile(testFile, config?.testFilePatterns)) continue;
+    if (!isUnderScanPaths(testFile, config?.bypassScanPaths) && !frozenTests.has(testFile)) continue;
+    const headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
+    const headTests = countTests(headContent, config);
+    const headAsserts = countAsserts(headContent, config);
+    if (
+      headAsserts === 0
+      && (headTests > 0 || frozenTests.has(testFile) || isNamedTestFile(testFile, config?.testFilePatterns))
+    ) {
+      notVerified.push(`test file ${testFile} has 0 recognized assertions (NOT VERIFIED)`);
     }
   }
 
@@ -277,29 +337,8 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   }
 
   // 3. Fix-frozen check after plan commit
-  const planIdx = allCommits.findIndex((c) => /^arch:\s*(?:plan|план)\b/i.test(c.subject));
   if (requireFixFrozen || planIdx !== -1) {
     const commitsToCheck = requireFixFrozen ? nonExecCommits : allCommits.slice(planIdx + 1).filter((c) => !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
-    const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '');
-    const frozenTests = new Set();
-    if (planIdx !== -1) {
-      try {
-        const planAtCommit = parsePlan(git(realGit, cwd, ['show', `${allCommits[planIdx].sha}:PLAN.md`]));
-        for (const f of planAtCommit.frozen ?? []) {
-          const nf = norm(f);
-          if (isTestFile(nf)) frozenTests.add(nf);
-        }
-      } catch {}
-    }
-    if (effectivePlanText) {
-      try {
-        const planAtHead = parsePlan(effectivePlanText);
-        for (const f of planAtHead.frozen ?? []) {
-          const nf = norm(f);
-          if (isTestFile(nf)) frozenTests.add(nf);
-        }
-      } catch {}
-    }
 
     const isProtected = (f) => {
       const nf = norm(f);
@@ -324,7 +363,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     }
   }
 
-  return { ok: violations.length === 0, baseSha, headSha, violations, waivers };
+  return { ok: violations.length === 0, baseSha, headSha, violations, waivers, notVerified };
 }
 
 export function checkPostReviewSelfCheck({ realGit, cwd, baseSha, config }) {

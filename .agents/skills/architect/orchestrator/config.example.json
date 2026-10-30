@@ -34,6 +34,20 @@
     "#\\[allow\\(",
     "(?:Object\\.assign|(?:Object|Reflect)\\.(?:defineProperty|defineProperties|setPrototypeOf))\\s*\\(\\s*(?:[A-Za-z_$][\\w$]*\\s*\\.\\s*prototype|globalThis)\\b|\\b(?:[A-Za-z_$][\\w$]*\\s*\\.\\s*prototype|globalThis)\\s*(?:\\.\\s*[A-Za-z_$][\\w$]*|\\[[^\\]]+\\])\\s*=(?!=)|(?:^|[^\\w$])__proto__\\s*(?:=(?!=)|:)"
   ],
+  "testFilePatterns": [
+    "(?:^|/)tests/",
+    "\\.(?:test|spec)\\.[^/]+$",
+    "(?:^|/)test_[^/]+\\.py$",
+    "(?:^|/)[^/]+_test\\.(?:py|go)$"
+  ],
+  "testPatterns": [
+    "\\b(?:test|it)\\s*\\("
+  ],
+  "assertPatterns": [
+    "\\bassert\\.",
+    "\\bexpect\\s*\\("
+  ],
+  "redCheckCommand": "node --test {file}",
   "maxFixRounds": 2,
   "maxPermissionPrompts": 5,
   "answerTimeoutMinutes": 60,

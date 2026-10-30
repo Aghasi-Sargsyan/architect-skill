@@ -63,16 +63,28 @@ export function validateConfig(config) {
   if (!isStringArray(config.bypassScanPaths)) {
     problems.push('Field bypassScanPaths must be an array of strings');
   }
-  if (!isStringArray(config.bypassPatterns)) {
-    problems.push('Field bypassPatterns must be an array of strings (JavaScript regular expressions)');
-  } else {
-    for (const p of config.bypassPatterns) {
-      try {
-        new RegExp(p);
-      } catch (err) {
-        problems.push(`bypassPatterns: "${p}" — not a regular expression (${errText(err)})`);
+  for (const key of ['bypassPatterns', 'testFilePatterns', 'testPatterns', 'assertPatterns']) {
+    if (!isStringArray(config[key])) {
+      problems.push(`Field ${key} must be an array of strings (JavaScript regular expressions)`);
+    } else {
+      for (const p of config[key]) {
+        try {
+          new RegExp(p);
+        } catch (err) {
+          problems.push(`${key}: "${p}" — not a regular expression (${errText(err)})`);
+        }
       }
     }
+  }
+  if (typeof config.redCheckCommand !== 'string') {
+    problems.push('Field redCheckCommand must be a string');
+  } else if (config.redCheckCommand.trim()) {
+    const blocked = effectiveBlockedScripts(config);
+    const expanded = config.redCheckCommand.includes('{file}')
+      ? config.redCheckCommand.replaceAll('{file}', 'file')
+      : `${config.redCheckCommand.trim()} file`;
+    const problem = commandProblem(expanded, blocked);
+    if (problem) problems.push(`redCheckCommand: "${config.redCheckCommand}" — ${problem}`);
   }
   if (!Number.isInteger(config.maxFixRounds) || config.maxFixRounds < 0) problems.push('maxFixRounds — integer ≥ 0');
   if (!Number.isInteger(config.maxPermissionPrompts) || config.maxPermissionPrompts < 0) {

@@ -16,16 +16,24 @@ function matchesProtectedConfig(file, patterns) {
   });
 }
 
+export const DEFAULT_TEST_FILE_PATTERNS = [
+  '(?:^|/)tests/',
+  '\\.(?:test|spec)\\.[^/]+$',
+  '(?:^|/)test_[^/]+\\.py$',
+  '(?:^|/)[^/]+_test\\.(?:py|go)$',
+];
+
 /**
- * Returns true if filePath is a test file:
- * starts with 'tests/', contains '/tests/', or ends with '.test.<ext>'.
+ * Returns true if filePath matches any testFilePatterns entry.
  * @param {string} filePath
+ * @param {Array<string|RegExp>} [patterns]
  * @returns {boolean}
  */
-export function isTestFile(filePath) {
+export function isTestFile(filePath, patterns = DEFAULT_TEST_FILE_PATTERNS) {
   if (!filePath || typeof filePath !== 'string') return false;
-  const normalized = filePath.replace(/\\/g, '/');
-  return normalized.startsWith('tests/') || normalized.includes('/tests/') || /\.test\.[^/]+$/.test(normalized);
+  const normalized = filePath.replace(/\\/g, '/').replace(/^\.\//, '');
+  const list = Array.isArray(patterns) && patterns.length > 0 ? patterns : DEFAULT_TEST_FILE_PATTERNS;
+  return list.some((p) => (p instanceof RegExp ? p : new RegExp(p)).test(normalized));
 }
 
 const PROTO_BYPASS_RE = /(?:prototype|globalThis|__proto__)/;
@@ -33,12 +41,13 @@ const PROTO_BYPASS_RE = /(?:prototype|globalThis|__proto__)/;
 /**
  * Added lines of a unified diff that match any bypass pattern (config.bypassPatterns).
  * Patterns see the line without its leading "+"; file headers ("+++ b/...") are skipped.
- * Prototype/globalThis/__proto__ mutation patterns are skipped for test files (tests/**, *.test.*).
+ * Prototype/globalThis/__proto__ mutation patterns are skipped for test files.
  * @param {string} diffText
  * @param {RegExp[]} patterns
+ * @param {Array<string|RegExp>} [testFilePatterns]
  * @returns {string[]}
  */
-export function findBypasses(diffText, patterns) {
+export function findBypasses(diffText, patterns, testFilePatterns) {
   if (!patterns.length) return [];
   const nonProtoPatterns = patterns.filter((re) => !PROTO_BYPASS_RE.test(re.source));
 
@@ -53,7 +62,7 @@ export function findBypasses(diffText, patterns) {
       if (currentFile.startsWith('"') && currentFile.endsWith('"')) {
         currentFile = currentFile.slice(1, -1);
       }
-      activePatterns = isTestFile(currentFile) ? nonProtoPatterns : patterns;
+      activePatterns = isTestFile(currentFile, testFilePatterns) ? nonProtoPatterns : patterns;
       continue;
     }
     if (line.startsWith('+++')) {
@@ -86,6 +95,7 @@ export function checkExecutorRun(opts) {
     codePaths,
     bypassPatterns = [],
     protectedConfigFiles = [],
+    testFilePatterns = opts.config?.testFilePatterns,
     configPath = '',
     orchestratorDir,
     report,
@@ -149,7 +159,7 @@ export function checkExecutorRun(opts) {
 
   if (commits.length && scanPaths.length && bypassPatterns.length) {
     const diff = git(realGit, cwd, ['diff', '-U0', baseSha, 'HEAD', '--', ...scanPaths]);
-    for (const added of findBypasses(diff, bypassPatterns)) {
+    for (const added of findBypasses(diff, bypassPatterns, testFilePatterns)) {
       violations.push(`check bypassing in diff (check bypass): ${added.slice(0, 120)}`);
     }
   }
@@ -223,6 +233,8 @@ export function inspectFailedExecutorTurn({
   scanPaths,
   bypassPatterns,
   protectedConfigFiles = [],
+  testFilePatterns,
+  config,
   configPath = '',
   orchestratorDir,
 }) {
@@ -267,6 +279,7 @@ export function inspectFailedExecutorTurn({
       scanPaths,
       bypassPatterns,
       protectedConfigFiles,
+      testFilePatterns: testFilePatterns ?? config?.testFilePatterns,
       configPath,
       orchestratorDir,
     });

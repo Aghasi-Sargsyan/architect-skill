@@ -202,6 +202,7 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
       skipped: true,
       reason: `Executor commit present in range (${execCommit.subject}): red-check skipped`,
       violations: [],
+      notVerified: [],
       checked: [],
     };
   }
@@ -224,7 +225,11 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
 
   const checked = [];
   const violations = [];
+  const notVerified = [];
   const seenFiles = new Set();
+  const rawCmdTemplate = config?.redCheckCommand ?? 'node --test {file}';
+  const cmdTpl = typeof rawCmdTemplate === 'string' ? rawCmdTemplate.trim() : '';
+  const isDefaultNodeTest = /^node\s+--test(?:\s+\{file\})?$/.test(cmdTpl);
 
   for (const task of highRiskTasks) {
     for (const file of task.referenceTests ?? []) {
@@ -236,9 +241,18 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
         continue;
       }
 
+      if (!cmdTpl || (isDefaultNodeTest && !/\.(?:m|c)?js$/i.test(normFile))) {
+        notVerified.push(`reference test ${normFile} red-check skipped: no suitable redCheckCommand configured (NOT VERIFIED)`);
+        continue;
+      }
+
+      const verifyCmd = cmdTpl.includes('{file}')
+        ? cmdTpl.replaceAll('{file}', normFile)
+        : `${cmdTpl} ${normFile}`;
+
       const synthTask = {
         id: task.id,
-        verifyCommands: [`node --test ${normFile}`],
+        verifyCommands: [verifyCmd],
       };
       const res = runTaskVerification({
         task: synthTask,
@@ -275,6 +289,7 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
     ok: violations.length === 0,
     skipped: false,
     violations,
+    notVerified,
     checked,
   };
 }
