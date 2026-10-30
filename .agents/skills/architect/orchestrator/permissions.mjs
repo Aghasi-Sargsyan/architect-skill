@@ -12,20 +12,16 @@ export const agySettingsPath = (home = os.homedir()) => path.join(home, '.gemini
 
 /** Safe base set: read-only git, local commits, verification commands and read-only listings. */
 export const BASE_COMMANDS = [
-  'git status', 'git diff', 'git log', 'git show', 'git rev-parse', 'git branch --show-current', 'git ls-files', 'git grep', 'git blame', 'git ls-tree',
-  'git merge-base', 'git rev-list', 'git describe', 'git shortlog', 'git stash list', 'git tag -l', 'git branch -a', 'git branch -r', 'git branch --list',
-  'git check-ignore', 'git add', 'git commit', 'node --test', 'node --version', 'npm ls', 'wc -l', 'grep', 'ls', 'pwd', 'which',
+  'git status', 'git diff', 'git log', 'git show', 'git rev-parse', 'git branch --show-current', 'git ls-files', 'git grep', 'git blame', 'git ls-tree', 'git merge-base', 'git rev-list', 'git describe', 'git shortlog', 'git stash list', 'git tag -l', 'git branch -a', 'git branch -r', 'git branch --list', 'git check-ignore', 'git add', 'git commit', 'node --test', 'node --version', 'npm ls', 'wc -l', 'grep', 'ls', 'pwd', 'which',
 ];
 
 const TOO_BROAD = new Set([
-  'git', 'npm', 'npm run', 'npm run-script', 'npx', 'node', 'sh', 'bash', 'zsh', 'env', 'xargs',
-  'pnpm', 'pnpm run', 'yarn', 'yarn run', 'bun', 'bun run', 'make', 'just',
+  'git', 'npm', 'npm run', 'npm run-script', 'npx', 'node', 'sh', 'bash', 'zsh', 'env', 'xargs', 'pnpm', 'pnpm run', 'yarn', 'yarn run', 'bun', 'bun run', 'make', 'just',
 ]);
 export const WRAPPERS = new Set(['time', 'timeout', 'nice', 'nohup', 'caffeinate', 'stdbuf', 'command', 'builtin', 'arch']);
 export const FILE_BINARIES = new Set(['cat', 'head', 'tail', 'less', 'more', 'sed', 'awk', 'perl', 'python', 'python3', 'tee', 'find', 'touch', 'mkdir', 'cp', 'mv']);
 const DENIED_BINARIES = new Set([
-  'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec',
-  'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript',
+  'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec', 'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript',
   ...WRAPPERS, ...FILE_BINARIES,
 ]);
 const SHELL_OPERATORS_RE = /&&|\||;|>|<|\$\(|`/;
@@ -113,6 +109,8 @@ export function commandProblem(command, blockedScripts = []) {
   if (DENIED_BINARIES.has(unwrappedBin) && !isPythonTestRunner) return `"${unwrappedBin}" is forbidden for agents with any arguments`;
   if (unwrappedBin === 'git') {
     const rest = unwrappedTokens.slice(2);
+    if (unwrappedTokens.some((t) => t === '--no-verify' || t.startsWith('--no-verify='))) return 'git with --no-verify is forbidden';
+    if (unwrappedSecond === 'commit' && rest.some((t) => t.startsWith('-') && !t.startsWith('--') && t.includes('n'))) return 'git commit with -n is forbidden (--no-verify)';
     if (unwrappedTokens.some((t) => t === '--output' || t.startsWith('--output='))) return 'git with --output argument is forbidden: use built-in tools to output to a file';
     if (unwrappedSecond === 'grep' && rest.some((t) => t.startsWith('-O') || t === '--open-files-in-pager' || t.startsWith('--open-files-in-pager='))) return 'git grep with -O / --open-files-in-pager is forbidden';
     const okBranch = (rest.length === 1 && (rest[0] === '--show-current' || rest[0] === '-a' || rest[0] === '-r')) || (rest[0] === '--list' && rest.slice(1).every((t) => !t.startsWith('-')));
@@ -214,15 +212,13 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
   else if (b0 === 'wc' && b1 === '-l') p = 'wc -l';
   else if (STANDALONE_TOOLS.has(b0)) p = b0;
 
-  const options = [];
-  const choices = [];
+  const options = [], choices = [];
   if (p && p !== full && !commandProblem(p, blockedScripts)) {
     options.push({ answer: '1', rule: p });
     choices.push({ key: '1', rule: p, label: `Allow prefix for command family: command(${p})` });
   }
   options.push({ answer: '2', rule: full });
-  choices.push({ key: '2', rule: full, label: `Allow this exact command: command(${full})` });
-  choices.push({ key: '3', rule: null, label: 'Do not allow (stop / escalate)' });
+  choices.push({ key: '2', rule: full, label: `Allow this exact command: command(${full})` }, { key: '3', rule: null, label: 'Do not allow (stop / escalate)' });
   const prop = { auto: false, options };
   Object.defineProperty(prop, 'choices', { value: choices, enumerable: false, writable: true, configurable: true });
   return prop;

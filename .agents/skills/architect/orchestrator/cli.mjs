@@ -47,11 +47,12 @@ export function parseArgs(argv) {
     base: null,
     auditPlan: false,
     checkTask: null,
+    installHooks: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan'].includes(a)) {
+    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
     } else if (a === '--check-task') {
       const next = argv[++i];
@@ -97,9 +98,10 @@ export function parseArgs(argv) {
     opts.selfCheck,
     opts.auditPlan,
     opts.checkTask !== null,
+    opts.installHooks,
   ];
   if (modeFlags.filter(Boolean).length > 1) {
-    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, and --check-task: only one per invocation');
+    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, and --install-hooks: only one per invocation');
   }
 
   if (opts.answer !== null && !/^[123]$/.test(opts.answer)) {
@@ -200,12 +202,14 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
   ];
   const waivers = gitRes.waivers ?? [];
   const rejectedBlockers = auditRes.rejectedBlockers ?? [];
+  const warnings = gitRes.warnings ?? [];
 
   return {
     ok: violations.length === 0,
     baseSha: gitRes.baseSha,
     headSha: gitRes.headSha,
     violations,
+    warnings,
     notVerified,
     waivers,
     rejectedBlockers,
@@ -235,6 +239,7 @@ export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = nu
     ...fast,
     ok: violations.length === 0,
     violations,
+    warnings: fast.warnings ?? [],
     notVerified,
     redCheck,
   };
@@ -251,18 +256,19 @@ export function formatSelfCheckReport(res) {
     lines.push(`\nViolations (${res.violations.length}):`);
     for (const v of res.violations) lines.push(`  ✗ ${v}`);
   }
+  if (res.warnings && res.warnings.length > 0) {
+    lines.push(`\nWarnings (${res.warnings.length}):`);
+    for (const w of res.warnings) lines.push(`  ! ${w}`);
+  }
   if (res.notVerified && res.notVerified.length > 0) {
     lines.push(`\nNOT VERIFIED (${res.notVerified.length}):`);
     for (const nv of res.notVerified) lines.push(`  ? ${nv}`);
   }
   if (res.redCheck) {
-    if (res.redCheck.skipped) {
-      lines.push(`\nRed-check: skipped (${res.redCheck.reason})`);
-    } else {
+    if (res.redCheck.skipped) lines.push(`\nRed-check: skipped (${res.redCheck.reason})`);
+    else {
       lines.push(`\nRed-check: ${res.redCheck.checked.length} reference test(s) red`);
-      for (const c of res.redCheck.checked) {
-        lines.push(`  ✓ ${c.file}`);
-      }
+      for (const c of res.redCheck.checked) lines.push(`  ✓ ${c.file}`);
     }
   }
   if (res.waivers && res.waivers.length > 0) {
@@ -278,12 +284,8 @@ export function formatSelfCheckReport(res) {
 
 export function formatStartupNotices({ waivers = [], rejectedBlockers = [] } = {}) {
   const notices = [];
-  for (const w of waivers) {
-    notices.push(`• Active WAIVER ${w.sha7}: ${w.rule} — ${w.reason}`);
-  }
-  for (const b of rejectedBlockers) {
-    notices.push(`• Rejected audit blocker ${b.id}: ${b.reason || b.finding?.summary || 'rejected'}`);
-  }
+  for (const w of waivers) notices.push(`• Active WAIVER ${w.sha7}: ${w.rule} — ${w.reason}`);
+  for (const b of rejectedBlockers) notices.push(`• Rejected audit blocker ${b.id}: ${b.reason || b.finding?.summary || 'rejected'}`);
   return notices;
 }
 
@@ -292,9 +294,7 @@ export async function handleSelfCheckCli({ opts = {}, config, workDir = process.
   const cfg = config ?? safeLoadConfig(resolveConfigPath({ workDir }));
   const res = runFullSelfCheck({ realGit: g, workDir, config: cfg, baseRef: opts?.base ?? null, env });
   console.log(formatSelfCheckReport(res));
-  if (!res.ok) {
-    process.exitCode = 1;
-  }
+  if (!res.ok) process.exitCode = 1;
   return res;
 }
 

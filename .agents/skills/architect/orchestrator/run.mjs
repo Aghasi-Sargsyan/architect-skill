@@ -19,12 +19,9 @@ import { runView } from './feed.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { appendEvent, classifyStopReason, sendNotification } from './events.mjs';
 import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
-import {
-  parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport,
-  formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig,
-  loadConfigOrDefaults, handleCheckTaskCli,
-} from './cli.mjs';
+import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig, loadConfigOrDefaults, handleCheckTaskCli } from './cli.mjs';
 import { checkPostReviewSelfCheck } from './selfcheck.mjs';
+import { installCommitMsgHook } from './hooks.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -44,10 +41,12 @@ async function main() {
     console.log(`\nAllowlist for ${adapter.displayName}: ${adapter.permissions.settingsShown}, keys permissions.allow and permissions.deny.\nRules for command(...) are configured once per computer, with subcommand only: Antigravity matches by prefix, "command(git)" would allow git push too.\nwrite_file(<project>) and denying writes to its .git are configured once per project.\n\n${adapter.permissions.allowlistBlock(adapter.permissions.rulesFor(ready, realOrResolved(ready.workDir ?? process.cwd())))}\n\nInsert the block manually or add it with backup: run with --write-permissions. Then run with --check.`);
     return;
   }
-  if (opts.checkTask) {
-    const config = loadConfigOrDefaults(configPath, process.cwd());
-    return handleCheckTaskCli({ opts, config, workDir: process.cwd(), realGit });
+  if (opts.installHooks) {
+    const res = installCommitMsgHook({ workDir: process.cwd(), realGit });
+    console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`);
+    return;
   }
+  if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
   const config = safeLoadConfig(configPath);
   const layout = config.paths;
   const workDir = path.resolve(config.workDir ?? process.cwd());

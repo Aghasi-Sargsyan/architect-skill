@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { git, commitsSince } from './git.mjs';
 import { DEFAULT_TEST_FILE_PATTERNS, isTestFile, findBypasses } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
+import { scanRangeCommitMessages } from './hooks.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,10 +17,7 @@ export const EVAL_FIXTURE_ANCHORS = [
   '- Verify: \\`git show --stat HEAD\\`.',
 ];
 
-const CONFIG_FILES = [
-  '.agents/orchestrator.json',
-  '.architect/config.json',
-];
+const CONFIG_FILES = ['.agents/orchestrator.json', '.architect/config.json'];
 
 function resolveProtectedConfigFiles({ cwd, orchestratorDir = here, baseFiles = [], headFiles = [] }) {
   const set = new Set(CONFIG_FILES);
@@ -38,15 +36,7 @@ function resolveProtectedConfigFiles({ cwd, orchestratorDir = here, baseFiles = 
   return set;
 }
 
-const CONFIG_ARRAY_KEYS = [
-  'bypassPatterns',
-  'bypassScanPaths',
-  'protectedConfigFiles',
-  'blockedNpmScripts',
-  'testFilePatterns',
-  'testPatterns',
-  'assertPatterns',
-];
+const CONFIG_ARRAY_KEYS = ['bypassPatterns', 'bypassScanPaths', 'protectedConfigFiles', 'blockedNpmScripts', 'testFilePatterns', 'testPatterns', 'assertPatterns'];
 
 const TIMER_RE = /(?:performance\.now\(|Date\.now\(|process\.hrtime\b|console\.time\()/;
 const CATCH_RE = /(?:^|[^\w.])(catch\s*(?:\([^)]*\))?\s*\{([^}]*)\})/g;
@@ -205,8 +195,9 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   }
   const waivers = parseWaivers(effectivePlanText);
   const notVerified = [];
-  if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, waivers, notVerified };
+  if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, warnings: [], waivers, notVerified };
 
+  const warnings = scanRangeCommitMessages({ realGit, cwd, baseSha, headSha, commitLanguage: config?.commitLanguage });
   const allCommits = commitsSince(realGit, cwd, baseSha);
   const nonExecCommits = allCommits.filter((c) => !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
   const bypassPatterns = config?.bypassRegexps ?? (config?.bypassPatterns ?? []).map((p) => new RegExp(p));
@@ -363,7 +354,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     }
   }
 
-  return { ok: violations.length === 0, baseSha, headSha, violations, waivers, notVerified };
+  return { ok: violations.length === 0, baseSha, headSha, violations, warnings, waivers, notVerified };
 }
 
 export function checkPostReviewSelfCheck({ realGit, cwd, baseSha, config }) {

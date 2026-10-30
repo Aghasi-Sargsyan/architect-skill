@@ -6,6 +6,7 @@ import { isIgnored } from './git.mjs';
 import { CLASSIC_CONFIG_PATH, COMPACT_CONFIG_PATH, resolveLayout } from './layout.mjs';
 import { commandProblem } from './permissions.mjs';
 import { effectiveBlockedScripts } from './runners.mjs';
+import { installCommitMsgHook } from './hooks.mjs';
 
 export const EXAMPLE_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'config.example.json');
 export const RUNS_DIR = '.agent-runs';
@@ -16,7 +17,7 @@ export const RUNS_DIR = '.agent-runs';
  */
 export const DEFAULTS = JSON.parse(readFileSync(EXAMPLE_PATH, 'utf8'));
 
-const KNOWN_KEYS = new Set([...Object.keys(DEFAULTS), 'workDir', 'layout', 'blockedScripts', 'runner', 'runnerBin', 'auditor']);
+const KNOWN_KEYS = new Set([...Object.keys(DEFAULTS), 'workDir', 'layout', 'blockedScripts', 'runner', 'runnerBin', 'auditor', 'commitLanguage']);
 const isObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isStringArray = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
 const errText = (err) => (err instanceof Error ? err.message : String(err));
@@ -115,6 +116,9 @@ export function validateConfig(config) {
   if (config.workDir !== undefined && (typeof config.workDir !== 'string' || !config.workDir)) {
     problems.push('workDir must be a non-empty string');
   }
+  if (config.commitLanguage !== undefined && config.commitLanguage !== null && config.commitLanguage !== '') {
+    if (config.commitLanguage !== 'en') problems.push('commitLanguage — optional, "en"');
+  }
   return problems;
 }
 
@@ -210,5 +214,8 @@ export function initProject({ workDir, configPath = COMPACT_CONFIG_PATH, realGit
     appendFileSync(gitignore, `${sep}# Agent orchestrator runs (prompts, reports, lock)\n${RUNS_DIR}/\n`);
     notes.push(`added ${RUNS_DIR}/ to .gitignore`);
   }
+  const hookRes = installCommitMsgHook({ workDir, realGit });
+  if (hookRes.installed) notes.push('installed .git/hooks/commit-msg');
+  else if (hookRes.skipped) notes.push(`skipped .git/hooks/commit-msg (${hookRes.reason})`);
   return notes;
 }

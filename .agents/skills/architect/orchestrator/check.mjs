@@ -13,7 +13,7 @@ import { acquireLock, defaultSandboxRoot, installGuards, lockHolder } from './gu
 import { findExecutable, readEvents } from './events.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { agySettingsPath } from './permissions.mjs';
-import { checkExecutorModelConfig } from './hooks.mjs';
+import { checkCommitMsgHook, checkExecutorModelConfig } from './hooks.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MIN_NODE = 22;
@@ -43,17 +43,14 @@ export function checkSkillInstallation({ workDir = process.cwd(), layout = resol
   }
   const skillDir = resolveInstalledSkillDir(workDir, orchestratorDir);
   if (skillDir && existsSync(path.join(skillDir, 'EXECUTOR.md'))) {
-    const projectExecPath = path.join(workDir, layout.executorPath);
-    const skillExecPath = path.join(skillDir, 'EXECUTOR.md');
+    const projectExecPath = path.join(workDir, layout.executorPath), skillExecPath = path.join(skillDir, 'EXECUTOR.md');
     if (!existsSync(projectExecPath)) problems.push({ name: 'EXECUTOR.md', detail: `${layout.executorPath} not found in working directory (must match skill EXECUTOR.md)` });
     else if (!readFileSync(projectExecPath).equals(readFileSync(skillExecPath))) problems.push({ name: 'EXECUTOR.md', detail: `${layout.executorPath} does not match skill EXECUTOR.md byte-for-byte` });
   }
   const agentsPath = path.join(workDir, 'AGENTS.md');
-  if (existsSync(agentsPath)) {
-    const agentsText = readFileSync(agentsPath, 'utf8');
-    if (agentsText.includes('npm run agents') && (!agentsText.includes('--check') || !agentsText.includes('--self-check'))) {
-      problems.push({ name: 'AGENTS.md', detail: 'AGENTS.md documents "npm run agents" but is missing --check or --self-check' });
-    }
+  if (existsSync(agentsPath) && readFileSync(agentsPath, 'utf8').includes('npm run agents')) {
+    const txt = readFileSync(agentsPath, 'utf8');
+    if (!txt.includes('--check') || !txt.includes('--self-check')) problems.push({ name: 'AGENTS.md', detail: 'AGENTS.md documents "npm run agents" but is missing --check or --self-check' });
   }
   return problems;
 }
@@ -338,7 +335,7 @@ export async function runCheckCommand({ config, workDir, realGit, settingsPath =
   const adapter = getAdapter(config);
   const resolvedSettings = settingsPath ?? adapter.permissions.settingsPath(os.homedir(), workDir);
   const results = [...localChecks({ config, workDir, realGit })];
-  // Static check of the allowlist before any model runs: a hole in the permissions fails --check.
+  results.push(checkCommitMsgHook({ workDir, realGit }));
   if (config.permissions === 'allowlist') results.push(adapter.permissions.check({ config, settingsPath: resolvedSettings, workDir }));
   results.push(...runnerChecks({ config, workDir }));
   for (const r of results) print(`${r.ok ? '✓' : '✗'} ${r.name}: ${r.detail}`);
@@ -383,9 +380,7 @@ export function runCheck({ workDir = process.cwd(), home = os.homedir(), config 
 export function formatCheckReport(chk) {
   const lines = ['=== Environment check ===', ''];
   const checks = Array.isArray(chk) ? chk : (chk?.checks ?? []);
-  for (const c of checks) {
-    lines.push(`[${c.ok ? 'PASS' : 'FAIL'}] ${c.name}: ${c.detail}`);
-  }
+  for (const c of checks) lines.push(`[${c.ok ? 'PASS' : 'FAIL'}] ${c.name}: ${c.detail}`);
   lines.push('');
   const allOk = checks.length > 0 && checks.every((c) => c.ok);
   lines.push(allOk ? 'Summary: READY' : 'Summary: NOT READY (fix the [FAIL] items above)');

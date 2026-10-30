@@ -96,6 +96,7 @@ if [ "$AGENT_LOOP" = "1" ]; then
     case "$a" in
       --output|--output=*) echo "agent-loop guard: --output is blocked for agents" >&2; exit 97 ;;
       --no-index) echo "agent-loop guard: --no-index is blocked for agents" >&2; exit 97 ;;
+      --no-verify) echo "agent-loop guard: --no-verify is blocked for agents" >&2; exit 97 ;;
     esac
   done
   sub=""; dir="."; skip=""; remote=""; branch_args=""
@@ -111,6 +112,12 @@ if [ "$AGENT_LOOP" = "1" ]; then
         --git-dir|--work-tree|--namespace|--exec-path) skip="x" ;;
         -*) ;;
         *) sub="$a" ;;
+      esac
+    elif [ "$sub" = "commit" ]; then
+      case "$a" in
+        --no-verify) echo "agent-loop guard: --no-verify is blocked for agents" >&2; exit 97 ;;
+        --*) ;;
+        -*n*) echo "agent-loop guard: --no-verify (-n) is blocked for agents" >&2; exit 97 ;;
       esac
     elif [ "$sub" = "push" ] && [ -z "$remote" ]; then
       case "$a" in -*) ;; *) remote="$a" ;; esac
@@ -295,18 +302,7 @@ export function installGuards({
   }
   const effectiveBlocked = blockedScripts ?? blockedNpmScripts ?? [];
   writeGitShim({ shimDir, realGit, sandboxRoot, workDir });
-  const realBins = {
-    npm: realNpm,
-    pnpm: whichOptional('pnpm'),
-    yarn: whichOptional('yarn'),
-    bun: whichOptional('bun'),
-    make: whichOptional('make'),
-    just: whichOptional('just'),
-    grep: realGrep,
-    ls: realLs,
-    wc: realWc,
-    node: realNode,
-  };
+  const realBins = { npm: realNpm, pnpm: whichOptional('pnpm'), yarn: whichOptional('yarn'), bun: whichOptional('bun'), make: whichOptional('make'), just: whichOptional('just'), grep: realGrep, ls: realLs, wc: realWc, node: realNode };
   writeRunnerShims({ shimDir, blockedScripts: effectiveBlocked, realBins });
   const exemptNodeScripts = [realNpm, realBins.pnpm, realBins.yarn].filter((s) => typeof s === 'string' && s.length > 0);
   for (const s of [...exemptNodeScripts]) {
@@ -338,11 +334,7 @@ export function installGuards({
     // Both restores run even if the first one fails; the first error is rethrown.
     const errors = [];
     for (const fn of [restorePushUrls, hook.restore]) {
-      try {
-        fn();
-      } catch (err) {
-        errors.push(err);
-      }
+      try { fn(); } catch (err) { errors.push(err); }
     }
     if (errors.length) throw errors[0];
   };
