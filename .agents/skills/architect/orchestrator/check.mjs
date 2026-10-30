@@ -13,6 +13,7 @@ import { acquireLock, defaultSandboxRoot, installGuards, lockHolder } from './gu
 import { findExecutable, readEvents } from './events.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { agySettingsPath } from './permissions.mjs';
+import { checkExecutorModelConfig } from './hooks.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MIN_NODE = 22;
@@ -162,9 +163,8 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
       add(false, 'Frozen', `section ## Frozen is missing ${layout.executorPath}`);
     }
   }
-  for (const p of checkSkillInstallation({ workDir, layout, orchestratorDir })) {
-    add(false, p.name, p.detail);
-  }
+  for (const p of checkSkillInstallation({ workDir, layout, orchestratorDir })) add(false, p.name, p.detail);
+  for (const p of checkExecutorModelConfig({ workDir, config })) add(false, p.name, p.detail);
   const ignored = isIgnored(realGit, workDir, `${RUNS_DIR}/`);
   add(ignored, `${RUNS_DIR}/ in .gitignore`, ignored ? 'yes' : 'no — run with --init');
   const dirty = porcelain(realGit, workDir);

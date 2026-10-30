@@ -1,14 +1,21 @@
 // CLI argument parser and orchestration entry points for --self-check and --audit-plan.
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { which } from './guards.mjs';
-import { loadConfig, withDefaults, validateConfig } from './config.mjs';
-import { resolveConfigPath, resolveLayout } from './layout.mjs';
+import { loadConfig, withDefaults, validateConfig, DEFAULTS } from './config.mjs';
+import { resolveConfigPath, resolveLayout, CLASSIC_CONFIG_PATH, COMPACT_CONFIG_PATH } from './layout.mjs';
 import { effectiveBlockedScripts } from './runners.mjs';
 import { runSelfCheckGit } from './selfcheck.mjs';
 import { checkEvalEvidence, runRedCheck } from './evidence.mjs';
 import { checkAuditCoverage, runPlanAudit } from './audit.mjs';
 import { checkSkillInstallation } from './check.mjs';
+import { parsePlan } from './plan.mjs';
+import { git } from './git.mjs';
+import { checkExecutorRun, formatMechanicsReport } from './mechanics.mjs';
+import { resolveBaseShaForTask } from './hooks.mjs';
+
+const orchDir = path.dirname(fileURLToPath(import.meta.url));
 
 /** Checks whether the Node.js version satisfies the orchestrator requirement (>= 22). */
 export function nodeVersionProblem(version = process.versions.node) {
@@ -39,12 +46,17 @@ export function parseArgs(argv) {
     selfCheck: false,
     base: null,
     auditPlan: false,
+    checkTask: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
+    } else if (a === '--check-task') {
+      const next = argv[++i];
+      if (!next || !/^T-\d+$/.test(next)) throw new Error('--check-task requires task ID like T-NNN');
+      opts.checkTask = next;
     } else if (a === '--base') {
       const next = argv[++i];
       if (!next || next.startsWith('--')) throw new Error('--base requires a ref argument');
@@ -68,8 +80,8 @@ export function parseArgs(argv) {
     throw new Error('--only expects ID like T-NNN');
   }
 
-  if (opts.base !== null && !opts.selfCheck) {
-    throw new Error('--base is allowed only with --self-check');
+  if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) {
+    throw new Error('--base is allowed only with --self-check or --check-task');
   }
 
   const modeFlags = [
@@ -84,9 +96,10 @@ export function parseArgs(argv) {
     opts.follow,
     opts.selfCheck,
     opts.auditPlan,
+    opts.checkTask !== null,
   ];
   if (modeFlags.filter(Boolean).length > 1) {
-    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, and --audit-plan: only one per invocation');
+    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, and --check-task: only one per invocation');
   }
 
   if (opts.answer !== null && !/^[123]$/.test(opts.answer)) {
@@ -130,6 +143,33 @@ export function safeLoadConfig(configPath) {
         layout: paths.layout,
         paths,
         bypassRegexps: config.bypassPatterns.map((p) => new RegExp(p)),
+      };
+    }
+    throw err;
+  }
+}
+
+export function loadConfigOrDefaults(configPath, workDir = process.cwd()) {
+  const resolved = configPath ?? resolveConfigPath({ workDir });
+  try {
+    return safeLoadConfig(resolved);
+  } catch (err) {
+    if (err.message && err.message.includes('missing config')) {
+      const isCompact = existsSync(path.join(workDir, '.architect', 'PLAN.md'));
+      const effectivePath = isCompact ? COMPACT_CONFIG_PATH : (configPath ?? CLASSIC_CONFIG_PATH);
+      const layout = resolveLayout({ config: DEFAULTS, configPath: effectivePath });
+      const effectiveBlocked = effectiveBlockedScripts(DEFAULTS);
+      return {
+        ...DEFAULTS,
+        executor: { ...DEFAULTS.executor, model: '' },
+        runner: DEFAULTS.runner ?? 'agy',
+        runnerBin: DEFAULTS.runnerBin ?? (DEFAULTS.runner === 'claude' ? 'claude' : DEFAULTS.agyBin),
+        blockedScripts: effectiveBlocked,
+        blockedNpmScripts: effectiveBlocked,
+        layout: layout.layout,
+        paths: layout,
+        bypassRegexps: (DEFAULTS.bypassPatterns ?? []).map((p) => new RegExp(p)),
+        _missingConfigFile: true,
       };
     }
     throw err;
@@ -279,4 +319,67 @@ export async function handleAuditPlanCli({ opts = {}, config, workDir = process.
     process.exitCode = 1;
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+export function runCheckTask({ realGit, workDir = process.cwd(), config = null, taskId, baseRef = null, orchestratorDir = orchDir }) {
+  const g = realGit ?? which('git');
+  const cfg = config ?? loadConfigOrDefaults(null, workDir);
+  let layout = cfg.paths ?? resolveLayout({ config: cfg });
+  let planFile = path.join(workDir, layout.planPath);
+
+  if (!existsSync(planFile)) {
+    if (existsSync(path.join(workDir, 'PLAN.md'))) {
+      layout = resolveLayout({ config: { ...cfg, layout: 'classic' } });
+      planFile = path.join(workDir, 'PLAN.md');
+    } else if (existsSync(path.join(workDir, '.architect', 'PLAN.md'))) {
+      layout = resolveLayout({ config: { ...cfg, layout: 'compact' } });
+      planFile = path.join(workDir, '.architect', 'PLAN.md');
+    }
+  }
+
+  if (!existsSync(planFile)) {
+    return { ok: false, violations: [`${layout.planPath} not found in working directory`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
+  }
+
+  const plan = parsePlan(readFileSync(planFile, 'utf8'));
+  const task = plan.tasks.find((t) => t.id === taskId);
+  if (!task) {
+    return { ok: false, violations: [`task ${taskId} not found in ${layout.planPath}`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
+  }
+
+  const baseSha = resolveBaseShaForTask({ realGit: g, workDir, taskId, baseRef });
+  const bypassRegexps = cfg.bypassRegexps ?? (cfg.bypassPatterns ?? []).map((p) => (p instanceof RegExp ? p : new RegExp(p)));
+
+  return checkExecutorRun({
+    realGit: g,
+    cwd: workDir,
+    baseSha,
+    task,
+    frozen: plan.frozen,
+    scanPaths: cfg.bypassScanPaths,
+    bypassPatterns: bypassRegexps,
+    protectedConfigFiles: cfg.protectedConfigFiles,
+    testFilePatterns: cfg.testFilePatterns,
+    configPath: '',
+    orchestratorDir,
+    config: cfg,
+  });
+}
+
+export async function handleCheckTaskCli({ opts = {}, config, configPath, workDir = process.cwd(), realGit, orchestratorDir = orchDir } = {}) {
+  const g = realGit ?? which('git');
+  const cfg = config ?? loadConfigOrDefaults(configPath ?? opts?.configPath, workDir);
+  const res = runCheckTask({
+    realGit: g,
+    workDir,
+    config: cfg,
+    taskId: opts?.checkTask,
+    baseRef: opts?.base ?? null,
+    orchestratorDir,
+  });
+  console.log(formatMechanicsReport(res));
+  if (!res.ok) {
+    process.exitCode = 1;
+  }
+  return res;
 }
