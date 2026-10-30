@@ -73,7 +73,7 @@ test('T-054: skill test suite passes in an isolated temporary directory containi
     ];
 
     const { NODE_TEST_CONTEXT: _ntc, ...cleanEnv } = process.env;
-    const res = spawnSync(process.execPath, ['--test', ...testFiles], {
+    const res = spawnSync(process.execPath, ['--test', '--test-concurrency=2', ...testFiles], {
       cwd: tmp,
       env: cleanEnv,
       encoding: 'utf8',
