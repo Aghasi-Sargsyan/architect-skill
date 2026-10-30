@@ -81,7 +81,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: `stack-config.test.mjs` и существующие тесты `config`, `mechanics`, `selfcheck`, `evidence`, `cli` проходят.
   - Проверка: `node --test .agents/skills/architect/orchestrator/stack-config.test.mjs`.
 
-- [ ] T-054: Clean Workspace task IDs from orchestrator comments and rename -sN/tNNN test files by module (ADR-037)
+- [x] T-054: Clean Workspace task IDs from orchestrator comments and rename -sN/tNNN test files by module (ADR-037)
   - Риск: высокий.
   - Зависит от: T-053.
   - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
