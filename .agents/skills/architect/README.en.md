@@ -1,22 +1,26 @@
-<!-- skill-readme-sync: v3.27 / 1.8 -->
-# Architect + Executor Skill (`v3.27 / 1.8`)
+<!-- skill-readme-sync: v3.28 / 1.8 -->
+# Architect + Executor Skill (`v3.28 / 1.8`)
 
-A portable **Chief Architect + Executor** workflow skill for AI coding agents (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**) with a deterministic, zero-dependency Node.js orchestrator (`orchestrator/run.mjs`).
+A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
+1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
+2. **Automated Orchestrator (`orchestrator/run.mjs`):** zero-dependency Node.js loop requiring **Node.js 22+**, **git 2.31+**, and **macOS or Linux** (Windows is not supported because git/npm guards are POSIX `sh` shims); supports only headless runners **`agy`** (Antigravity) and **`claude`** (Claude Code); native desktop notifications work only on **macOS** (`osascript`), otherwise use `AGENT_LOOP_WEBHOOK_URL` webhook notifications.
 
 - **Active prompts (English, single source of truth):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks}.md`.
 - **Human guides (`<= 25 KB` each):** `README.en.md` (English) and `README.ru.md` (Russian).
-- **Runtime requirements:** The automated orchestrator (`orchestrator/run.mjs`) requires **Node.js 22+ on macOS or Linux** (and `git 2.31+`). Using the skill rules (`SKILL.md`, `EXECUTOR.md`, `references/*.md`) with manual Executor handoff does not depend on the Node.js version.
 
 ---
 
 ## 1. Quickstart (5 Minutes)
 
-1. **Copy the skill folder** into your project (e.g. `.agents/skills/architect/`, or `.claude/skills/architect/` for Claude Code).
-2. **Copy `EXECUTOR.md`** into the project root (or `.architect/EXECUTOR.md`).
-3. **Start a chat with the Architect** (`/architect` or ask the model to read `SKILL.md`):
+1. **Copy the skill folder into a subfolder of your project** (e.g. `.agents/skills/architect/`, or `.claude/skills/architect/` for Claude Code). Never unpack the skill directly into the repository root (`--check` rejects root-level installation).
+2. **Copy `EXECUTOR.md`** into the project root (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, or `.architect/EXECUTOR.md` in compact layout).
+3. **Set the Executor model once for your project:**
+   - **With the orchestrator (`agy` or `claude`):** set `executor.model` in `.architect/config.json` or `.agents/orchestrator.json`.
+   - **Without the orchestrator:** add `Executor model: <Model / Tier>` to your project's `AGENTS.md` (see Section 4 snippet). For Claude Code subagents, copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and set an explicit `model:` field (never leave `inherit` or omit `model`).
+4. **Start a chat with the Architect** (`/architect` or ask the model to read `SKILL.md`):
    - **Phase 1 (Read-Only Brainstorm):** The Architect diagnoses the problem, challenges weak assumptions, and proposes 1–3 options without touching any files.
    - **Phase 2 (Plan & Execution):** After you pick an option, the Architect records ADRs, locks `Frozen` reference tests for high-risk tasks, and commits `PLAN.md`.
-4. **Execute tasks (`T-NNN`)** either manually in a separate Executor session (`Read EXECUTOR.md and PLAN.md. Execute task T-001.`) or automatically via the orchestrator:
+5. **Execute tasks (`T-NNN`)** via the orchestrator, an isolated subagent with an explicit model, or a separate Executor chat (`Read EXECUTOR.md and PLAN.md. Execute task T-001.`):
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --dry-run
    node .agents/skills/architect/orchestrator/run.mjs --background
@@ -36,30 +40,40 @@ A portable **Chief Architect + Executor** workflow skill for AI coding agents (*
 - **Two-Phase Protocol (`§2.5`):** Phase 1 is strictly read-only. No files or commits are created until you explicitly approve an option.
 - **Frozen Files (`## Frozen`):** Reference tests (`*.test.*`) for high-risk tasks, `EXECUTOR.md`, and the skill's own markdown files (`SKILL*.md`, `references/**`) cannot be modified by the Executor — enforced both by prompt rules and deterministically by `mechanics.mjs`.
 - **Four-Layer Push & Path Guards (`guards.mjs`, `runners.mjs`):** While `AGENT_LOOP=1`, `PATH` shims, `.git/hooks/pre-push`, and `remote.<name>.pushurl` block `git push`, forbidden scripts, history rewrites, and reading files outside `workDir`.
-- **Zero Tolerance for Check Bypassing:** `mechanics.mjs` scans every Executor diff for `: any`, `as any`, `@ts-ignore`, `@ts-expect-error`, `.skip(`, `.only(`, deleted tests, or silent `catch {}`.
+- **Zero Tolerance for Check Bypassing:** `mechanics.mjs` and `--self-check` scan diffs for `: any`, `as any`, `@ts-ignore`, `@ts-expect-error`, `.skip(`, `.only(`, deleted tests, `git commit --no-verify`, global prototype mutations, or silent `catch {}`.
 
 ---
 
-## 3. Installation by Runner (Claude Code, Gemini CLI, Codex, Antigravity)
+## 3. Installation and Updating by Environment
 
-### A. Antigravity (`agy`)
-1. Place the skill at `.agents/skills/architect/` in your workspace.
-2. Invoke `/architect` in chat.
-3. For the automated loop (`runner: "agy"`), configure `.agents/orchestrator.json` and write the one-time allowlist to `~/.gemini/antigravity-cli/settings.json`:
+### A. Antigravity (`agy`) — Core + Orchestrator
+1. Place the skill in a subfolder: `.agents/skills/architect/`.
+2. Copy `.agents/skills/architect/EXECUTOR.md` to `EXECUTOR.md` in the project root.
+3. For the automated loop (`runner: "agy"`, macOS/Linux, Node 22+), run `--init` to create `.architect/config.json` (or `.agents/orchestrator.json`), then after reviewing the rules write the allowlist to `~/.gemini/antigravity-cli/settings.json`:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
+   node .agents/skills/architect/orchestrator/run.mjs --check
    ```
 
-### B. Claude Code (`claude`)
-1. Place the skill at `.agents/skills/architect/` (or symlink/copy to `.claude/skills/architect/`).
-2. Set `"executor": { "runner": "claude", "model": "sonnet" }` and `"architect": { "runner": "claude", "model": "opus" }` in `.agents/orchestrator.json`.
-3. Write the project-scoped allowlist and filesystem sandbox to `.claude/settings.local.json`:
+### B. Claude Code (`claude`) — Core + Orchestrator or Subagent
+1. Place the skill at `.agents/skills/architect/` or `.claude/skills/architect/` and copy `EXECUTOR.md` to the project root.
+2. **Subagent mode:** copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and verify `model:` is set explicitly (e.g. `model: sonnet`, never `inherit`).
+3. **Orchestrator mode (macOS/Linux, Node 22+):** set `"runner": "claude"`, `"executor": { "model": "sonnet" }`, and `"architect": { "model": "opus" }` in `.architect/config.json` (or `.agents/orchestrator.json`), then run:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
+   node .agents/skills/architect/orchestrator/run.mjs --check
    ```
 
-### C. Gemini CLI & OpenAI Codex CLI
-- **Interactive mode:** Point Gemini CLI (`GEMINI.md`) or Codex (`AGENTS.md`) to `.agents/skills/architect/SKILL.md` for Architect sessions and `EXECUTOR.md` for `T-NNN` Executor sessions using the snippet in Section 4.
+### C. Gemini CLI, OpenAI Codex CLI, Cursor, and Other Agents — Core Only
+- Place the skill in `.agents/skills/architect/`, copy `EXECUTOR.md` to the project root, and add the Section 4 snippet (including `Executor model: …`) to `GEMINI.md`, `AGENTS.md`, or `.cursorrules`. Run Architect and Executor sessions in separate chats.
+
+### D. Updating the Skill in an Existing Project
+1. Replace the contents of `.agents/skills/architect/` (or `.claude/skills/architect/`) with the new release. Your project config (`.architect/config.json` or `.agents/orchestrator.json`) and history (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) live outside the skill folder and are untouched.
+2. Refresh the project copy of `EXECUTOR.md`:
+   ```bash
+   cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
+   ```
+3. If using the orchestrator, run `node .agents/skills/architect/orchestrator/run.mjs --check` to verify installation parity and base allowlist commands.
 
 ---
 
@@ -71,13 +85,15 @@ Add this block to your project's `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md`:
 ### Roles: Chief Architect and Executor
 - **Architect session** (when `/architect` is invoked or asked to plan/review/diagnose): first read `.agents/skills/architect/SKILL.md` and follow its Two-Phase Protocol (`[MODE: ... · PHASE 1/2]`).
 - **Executor session** (when asked to execute task `T-NNN` from `PLAN.md`): first read `EXECUTOR.md` and `PLAN.md`, modify only files in `Change` of `T-NNN`, never touch `Frozen` or `PLAN.md`, and run `Check` before committing `T-NNN: ...`.
+- **Executor model:** `<Model / Tier>` (used for all `T-NNN` tasks unless overridden in the task's `Model` field).
+- **Commit language:** English (`T-NNN: ...`, `arch: ...`).
 ```
 
 ---
 
 ## 5. `PLAN.md` Structure and File Layout
 
-You can keep working files either in the repository root (`PLAN.md`, `EXECUTOR.md`, `docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) or cleanly tucked inside `.architect/` (`planPath: ".architect/PLAN.md"`, `executorPath: ".architect/EXECUTOR.md"` in `.agents/orchestrator.json`).
+You can keep working files either in the repository root (`PLAN.md`, `EXECUTOR.md`, `docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) or inside `.architect/` (`planPath: ".architect/PLAN.md"`, `executorPath: ".architect/EXECUTOR.md"`).
 
 Every task `T-NNN` in `PLAN.md` uses explicit fields parsed by `plan.mjs` (both English and Russian labels are supported):
 - `Risk` (`Риск`): `low` | `medium` | `high` (`низкий` | `средний` | `высокий`)
@@ -87,6 +103,9 @@ Every task `T-NNN` in `PLAN.md` uses explicit fields parsed by `plan.mjs` (both 
 - `Change` (`Менять`): exact allowlist of files the Executor may create or edit (`<= 3–5` files)
 - `Task and invariants` (`Задача и инварианты`), `Edge cases` (`Граничные случаи`), `Test cases` (`Тест-кейсы`), `Done when` (`Готово, когда`), `Check` (`Проверка`).
 
+### Multi-Stack Configuration (`config.json` / `orchestrator.json`)
+For non-Node stacks (Python/`pytest`, Go/`go test`, Rust/`cargo test`, Vitest/Jest), configure `testFilePatterns`, `testPatterns`, `assertPatterns` (`assert.` and `expect(` are included by default), and `redCheckCommand` (e.g. `"pytest {file}"` or `"npx vitest run {file}"`). If a `Frozen` reference test has no matching `redCheckCommand` or a test file has `0` recognized assertions, `--self-check` reports a loud `NOT VERIFIED` with the file name instead of passing silently.
+
 ---
 
 ## 6. Orchestrator CLI Reference (`orchestrator/run.mjs`)
@@ -95,31 +114,39 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 
 | Flag | Description |
 |---|---|
-| `--init` | Interactive wizard to create `.agents/orchestrator.json` |
-| `--check` | Verify OS, Node.js, git, `PLAN.md`, runner binaries, model access, and allowlists |
-| `--write-permissions` | Write safe command/file allowlists for `agy` or `claude` (only after user confirmation) |
+| `--init` | Create `.architect/config.json` (or `.agents/orchestrator.json`), add `.agent-runs/` to `.gitignore`, and print the allowlist block |
+| `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `PLAN.md`, runner binaries, models, and allowlists |
+| `--write-permissions` | Write safe command/file allowlists for `agy` or `claude` (only after explicit user confirmation) |
 | `--dry-run` | Validate readiness, run `--self-check` (including `red-check`), and preview the next task prompt without calling any LLM |
 | `--self-check [--base <ref>]` | Run deterministic Architect self-check (bypasses, empty `catch`, test timers, monotonicity, `fix-frozen`, `eval` evidence, audit coverage, and `red-check`) |
 | `--audit-plan` | Run advisory read-only cross-model plan audit (`references/plan-audit.md`) via `config.auditor` (paid live call, max 1 re-run per cycle base) |
-| `--background` | Start the detached background loop (`PID` lock in `.agent-runs/active.lock`) |
+| `--background` | Start the detached background loop (`PID` lock in `.agent-runs/.lock`) |
 | `--watch [min] [--since N]` | Wait for a permission prompt (exit `2`), loop stop (exit `3`), or task milestone (exit `4`) |
 | `--status` | Print compact current loop status and task progress |
 | `--follow` | Live terminal stream of agent thoughts, tool calls, commands, and verdicts (read-only) |
-| `--answer <1\|2\|3>` | Answer a pending permission request (`1` exact command, `2` prefix, `3` deny) |
-| `--pause` | Gracefully stop the background loop after the current step finishes |
+| `--answer <1\|2\|3>` | Answer a pending permission request (`1` prefix, `2` exact command, `3` deny) |
+| `--pause` | Stop after each accepted task for interactive confirmation |
 | `--only T-NNN` | Run only the specified task `T-NNN` |
 
 ---
 
 ## 7. Behavioral Evals and Maintenance (`evals.mjs`, `MAINTAINING.md`)
 
-- **Unit & reference tests (no LLM calls):**
+- **Unit & reference tests (no LLM calls, runs in an isolated temp repo too):**
   ```bash
   node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs
   VERIFY_STEP_A1=1 node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs
   ```
-- **Live behavioral evals (5 scenarios: `phase1_no_write`, `quick_fix_no_adr`, `high_risk_frozen_test`, `escalation_no_touch_change`, `auto_refusal_git_c_retry`):**
+- **Live behavioral evals (for skill contributors; see `MAINTAINING.md`):**
   ```bash
   node .agents/skills/architect/orchestrator/evals.mjs --model claude:haiku
   ```
-- **Maintaining the skill:** Whenever you update rules in `SKILL.md`, `EXECUTOR.md`, or `references/*.md`, follow `MAINTAINING.md` to keep version headers, root `EXECUTOR.md`, and `<!-- skill-readme-sync: vX.Y / A.B -->` in sync.
+
+---
+
+## 8. When to Use and When Not to Use the Skill
+
+- **Full skill (Core + Orchestrator):** long-lived products with critical risk areas (authentication, access control, billing, database migrations, concurrency, data invariants) on macOS or Linux using `agy` or `claude`.
+- **Core only (`SKILL.md` + `EXECUTOR.md`):** medium-sized projects, other agents (`Gemini CLI`, `Codex`, `Cursor`), or Windows environments where Two-Phase planning, `Frozen` contracts, and context-isolated tasks pay off without the headless Node.js runner.
+- **Do not use:** throwaway prototypes, quick hypothesis validation, game jams, one-off scripts, or tasks where acceptance is purely visual.
+- **Team repositories with existing PR review and CI:** adopt the core practices (read-only Phase 1 brainstorm, `Frozen` reference tests written before implementation, context-isolated Executor) without enforcing the `arch:` / `T-NNN:` commit message conventions.

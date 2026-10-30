@@ -21,3 +21,9 @@ VERIFY_STEP_A1=1 node --test <path-to-skill>/orchestrator/*.test.mjs <path-to-sk
 npx -y -p node@22 -c 'node --test <path-to-skill>/orchestrator/*.test.mjs <path-to-skill>/orchestrator/adapters/*.test.mjs'
 npx -y -p node@24 -c 'node --test <path-to-skill>/orchestrator/*.test.mjs <path-to-skill>/orchestrator/adapters/*.test.mjs'
 ```
+When closing a cycle that modifies the skill or orchestrator, record both Node 22 and Node 24 test runs with exact Node version and pass/total score in the retrospective.
+
+## 3. Rule Growth Control and Behavioral Evals Discipline
+
+- **Rule growth control:** Every rule addition to the `SKILL.md` core must either name in `CHANGELOG.md` the rule that was moved to `references/` or removed, or explicitly justify why the core grew. Every retrospective must include the line `Rules: added N / removed M` and list rules unused for 2–3 cycles.
+- **Behavioral evals (`orchestrator/evals.mjs`, `orchestrator/eval-fixtures.mjs`):** Evals and `eval-fixtures.mjs` anchor monotonicity are used only when developing and maintaining the skill itself. Record live eval results in `PLAN.md` and `docs/plans/*.md` strictly in the format `eval <run-id> @ <sha7>: X/Y PASS` backed by `.agent-runs/evals/<run-id>/results.md`. When `< 5` runs exist for a cell, never write "flake", "stochastic noise", or "regression not confirmed" — state only `X/Y PASS`, commit, `run-id`, and `NOT VERIFIED (sample < 5)`.
