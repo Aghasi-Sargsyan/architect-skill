@@ -7,12 +7,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readPlan, nextTask } from './plan.mjs';
-import { git, head } from './git.mjs';
+import { git, gitRaw, head } from './git.mjs';
 import { checkExecutorRun, checkArchitectRun, inspectFailedExecutorTurn, runTaskVerification } from './mechanics.mjs';
 import { acquireLock, installGuards, which } from './guards.mjs';
 import { initProject, loadConfig, RUNS_DIR } from './config.mjs';
 import { resolveConfigPath, reviewFilePath, skillFilePath } from './layout.mjs';
-import { EMPTY_CHANGE, modelResolver, readiness, runCheckCommand } from './check.mjs';
+import { EMPTY_CHANGE, modelResolver, readiness, resolveEscalationResume, runCheckCommand } from './check.mjs';
 import { commandProblem, maskPaths, proposeRules, realOrResolved } from './permissions.mjs';
 import { askPermission, clearQuestion, writeAnswer } from './ask.mjs';
 import { runView } from './feed.mjs';
@@ -40,11 +40,7 @@ async function main() {
     for (const note of initProject({ workDir: process.cwd(), configPath, realGit })) console.log(`• ${note}`);
     const ready = loadConfig(configPath);
     const adapter = getAdapter(ready);
-    console.log(`\nAllowlist for ${adapter.displayName}: ${adapter.permissions.settingsShown}, keys permissions.allow and permissions.deny.`);
-    console.log('Rules for command(...) are configured once per computer, with subcommand only: Antigravity matches by prefix, "command(git)" would allow git push too.');
-    console.log('write_file(<project>) and denying writes to its .git are configured once per project.\n');
-    console.log(adapter.permissions.allowlistBlock(adapter.permissions.rulesFor(ready, realOrResolved(ready.workDir ?? process.cwd()))));
-    console.log('\nInsert the block manually or add it with backup: run with --write-permissions. Then run with --check.');
+    console.log(`\nAllowlist for ${adapter.displayName}: ${adapter.permissions.settingsShown}, keys permissions.allow and permissions.deny.\nRules for command(...) are configured once per computer, with subcommand only: Antigravity matches by prefix, "command(git)" would allow git push too.\nwrite_file(<project>) and denying writes to its .git are configured once per project.\n\n${adapter.permissions.allowlistBlock(adapter.permissions.rulesFor(ready, realOrResolved(ready.workDir ?? process.cwd())))}\n\nInsert the block manually or add it with backup: run with --write-permissions. Then run with --check.`);
     return;
   }
   const config = safeLoadConfig(configPath);
@@ -78,14 +74,8 @@ async function main() {
     if (!(await runCheckCommand({ config, workDir, realGit }))) process.exitCode = 1;
     return;
   }
-  if (opts.selfCheck) {
-    await handleSelfCheckCli({ opts, config, workDir, realGit });
-    return;
-  }
-  if (opts.auditPlan) {
-    await handleAuditPlanCli({ opts, config, workDir, realGit });
-    return;
-  }
+  if (opts.selfCheck) return handleSelfCheckCli({ opts, config, workDir, realGit });
+  if (opts.auditPlan) return handleAuditPlanCli({ opts, config, workDir, realGit });
   const adapter = getAdapter(config);
   const runnerBin = adapter.resolveBin(config);
   const { permissions } = config;
@@ -277,7 +267,12 @@ async function main() {
         for (let round = 0; ; round++) {
           const execBase = head(realGit, workDir);
           const label = round === 0 ? `${task.id}-exec` : `${task.id}-fix${round}`;
-          const ex = await agent('executor', executorModel, executorPrompt(task, rework, executorModel, layout), label);
+          let promptLayout = layout;
+          if (round === 0) {
+            const esc = resolveEscalationResume({ realGit, workDir, task, layout, currentRunDir: runDir });
+            if (esc.ok) promptLayout = { ...layout, escalationReport: esc.reportText };
+          }
+          const ex = await agent('executor', executorModel, executorPrompt(task, rework, executorModel, promptLayout), label);
           const exTampered = guards.verify();
           if (exTampered.length) { stopReason = `${task.id}: guards were tampered with after Executor — ${exTampered.join('; ')}`; break outer; }
           if (!ex.ok) {
@@ -369,10 +364,11 @@ async function main() {
       // What the agents left behind, so a stop never needs a manual `git diff` to see the state.
       let state = '';
       try {
-        state = git(realGit, workDir, ['status', '--porcelain', '--untracked-files=all']);
-        if (state) {
-          writeFileSync(path.join(runDir, 'stop.status.txt'), `${state}\n`);
-          writeFileSync(path.join(runDir, 'stop.diff'), `${git(realGit, workDir, ['diff', 'HEAD'])}\n`);
+        state = gitRaw(realGit, workDir, ['status', '--porcelain', '--untracked-files=all']);
+        if (state.trim()) {
+          writeFileSync(path.join(runDir, 'stop.status.txt'), state.endsWith('\n') ? state : `${state}\n`);
+          const rawDiff = gitRaw(realGit, workDir, ['diff', 'HEAD']);
+          writeFileSync(path.join(runDir, 'stop.diff'), rawDiff.endsWith('\n') || !rawDiff ? rawDiff : `${rawDiff}\n`);
         }
       } catch (err) {
         log(`working tree state not saved: ${err instanceof Error ? err.message : String(err)}`);

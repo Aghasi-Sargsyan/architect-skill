@@ -54,24 +54,29 @@ export function executorPrompt(task, reworkOrLayout, modelOrLayout, layoutArg) {
   let model = 'unknown';
   let layout = { planPath: 'PLAN.md', executorPath: 'EXECUTOR.md' };
 
-  if (reworkOrLayout && (reworkOrLayout.planPath || reworkOrLayout.executorPath)) {
-    layout = reworkOrLayout;
+  if (reworkOrLayout && (reworkOrLayout.planPath || reworkOrLayout.executorPath || reworkOrLayout.escalationReport)) {
+    layout = { ...layout, ...reworkOrLayout };
   } else {
     rework = reworkOrLayout;
     if (typeof modelOrLayout === 'string') model = modelOrLayout;
-    else if (modelOrLayout && (modelOrLayout.planPath || modelOrLayout.executorPath)) layout = modelOrLayout;
-    if (layoutArg && (layoutArg.planPath || layoutArg.executorPath)) layout = layoutArg;
+    else if (modelOrLayout && typeof modelOrLayout === 'object') layout = { ...layout, ...modelOrLayout };
+    if (layoutArg && typeof layoutArg === 'object') layout = { ...layout, ...layoutArg };
   }
 
   const planPath = layout?.planPath ?? 'PLAN.md';
   const executorPath = layout?.executorPath ?? 'EXECUTOR.md';
+  const escalationReport = rework?.escalationReport ?? layout?.escalationReport ?? null;
   const taskTitle = task.title ? ` (${task.title})` : '';
 
   const intro = rework
     ? `Role: Executor. Follow ${executorPath} and the project rules (if AGENTS.md / CLAUDE.md / GEMINI.md is present in the root).\nRead ${executorPath} and the updated ${planPath}. Execute rework for task ${task.id}${taskTitle} based on the Architect review (commit "${task.id} (fix ${rework.round}): ..."). Rework instructions:\n${rework.instructions}`
     : `Role: Executor. Follow ${executorPath} and the project rules (if AGENTS.md / CLAUDE.md / GEMINI.md is present in the root).\nExecute ONLY task ${task.id}${taskTitle} from ${planPath} strictly following the rules in ${executorPath}.`;
 
-  return `${intro}
+  const escNote = escalationReport
+    ? `\n\nResuming task ${task.id} after escalation according to ${executorPath} ("Git and Working Tree" exception):\n- Only files marked as your edits in the escalation report count as yours (matching git status and git diff HEAD).\n- Do not re-run baseline verification commands over half-done edits; run new commands and reference tests on top of your edits.\n- Complete the task and commit only changed files from Change list.\n\nPrevious escalation report:\n${escalationReport}`
+    : '';
+
+  return `${intro}${escNote}
 
 You were launched by the orchestrator without user interaction: do not ask questions. If escalation is needed according to ${executorPath}, stop and return status "escalation".
 ${TOOLS_RULE}

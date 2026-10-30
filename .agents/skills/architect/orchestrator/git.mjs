@@ -1,8 +1,12 @@
 // Thin git helpers. Always the real git binary with AGENT_LOOP unset, never the agent-facing shim.
 import { execFileSync } from 'node:child_process';
 
+export function gitRaw(realGit, cwd, args) {
+  return execFileSync(realGit, args, { cwd, encoding: 'utf8', env: { ...process.env, AGENT_LOOP: '' } });
+}
+
 export function git(realGit, cwd, args) {
-  return execFileSync(realGit, args, { cwd, encoding: 'utf8', env: { ...process.env, AGENT_LOOP: '' } }).trim();
+  return gitRaw(realGit, cwd, args).trim();
 }
 
 export function head(realGit, cwd) {

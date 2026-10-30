@@ -1,16 +1,16 @@
 // `--check`: is this machine and project ready for the loop? Runs no task.
 // Prints no absolute paths, tokens or personal settings: only names, versions and counts.
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { git, head, isIgnored, porcelain } from './git.mjs';
+import { git, gitRaw, head, isIgnored, porcelain } from './git.mjs';
 import { nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
 import { DEFAULTS, RUNS_DIR } from './config.mjs';
-import { isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
+import { isAlwaysFrozenFile, isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
 import { acquireLock, defaultSandboxRoot, installGuards, lockHolder } from './guards.mjs';
-import { findExecutable } from './events.mjs';
+import { findExecutable, readEvents } from './events.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { agySettingsPath } from './permissions.mjs';
 
@@ -38,45 +38,101 @@ export function findBinary(bin, envPath = process.env.PATH) {
 export function checkSkillInstallation({ workDir = process.cwd(), layout = resolveLayout({}), orchestratorDir } = {}) {
   const problems = [];
   if (isSkillAtWorkDirRoot(workDir, orchestratorDir)) {
-    problems.push({
-      name: 'skill directory',
-      detail: 'putting the skill in the repository root is not supported — install it into a subfolder (e.g. .agents/skills/architect/ or .claude/skills/architect/)',
-    });
+    problems.push({ name: 'skill directory', detail: 'putting the skill in the repository root is not supported — install it into a subfolder (e.g. .agents/skills/architect/ or .claude/skills/architect/)' });
   }
   const skillDir = resolveInstalledSkillDir(workDir, orchestratorDir);
   if (skillDir && existsSync(path.join(skillDir, 'EXECUTOR.md'))) {
     const projectExecPath = path.join(workDir, layout.executorPath);
     const skillExecPath = path.join(skillDir, 'EXECUTOR.md');
-    if (!existsSync(projectExecPath)) {
-      problems.push({
-        name: 'EXECUTOR.md',
-        detail: `${layout.executorPath} not found in working directory (must match skill EXECUTOR.md)`,
-      });
-    } else if (!readFileSync(projectExecPath).equals(readFileSync(skillExecPath))) {
-      problems.push({
-        name: 'EXECUTOR.md',
-        detail: `${layout.executorPath} does not match skill EXECUTOR.md byte-for-byte`,
-      });
-    }
+    if (!existsSync(projectExecPath)) problems.push({ name: 'EXECUTOR.md', detail: `${layout.executorPath} not found in working directory (must match skill EXECUTOR.md)` });
+    else if (!readFileSync(projectExecPath).equals(readFileSync(skillExecPath))) problems.push({ name: 'EXECUTOR.md', detail: `${layout.executorPath} does not match skill EXECUTOR.md byte-for-byte` });
   }
   const agentsPath = path.join(workDir, 'AGENTS.md');
   if (existsSync(agentsPath)) {
     const agentsText = readFileSync(agentsPath, 'utf8');
     if (agentsText.includes('npm run agents') && (!agentsText.includes('--check') || !agentsText.includes('--self-check'))) {
-      problems.push({
-        name: 'AGENTS.md',
-        detail: 'AGENTS.md documents "npm run agents" but is missing --check or --self-check',
-      });
+      problems.push({ name: 'AGENTS.md', detail: 'AGENTS.md documents "npm run agents" but is missing --check or --self-check' });
     }
   }
   return problems;
 }
 
 /**
+ * Resolves whether the loop can resume an escalated task on a matching dirty working tree.
+ */
+export function resolveEscalationResume({ realGit, workDir, task, layout = null, currentRunDir = null }) {
+  const runsDir = path.join(workDir, RUNS_DIR);
+  if (!existsSync(runsDir)) return { ok: false, reason: 'no runs directory' };
+  const dirs = readdirSync(runsDir).filter((d) => /^\d{4}-\d{2}-\d{2}T/.test(d)).sort().filter((d) => {
+    const dirPath = path.join(runsDir, d);
+    return !(currentRunDir && (dirPath === currentRunDir || path.resolve(dirPath) === path.resolve(currentRunDir))) &&
+      (existsSync(path.join(dirPath, 'summary.md')) || existsSync(path.join(dirPath, 'stop.status.txt')));
+  });
+  if (!dirs.length) return { ok: false, reason: 'no previous runs found' };
+  const runDir = path.join(runsDir, dirs.at(-1));
+
+  const events = readEvents(runDir);
+  const stopEvt = events.find((e) => e.type === 'run_stopped');
+  let isEscalation = false;
+  if (stopEvt) {
+    isEscalation = (stopEvt.category === 'stop_escalation' || stopEvt.status === 'escalation') &&
+      (stopEvt.taskId === task.id || String(stopEvt.stopReason).startsWith(`${task.id}:`));
+  } else if (existsSync(path.join(runDir, 'summary.md'))) {
+    const sum = readFileSync(path.join(runDir, 'summary.md'), 'utf8');
+    isEscalation = sum.includes(`${task.id}: Executor escalation`) || sum.includes(`${task.id}: эскалация`);
+  }
+  if (!isEscalation) return { ok: false, reason: `last run did not stop on escalation for ${task.id}` };
+
+  const statusPath = path.join(runDir, 'stop.status.txt'), diffPath = path.join(runDir, 'stop.diff');
+  if (!existsSync(statusPath) || !existsSync(diffPath)) return { ok: false, reason: 'missing stop.status.txt or stop.diff in last run' };
+
+  const files = readdirSync(runDir);
+  const reportFile = files.find((f) => f.startsWith(`${task.id}-`) && f.endsWith('.report.md'));
+  if (!reportFile) return { ok: false, reason: `missing escalation report for ${task.id}` };
+  const reportText = readFileSync(path.join(runDir, reportFile), 'utf8');
+
+  const curStatus = gitRaw(realGit, workDir, ['status', '--porcelain', '--untracked-files=all']);
+  const savedStatus = readFileSync(statusPath, 'utf8');
+  if (curStatus.trim() !== savedStatus.trim()) return { ok: false, reason: 'working tree status does not match stop.status.txt' };
+
+  const curRawDiff = gitRaw(realGit, workDir, ['diff', 'HEAD']);
+  const savedDiff = readFileSync(diffPath, 'utf8');
+  const normCurDiff = curRawDiff.endsWith('\n') || !curRawDiff ? curRawDiff : `${curRawDiff}\n`;
+  if (normCurDiff !== savedDiff) return { ok: false, reason: 'working tree diff does not match stop.diff' };
+
+  const dirtyLines = curStatus.split('\n').map((l) => l.trimEnd()).filter(Boolean);
+  if (!dirtyLines.length) return { ok: false, reason: 'working tree is clean' };
+  const dirtyFiles = dirtyLines.map((l) => {
+    const f = l.trimStart().replace(/^[^\s]+\s+/, '').trim();
+    return f.includes(' -> ') ? f.split(' -> ').pop().trim() : f;
+  });
+
+  const taskChange = new Set((task.change ?? []).map((p) => p.replace(/^\.\//, '')));
+  for (const f of dirtyFiles) {
+    if (!taskChange.has(f.replace(/^\.\//, ''))) return { ok: false, reason: `dirty file "${f}" is outside task Change list` };
+  }
+
+  const planPath = path.join(workDir, layout?.planPath ?? 'PLAN.md');
+  let planFrozen = [];
+  if (existsSync(planPath)) {
+    try { planFrozen = parsePlan(readFileSync(planPath, 'utf8')).frozen ?? []; } catch {}
+  }
+  const frozenSet = new Set(planFrozen.map((p) => p.replace(/^\.\//, '')));
+  for (const f of dirtyFiles) {
+    const norm = f.replace(/^\.\//, '');
+    if (frozenSet.has(norm) || isAlwaysFrozenFile(norm, { workDir })) {
+      return { ok: false, reason: `dirty file "${f}" is in Frozen` };
+    }
+  }
+
+  return { ok: true, taskId: task.id, runDir, reportText };
+}
+
+/**
  * Checks that need no model: OS, Node, git, repository, PLAN.md, ignore rule, clean tree, permissions mode.
  * @returns {Array<{ ok: boolean, name: string, detail: string }>}
  */
-export function localChecks({ config, workDir, realGit, platform = process.platform, nodeVersion = process.versions.node, orchestratorDir }) {
+export function localChecks({ config, workDir, realGit, platform = process.platform, nodeVersion = process.versions.node, orchestratorDir, only = null }) {
   const out = [];
   const add = (ok, name, detail) => out.push({ ok, name, detail });
   add(platform !== 'win32', 'OS', platform === 'win32' ? 'Windows is not supported (git/npm wrappers are sh scripts)' : platform);
@@ -115,7 +171,25 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
   const ignored = isIgnored(realGit, workDir, `${RUNS_DIR}/`);
   add(ignored, `${RUNS_DIR}/ in .gitignore`, ignored ? 'yes' : 'no — run with --init');
   const dirty = porcelain(realGit, workDir);
-  add(!dirty, 'clean working tree', dirty ? `changes: ${dirty.split('\n').length} — loop starts only with a clean tree` : 'yes');
+  let treeOk = !dirty;
+  let treeDetail = dirty ? `changes: ${dirty.split('\n').length} — loop starts only with a clean tree` : 'yes';
+  if (dirty) {
+    const planFile = path.join(workDir, layout.planPath);
+    if (existsSync(planFile)) {
+      try {
+        const plan = parsePlan(readFileSync(planFile, 'utf8'));
+        const curTask = nextTask(plan, only);
+        if (curTask) {
+          const res = resolveEscalationResume({ realGit, workDir, task: curTask, layout });
+          if (res.ok) {
+            treeOk = true;
+            treeDetail = `resuming ${curTask.id} after escalation (matches stop snapshot)`;
+          }
+        }
+      } catch {}
+    }
+  }
+  add(treeOk, 'clean working tree', treeDetail);
   const skipOk = config.permissions !== 'skip' || insideRoot(workDir, defaultSandboxRoot());
   add(skipOk, 'permissions', skipOk ? config.permissions : '"skip" is allowed only in sandbox within temporary directory');
   return out;
@@ -239,7 +313,7 @@ export function readiness({ config, workDir, realGit, only = null, settingsPath 
   const runnerBin = adapter.resolveBin(config);
   const resolvedSettings = settingsPath ?? adapter.permissions.settingsPath(os.homedir(), workDir);
   const modelResolverFn = modelFor ?? modelResolver(config);
-  const results = localChecks({ config, workDir, realGit });
+  const results = localChecks({ config, workDir, realGit, only });
   const add = (ok, name, detail) => results.push({ ok, name, detail });
   if (config.permissions === 'allowlist') results.push(adapter.permissions.check({ config, settingsPath: resolvedSettings, workDir }));
   const bin = findBinary(runnerBin);
