@@ -98,7 +98,7 @@ test('B5 (git shim): allows git branch --show-current and blocks branch deletion
     'git branch -m master renamed',
     'git branch -f feature HEAD~1',
     'git branch new-branch',
-    'git branch -a',
+    'git branch --delete feature',
     'git branch',
   ]) {
     const r = sh(outside.work, blocked);

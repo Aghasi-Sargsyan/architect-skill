@@ -4,10 +4,11 @@ import { BASE_COMMANDS, commandProblem, proposeRules } from './permissions.mjs';
 
 const BLOCKED = ['ship', 'sync:pull', 'sync:push', 'import:takeout', 'build:mobile'];
 
-test('B5: BASE_COMMANDS allows only git branch --show-current; destructive or listing git branch forms are rejected', () => {
+test('B5: BASE_COMMANDS allows read-only git branch forms (--show-current, -a, -r, --list); destructive or bare git branch forms are rejected', () => {
   assert.ok(BASE_COMMANDS.includes('git branch --show-current'), 'git branch --show-current must be in BASE_COMMANDS');
   assert.ok(!BASE_COMMANDS.includes('git branch'), 'bare git branch must not be in BASE_COMMANDS');
   assert.equal(commandProblem('git branch --show-current', BLOCKED), null);
+  assert.equal(commandProblem('git branch -a', BLOCKED), null);
   for (const cmd of [
     'git branch',
     'git branch -D feat',
@@ -16,7 +17,7 @@ test('B5: BASE_COMMANDS allows only git branch --show-current; destructive or li
     'git branch -m old new',
     'git branch -f main HEAD~1',
     'git branch --delete feat',
-    'git branch -a',
+    'git branch --set-upstream-to=origin/main',
   ]) {
     assert.ok(commandProblem(cmd, BLOCKED), `expected commandProblem to reject: ${cmd}`);
   }

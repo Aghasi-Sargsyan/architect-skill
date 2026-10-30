@@ -8,7 +8,7 @@ import { DEFAULTS } from './config.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-test('T-022 (C2): BASE_COMMANDS contains only the 12 stack-neutral git and inspection commands', () => {
+test('T-022 (C2): BASE_COMMANDS contains only the 30 stack-neutral git and inspection commands', () => {
   assert.deepEqual(BASE_COMMANDS, [
     'git status',
     'git diff',
@@ -16,12 +16,30 @@ test('T-022 (C2): BASE_COMMANDS contains only the 12 stack-neutral git and inspe
     'git show',
     'git rev-parse',
     'git branch --show-current',
+    'git ls-files',
+    'git grep',
+    'git blame',
+    'git ls-tree',
+    'git merge-base',
+    'git rev-list',
+    'git describe',
+    'git shortlog',
+    'git stash list',
+    'git tag -l',
+    'git branch -a',
+    'git branch -r',
+    'git branch --list',
+    'git check-ignore',
     'git add',
     'git commit',
     'node --test',
+    'node --version',
+    'npm ls',
     'wc -l',
     'grep',
     'ls',
+    'pwd',
+    'which',
   ]);
   for (const projectSpecific of ['npm test', 'npm run build', 'npm run test:smoke', 'npx tsc', 'npx vitest run']) {
     assert.ok(!BASE_COMMANDS.includes(projectSpecific), `${projectSpecific} must not be in global BASE_COMMANDS`);
@@ -46,7 +64,7 @@ test('T-022 (C2, D1): DEFAULTS in config.example.json covers multi-stack protect
   });
   assert.ok(cmds.includes('pytest'));
   assert.ok(cmds.includes('cargo test'));
-  assert.equal(cmds.length, 14);
+  assert.equal(cmds.length, BASE_COMMANDS.length + 2);
 });
 
 test('T-022 (C2, У2): test fixtures in permissions.test.mjs and plan.test.mjs do not contain parent-project script names', () => {
