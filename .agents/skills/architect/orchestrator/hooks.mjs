@@ -14,6 +14,12 @@ import { git } from './git.mjs';
  * @param {{ workDir?: string, config?: object }} param0
  * @returns {Array<{ ok: boolean, name: string, detail: string }>}
  */
+const isValidModel = (val) => {
+  if (typeof val !== 'string') return false;
+  const s = val.trim();
+  return Boolean(s) && s.toLowerCase() !== 'inherit' && !/^<.*>$/.test(s);
+};
+
 export function checkExecutorModelConfig({ workDir = process.cwd(), config = null } = {}) {
   const problems = [];
   const claudeAgentPath = path.join(workDir, '.claude', 'agents', 'executor.md');
@@ -24,7 +30,7 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
     hasClaudeFile = true;
     const text = readFileSync(claudeAgentPath, 'utf8');
     const m = text.match(/^model:\s*(.+)$/im);
-    if (!m || m[1].trim().toLowerCase() === 'inherit') {
+    if (!m || !isValidModel(m[1])) {
       problems.push({
         ok: false,
         name: 'Executor model (.claude/agents/executor.md)',
@@ -37,9 +43,8 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
 
   let configured = false;
 
-  if (config && !config._missingConfigFile && config.executor?.model) {
-    const m = String(config.executor.model).trim();
-    if (m && m.toLowerCase() !== 'inherit') configured = true;
+  if (config && !config._missingConfigFile && isValidModel(config.executor?.model)) {
+    configured = true;
   }
 
   if (!configured) {
@@ -48,8 +53,7 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
       if (existsSync(full)) {
         try {
           const raw = JSON.parse(readFileSync(full, 'utf8'));
-          const m = raw?.executor?.model;
-          if (typeof m === 'string' && m.trim() && m.trim().toLowerCase() !== 'inherit') {
+          if (isValidModel(raw?.executor?.model)) {
             configured = true;
             break;
           }
@@ -68,7 +72,7 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
         const m1 = text.match(/(?:Executor model|Модель Исполнителя)\s*:\s*([^\n]+)/i);
         const m2 = text.match(/Исполнитель по умолчанию\s*[—–-]\s*([^\n.]+)/i);
         const candidate = (m1 ? m1[1] : (m2 ? m2[1] : '')).trim();
-        if (candidate && candidate.toLowerCase() !== 'inherit') {
+        if (isValidModel(candidate)) {
           configured = true;
           break;
         }
@@ -76,7 +80,7 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
     }
   }
 
-  if (!configured && hasClaudeFile && claudeModel && claudeModel.toLowerCase() !== 'inherit') {
+  if (!configured && hasClaudeFile && isValidModel(claudeModel)) {
     configured = true;
   }
 

@@ -98,6 +98,12 @@ test('T-021 (D6, У1): --init defaults to .architect/config.json with explicit "
 
 test('T-021 (D6): localChecks works with compact layout (.architect/PLAN.md and .architect/EXECUTOR.md) without root PLAN.md', () => {
   initProject({ workDir: dir, realGit });
+  const rawInit = JSON.parse(readFileSync(path.join(dir, COMPACT_CONFIG_PATH), 'utf8'));
+  assert.equal(rawInit.executor?.model, '');
+  assert.equal(rawInit.architect?.model, '');
+  rawInit.executor = { model: 'gemini-3.8-flash-high' };
+  rawInit.architect = { model: 'gemini-4-argon-high' };
+  write(COMPACT_CONFIG_PATH, JSON.stringify(rawInit, null, 2) + '\n');
   write('.architect/EXECUTOR.md', '<!-- executor-policy-version: 1.5 -->\nrules\n');
   write(
     '.architect/PLAN.md',

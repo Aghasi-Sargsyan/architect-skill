@@ -212,9 +212,10 @@ export function runnerChecks({ config, workDir, env = process.env }) {
   }
   add(true, 'model list', `models ${models.length}`);
   for (const role of ['executor', 'architect']) {
-    const id = config[role].model;
-    const known = models.some((m) => m.id === id);
-    add(known, `${role}.model`, known ? id : `${id} is not in "${path.basename(runnerBin)} models"`);
+    const id = config[role]?.model;
+    const known = Boolean(id) && models.some((m) => m.id === id);
+    const detail = !id ? `not set in config — choose a model from "${path.basename(runnerBin)} models"` : (known ? id : `${id} is not in "${path.basename(runnerBin)} models"`);
+    add(known, `${role}.model`, detail);
   }
   const layout = config?.paths ?? resolveLayout({ config });
   if (existsSync(path.join(workDir, layout.planPath))) {
@@ -287,7 +288,10 @@ export function modelResolver(config, env = process.env) {
   const adapter = getAdapter(config);
   const runnerBin = adapter.resolveBin(config);
   return (task) => {
-    if (!task.model) return { model: config.executor.model };
+    if (!task.model) {
+      if (!config.executor?.model) return { error: `not set in config — choose a model from "${path.basename(runnerBin)} models"` };
+      return { model: config.executor.model };
+    }
     models ??= adapter.listModels({ bin: runnerBin, env });
     const id = resolveModel(task.model, models);
     return id ? { model: id } : { error: `model "${task.model}" from Model field not found in "${path.basename(runnerBin)} models"` };

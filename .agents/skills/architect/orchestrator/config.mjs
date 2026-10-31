@@ -1,5 +1,5 @@
 // Orchestrator config: defaults for every field (config.example.json), strict validation, and `--init`.
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isIgnored } from './git.mjs';
@@ -38,7 +38,7 @@ export function validateConfig(config) {
   if (typeof config.agyBin !== 'string' || !config.agyBin) problems.push('agyBin — non-empty string');
   for (const role of ['executor', 'architect']) {
     const model = isObject(config[role]) ? config[role].model : undefined;
-    if (typeof model !== 'string' || !model) {
+    if (typeof model !== 'string') {
       problems.push(`Field ${role}.model is required (non-empty string from "agy models")`);
     }
   }
@@ -199,10 +199,11 @@ export function initProject({ workDir, configPath = COMPACT_CONFIG_PATH, realGit
     mkdirSync(path.dirname(file), { recursive: true });
     const norm = targetPath.replace(/\\/g, '/');
     const isCompact = norm === COMPACT_CONFIG_PATH || norm.endsWith('/' + COMPACT_CONFIG_PATH) || norm.startsWith('.architect/');
+    const base = { ...DEFAULTS, executor: { model: '' }, architect: { model: '' } };
     if (isCompact) {
-      writeFileSync(file, JSON.stringify({ layout: 'compact', ...DEFAULTS }, null, 2) + '\n');
+      writeFileSync(file, JSON.stringify({ layout: 'compact', ...base }, null, 2) + '\n');
     } else {
-      copyFileSync(EXAMPLE_PATH, file);
+      writeFileSync(file, JSON.stringify(base, null, 2) + '\n');
     }
     notes.push(`created ${targetPath} — verify models, blockedNpmScripts, allowedCommands, bypassScanPaths and bypassPatterns`);
   }

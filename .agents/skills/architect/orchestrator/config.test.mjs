@@ -63,7 +63,7 @@ test('--init creates the config and the ignore rule once, never overwrites, hand
   assert.match(notes.join('\n'), /(?:создан|created) \.agents\/orchestrator\.json/);
   assert.equal(readFileSync(path.join(dir, '.gitignore'), 'utf8'), 'node_modules/\n\n# Agent orchestrator runs (prompts, reports, lock)\n.agent-runs/\n');
   const configFile = path.join(dir, '.agents', 'orchestrator.json');
-  assert.deepEqual(JSON.parse(readFileSync(configFile, 'utf8')), DEFAULTS);
+  assert.deepEqual(JSON.parse(readFileSync(configFile, 'utf8')), { ...DEFAULTS, executor: { model: '' }, architect: { model: '' } });
 
   writeFileSync(configFile, '{"agyBin": "custom"}');
   const again = initProject({ workDir: dir, configPath: '.agents/orchestrator.json', realGit });
