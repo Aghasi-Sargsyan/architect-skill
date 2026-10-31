@@ -25,7 +25,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-064: Require explicit human model choice after --init and in claude-agent-executor.md template
+- [x] T-064: Require explicit human model choice after --init and in claude-agent-executor.md template
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (subagent, уровень неизвестен)
