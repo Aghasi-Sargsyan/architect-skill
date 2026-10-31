@@ -201,7 +201,7 @@ export function printStatus({ workDir = process.cwd(), planPath = 'PLAN.md', out
   try {
     const plan = readPlan(workDir, planPath);
     tasks = plan.tasks ?? [];
-  } catch {}
+  } catch { tasks = []; }
   const doneCount = tasks.filter((t) => t.done).length;
   const totalTasks = tasks.length;
   const remaining = tasks.filter((t) => !t.done).map((t) => t.id).join(', ') || 'none';

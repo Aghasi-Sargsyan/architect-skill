@@ -52,7 +52,7 @@ export function resolveSelfCheckBase({ realGit, cwd, baseRef = null }) {
   const cand = closes.find((l) => l.slice(0, 40) !== headSha);
   if (cand) return { sha: cand.slice(0, 40), source: 'close-cycle' };
   if (!closes.length) {
-    try { return { sha: git(realGit, cwd, ['rev-parse', '@{u}']), source: 'upstream' }; } catch {}
+    try { return { sha: git(realGit, cwd, ['rev-parse', '@{u}']), source: 'upstream' }; } catch { /* cleanup: abort upstream resolution */ }
   }
   return { sha: git(realGit, cwd, ['rev-list', '--max-parents=0', 'HEAD']).split('\n')[0].trim(), source: 'root' };
 }
@@ -213,7 +213,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
         const nf = norm(f);
         if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
       }
-    } catch {}
+    } catch { /* cleanup: abort plan parsing for commit */ }
   }
   if (effectivePlanText) {
     try {
@@ -222,7 +222,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
         const nf = norm(f);
         if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
       }
-    } catch {}
+    } catch { /* cleanup: abort plan parsing for head */ }
   }
 
   // 1. Content scans over non-executor commits (remediability check on HEAD)
@@ -304,8 +304,8 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       continue;
     }
     let baseJson = {}, headJson = {};
-    try { baseJson = JSON.parse(git(realGit, cwd, ['show', `${baseSha}:${cfgFile}`])); } catch {}
-    try { headJson = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch {}
+    try { baseJson = JSON.parse(git(realGit, cwd, ['show', `${baseSha}:${cfgFile}`])); } catch { baseJson = {}; }
+    try { headJson = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch { headJson = {}; }
     for (const key of CONFIG_ARRAY_KEYS) {
       const baseArr = Array.isArray(baseJson[key]) ? baseJson[key] : [];
       const headArr = Array.isArray(headJson[key]) ? headJson[key] : [];
@@ -368,7 +368,7 @@ export function checkPostReviewSelfCheck({ realGit, cwd, baseSha, config }) {
         }
       }
     }
-  } catch {}
+  } catch { /* cleanup: abort diff inspection */ }
 
   const sc = runSelfCheckGit({ realGit, cwd, config, baseRef: baseSha, requireFixFrozen: true });
   violations.push(...sc.violations);

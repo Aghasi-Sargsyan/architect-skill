@@ -51,7 +51,7 @@ export function readEvents(runDir) {
       try {
         events.push(JSON.parse(trimmed));
       } catch {
-        // Silently skip incomplete or broken lines
+        continue;
       }
     }
     return events;
@@ -129,7 +129,9 @@ export function resolveWebhookUrl({ env = process.env, home = os.homedir(), webh
         if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
         break;
       }
-    } catch {}
+    } catch {
+      return null;
+    }
   }
   return null;
 }
@@ -210,7 +212,9 @@ export function formatWebhookBody(opts = {}) {
 export function notifyOperator({ title = 'Agent loop stopped', text = '' } = {}) {
   try {
     execFileSync('/usr/bin/osascript', ['-e', `display notification ${JSON.stringify(text)} with title ${JSON.stringify(title)}`]);
-  } catch {}
+  } catch {
+    /* cleanup: abort notification on failure */
+  }
 }
 
 export async function sendNotification({

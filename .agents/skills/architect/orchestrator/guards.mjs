@@ -28,7 +28,7 @@ export function cleanShimPath(p = process.env.PATH ?? '', candidate = null) {
         for (const tool of PATH_GUARDED_TOOLS) {
           if (isGuardShimFile(path.join(dir, tool))) return false;
         }
-      } catch {}
+      } catch { return true; }
       return true;
     })
     .join(path.delimiter);
@@ -306,7 +306,7 @@ export function installGuards({
   writeRunnerShims({ shimDir, blockedScripts: effectiveBlocked, realBins });
   const exemptNodeScripts = [realNpm, realBins.pnpm, realBins.yarn].filter((s) => typeof s === 'string' && s.length > 0);
   for (const s of [...exemptNodeScripts]) {
-    try { exemptNodeScripts.push(realpathSync(s)); } catch {}
+    try { exemptNodeScripts.push(realpathSync(s)); } catch { continue; }
   }
   writePathShims({
     shimDir,
