@@ -38,7 +38,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: Замороженный эталонный тест `packaging-clean.test.mjs` и модульные тесты изменённых файлов проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/packaging-clean.test.mjs .agents/skills/architect/orchestrator/events.test.mjs .agents/skills/architect/orchestrator/guards-path.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/feed.test.mjs`
 
-- [ ] T-063: Add fetch-depth: 0 to ci.yml, create root README.md and LICENSE, sanitize stage-4 plan archive, and add repo-install tests
+- [x] T-063: Add fetch-depth: 0 to ci.yml, create root README.md and LICENSE, sanitize stage-4 plan archive, and add repo-install tests
   - Риск: низкий
   - Зависит от: T-062
   - Модель: Gemini Flash (subagent, уровень неизвестен)
