@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { which } from './guards.mjs';
-import { DEFAULTS } from './config.mjs';
+import { DEFAULTS, initProject, loadConfig } from './config.mjs';
 import * as cliMod from './cli.mjs';
 import * as checkMod from './check.mjs';
 import * as hooksMod from './hooks.mjs';
@@ -165,3 +165,87 @@ test('T-057: checkExecutorModelConfig and localChecks warn when Executor model i
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('T-064: fresh --init and claude-agent-executor.md template leave models unset so --check fails with a hint until a human chooses a model', () => {
+  const { root, g } = initTempRepo('t064-fresh-init-');
+  const runMjs = path.join(orchDir, 'run.mjs');
+  const skillDir = path.dirname(orchDir);
+  try {
+    // 1. Fresh --init (compact layout default) writes empty executor.model and architect.model
+    const initCli = spawnSync(process.execPath, [runMjs, '--init'], {
+      cwd: root,
+      env: { ...process.env, AGENT_LOOP: '' },
+      encoding: 'utf8',
+    });
+    assert.equal(initCli.status, 0, `--init must succeed cleanly: ${initCli.stderr}`);
+
+    const compactFile = path.join(root, '.architect', 'config.json');
+    const compactRaw = JSON.parse(readFileSync(compactFile, 'utf8'));
+    assert.equal(compactRaw.executor?.model, '', 'fresh --init must not pre-fill executor.model in .architect/config.json');
+    assert.equal(compactRaw.architect?.model, '', 'fresh --init must not pre-fill architect.model in .architect/config.json');
+
+    // Classic layout --init also writes empty executor.model and architect.model
+    initProject({ workDir: root, configPath: '.agents/orchestrator.json', realGit });
+    const classicRaw = JSON.parse(readFileSync(path.join(root, '.agents', 'orchestrator.json'), 'utf8'));
+    assert.equal(classicRaw.executor?.model, '', 'fresh --init must not pre-fill executor.model in .agents/orchestrator.json');
+    assert.equal(classicRaw.architect?.model, '', 'fresh --init must not pre-fill architect.model in .agents/orchestrator.json');
+    rmSync(path.join(root, '.agents'), { recursive: true, force: true });
+
+    // Set up minimal valid compact project files without choosing a model
+    writeFileSync(path.join(root, '.architect', 'EXECUTOR.md'), readFileSync(path.join(skillDir, 'EXECUTOR.md'), 'utf8'));
+    writeFileSync(
+      path.join(root, '.architect', 'PLAN.md'),
+      '# PLAN\n\n## Frozen\n- `.architect/EXECUTOR.md`\n\n## Tasks\n\n- [ ] T-001: test\n  - Risk: low\n  - Change: `src/a.js`\n',
+    );
+    g('add', '.');
+    g('commit', '-q', '-m', 'arch: init compact without model');
+
+    const loadedFresh = loadConfig(compactFile);
+    assert.equal(loadedFresh.executor.model, '');
+    assert.equal(loadedFresh.architect.model, '');
+
+    // 2. localChecks and CLI --check fail with a helpful hint on a fresh --init
+    const freshChecks = checkMod.localChecks({ config: loadedFresh, workDir: root, realGit });
+    const execModelCheck = freshChecks.find((c) => !c.ok && /Executor model/i.test(c.name));
+    assert.ok(execModelCheck, `localChecks must fail on fresh --init without human model choice: ${JSON.stringify(freshChecks)}`);
+    assert.match(execModelCheck.detail, /executor\.model|AGENTS\.md|\.claude\/agents\/executor\.md/);
+
+    const checkCli = spawnSync(process.execPath, [runMjs, '--check'], {
+      cwd: root,
+      env: { ...process.env, AGENT_LOOP: '' },
+      encoding: 'utf8',
+    });
+    assert.equal(checkCli.status, 1, 'CLI --check must exit 1 on fresh --init before model is chosen');
+    assert.match(checkCli.stdout, /✗ Executor model:/);
+
+    // 3. templates/claude-agent-executor.md does not hardcode a default model; copying it as-is fails checkExecutorModelConfig
+    const templatePath = path.join(skillDir, 'templates', 'claude-agent-executor.md');
+    const templateText = readFileSync(templatePath, 'utf8');
+    assert.doesNotMatch(templateText, /^model:\s*sonnet\b/im, 'template must not pre-fill model: sonnet');
+
+    mkdirSync(path.join(root, '.claude', 'agents'), { recursive: true });
+    writeFileSync(path.join(root, '.claude', 'agents', 'executor.md'), templateText);
+    const templateProbs = hooksMod.checkExecutorModelConfig({ workDir: root, config: DEFAULTS });
+    assert.equal(templateProbs.length, 1, 'unmodified claude-agent-executor.md template must fail checkExecutorModelConfig');
+    assert.match(templateProbs[0].detail, /\.claude\/agents\/executor\.md.*model/i);
+    rmSync(path.join(root, '.claude'), { recursive: true, force: true });
+
+    // 4. Once human sets executor.model and architect.model in .architect/config.json, localChecks passes
+    compactRaw.executor = { model: 'gemini-3.8-flash-high' };
+    compactRaw.architect = { model: 'gemini-4-argon-high' };
+    writeFileSync(compactFile, JSON.stringify(compactRaw, null, 2) + '\n');
+    g('add', '.architect/config.json');
+    g('commit', '-q', '-m', 'arch: set chosen models');
+
+    const loadedConfigured = loadConfig(compactFile);
+    const readyChecks = checkMod.localChecks({ config: loadedConfigured, workDir: root, realGit });
+    assert.deepEqual(
+      readyChecks.filter((c) => !c.ok),
+      [],
+      `localChecks must pass once human sets models in .architect/config.json: ${JSON.stringify(readyChecks)}`,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
