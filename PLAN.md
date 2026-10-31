@@ -26,7 +26,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-062: Eliminate empty catch blocks in orchestrator production modules and enforce via frozen scanner test
+- [x] T-062: Eliminate empty catch blocks in orchestrator production modules and enforce via frozen scanner test
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (subagent, уровень неизвестен)
