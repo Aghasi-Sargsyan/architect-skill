@@ -32,3 +32,54 @@ test('repository installation: root EXECUTOR.md is a byte-for-byte copy of skill
     'AGENTS.md must document the direct cross-Node test command',
   );
 });
+
+test('repository installation: ci.yml specifies fetch-depth 0 in actions/checkout step', () => {
+  const ciPath = path.join(repoRoot, '.github', 'workflows', 'ci.yml');
+  const ciText = readFileSync(ciPath, 'utf8');
+  const stepBlocks = ciText.split(/\n\s*-\s+/);
+  const checkoutStep = stepBlocks.find((step) => /uses:\s*actions\/checkout@/.test(step));
+  assert.ok(checkoutStep, 'ci.yml must contain an actions/checkout step');
+  assert.match(
+    checkoutStep,
+    /with:[\s\S]*?\bfetch-depth:\s*0\b/,
+    'actions/checkout step in ci.yml must configure fetch-depth: 0 under with:',
+  );
+});
+
+test('repository installation: root LICENSE matches skill LICENSE byte-for-byte and root README.md links to guides and LICENSE', () => {
+  const rootLicense = readFileSync(path.join(repoRoot, 'LICENSE'), 'utf8');
+  const skillLicense = readFileSync(path.join(skillDir, 'LICENSE'), 'utf8');
+  assert.equal(rootLicense, skillLicense, 'root LICENSE must match .agents/skills/architect/LICENSE byte-for-byte');
+
+  const rootReadme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+  assert.ok(rootReadme.trim().length > 0, 'root README.md must not be empty');
+  assert.ok(rootReadme.split('\n').length <= 80, 'root README.md must be <= 80 lines');
+  assert.match(
+    rootReadme,
+    /\.agents\/skills\/architect\/README\.en\.md/,
+    'root README.md must link to skill README.en.md',
+  );
+  assert.match(
+    rootReadme,
+    /\.agents\/skills\/architect\/README\.ru\.md/,
+    'root README.md must link to skill README.ru.md',
+  );
+  assert.match(rootReadme, /LICENSE/, 'root README.md must reference LICENSE');
+});
+
+test('repository installation: sanitized historical stage-4 plan contains no local absolute home path', () => {
+  const stage4Path = path.join(repoRoot, 'docs', 'plans', '2026-10-31-stage-4-pre-publication.md');
+  const stage4Plan = readFileSync(stage4Path, 'utf8');
+  const forbiddenHomePath = ['', 'Users', 'aghasi'].join('/');
+  assert.equal(
+    stage4Plan.includes(forbiddenHomePath),
+    false,
+    'docs/plans/2026-10-31-stage-4-pre-publication.md must not contain local absolute home path',
+  );
+  assert.match(
+    stage4Plan,
+    /<local-home-path>/,
+    'docs/plans/2026-10-31-stage-4-pre-publication.md must use <local-home-path> placeholder',
+  );
+});
+
