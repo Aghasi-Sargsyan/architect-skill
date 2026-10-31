@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSyn
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findEmptyCatches } from './selfcheck.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 const skillDir = path.dirname(orchDir);
@@ -133,4 +134,66 @@ test('T-061: skill files contain no host-specific leak strings and host ci.yml u
     assert.equal(ciContent.includes('ubuntu'), false, 'ci.yml must not use ubuntu');
   }
 });
+
+test('T-062: non-test orchestrator .mjs modules have no empty catch blocks and pass findEmptyCatches per AGENTS.md §4', () => {
+  const emptyCatchRe = new RegExp(
+    '\\b' + 'catch\\s*(?:\\([^)]*\\))?\\s*\\{\\s*\\}' +
+    '|' +
+    '\\.catch\\s*\\(\\s*(?:\\([^)]*\\)|[a-zA-Z0-9_$]+)?\\s*(?:=>|function[^{]*)\\s*\\{\\s*\\}\\s*\\)',
+    'g',
+  );
+
+  const prodDirs = [orchDir, path.join(orchDir, 'adapters')];
+  const emptyHits = [];
+  let scannedCount = 0;
+
+  for (const d of prodDirs) {
+    for (const entry of readdirSync(d)) {
+      if (!entry.endsWith('.mjs') || entry.endsWith('.test.mjs')) continue;
+      scannedCount++;
+      const fullPath = path.join(d, entry);
+      const relPath = path.relative(orchDir, fullPath).replace(/\\/g, '/');
+      const content = readFileSync(fullPath, 'utf8');
+      emptyCatchRe.lastIndex = 0;
+      let m;
+      while ((m = emptyCatchRe.exec(content)) !== null) {
+        const line = content.slice(0, m.index).split('\n').length;
+        emptyHits.push(`${relPath}:${line}`);
+      }
+    }
+  }
+
+  assert.ok(scannedCount >= 20, `expected >= 20 non-test .mjs files in orchestrator, got ${scannedCount}`);
+  assert.deepEqual(
+    emptyHits,
+    [],
+    `non-test orchestrator .mjs files must not contain empty catch blocks, found: ${emptyHits.join(', ')}`,
+  );
+
+  const strictModules = ['events.mjs', 'guards.mjs', 'selfcheck.mjs', 'feed.mjs'];
+  for (const mod of strictModules) {
+    const text = readFileSync(path.join(orchDir, mod), 'utf8');
+    const syntheticDiff = [
+      `+++ b/${mod}`,
+      '@@ -1,0 +1,0 @@',
+      ...text.split('\n').map((l) => `+${l}`),
+    ].join('\n');
+    assert.deepEqual(
+      findEmptyCatches(syntheticDiff),
+      [],
+      `${mod} must have 0 empty or non-cleanup comment-only catch blocks under findEmptyCatches`,
+    );
+  }
+
+  const badDiff = ['+++ b/sample.mjs', '@@ -1,0 +1,0 @@', '+try { f(); } ' + 'catch ' + '{}'].join('\n');
+  assert.equal(findEmptyCatches(badDiff).length, 1, 'findEmptyCatches must detect empty catch block');
+
+  const okCleanupDiff = [
+    '+++ b/sample.mjs',
+    '@@ -1,0 +1,0 @@',
+    '+try { f(); } ' + 'catch { /* cleanup: close resource */ }',
+  ].join('\n');
+  assert.deepEqual(findEmptyCatches(okCleanupDiff), [], 'findEmptyCatches must allow cleanup comment with close/stop/abort');
+});
+
 
