@@ -73,7 +73,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: Замороженный тест `.agents/skills/architect/orchestrator/team-gate.test.mjs` и существующие тесты `check.test.mjs`, `check-task.test.mjs`, `cli.test.mjs`, `cli-node-version.test.mjs`, `plan-reference-tests.test.mjs` проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/team-gate.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/check-task.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/cli-node-version.test.mjs .agents/skills/architect/orchestrator/plan-reference-tests.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
 
-- [ ] T-069: Document Team Use, Linux checks, and GitHub Ruleset settings in root README.md and AGENTS.md
+- [x] T-069: Document Team Use, Linux checks, and GitHub Ruleset settings in root README.md and AGENTS.md
   - Риск: высокий
   - Зависит от: T-068
   - Модель: Gemini Flash (subagent, уровень неизвестен)
