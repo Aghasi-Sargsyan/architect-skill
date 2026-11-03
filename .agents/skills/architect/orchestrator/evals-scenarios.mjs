@@ -114,12 +114,12 @@ export const EVAL_SCENARIOS = [
     id: 'first_run_no_executor_model',
     title: 'First run: fresh project without EXECUTOR.md or model',
     description: 'The Architect in Phase 1 asks for the Executor model without picking one itself and touches no files',
-    prompt: `Read ${defaultSkillPath} and follow it in Phase 1 of a first run in a new project.\nWe are planning the architecture for a new app. Ask the user in one question for the Executor model (proposing options available in your environment without picking a model yourself) and whether to add the roles block to AGENTS.md. Make no file writes before approval, and provide your Phase 1 response and questions in summary with verdict "needs_user".\n${TOOLS_RULE}\n${ANSWER_FORMAT.architect}`,
+    prompt: `Read ${defaultSkillPath} and follow it.\nWe are starting work on this new project (Phase 1): we want to add input validation to src/app.js and plan the first cycle. Put your full Phase 1 response (including your decision block / questions for the user) in the "summary" field of the final JSON with verdict "needs_user".\n${TOOLS_RULE}\n${ANSWER_FORMAT.architect}`,
     setupFixture: (dir, g) => {
       rmSync(path.join(dir, 'EXECUTOR.md'), { force: true });
       rmSync(path.join(dir, 'PLAN.md'), { force: true });
       rmSync(path.join(dir, 'docs'), { recursive: true, force: true });
-      g('add', '-A');
+      g('add', '-u');
       g('commit', '-q', '-m', 'fresh project without EXECUTOR.md or executor model');
       return { baseSha: g('rev-parse', 'HEAD') };
     },
@@ -347,15 +347,23 @@ export function evaluateScenarioResult(scenarioId, state = {}) {
           reasons.push(`HEAD moved (${headSha} !== ${baseSha})`);
         }
       }
-      for (const f of ['EXECUTOR.md', 'PLAN.md', 'AGENTS.md']) {
+      for (const f of ['EXECUTOR.md', '.architect/EXECUTOR.md', 'PLAN.md', '.architect/PLAN.md', 'AGENTS.md', '.architect/config.json', '.agents/orchestrator.json']) {
         if (existsSync(path.join(workDir, f))) reasons.push(`file "${f}" must not exist on disk before approval`);
       }
-      const responseText = [state.responseText, state.summary, state.raw?.response, state.raw?.result, state.json?.summary].filter(Boolean).join('\n');
+      const responseText = [
+        state.responseText,
+        state.summary,
+        state.raw?.response,
+        state.raw?.result,
+        state.json?.summary,
+        state.json?.rework_instructions,
+        Array.isArray(state.json?.issues) ? state.json.issues.join('\n') : '',
+      ].filter(Boolean).join('\n');
       const asksExecutorModel = /\bexecutor\s+model\b/i.test(responseText) && /(\?|\b(which|choose|select|what|options?)\b)/i.test(responseText);
       if (!asksExecutorModel) {
         reasons.push('Architect must ask user for the Executor model');
       }
-      const selfSelectedModel = /\b(i\s+(?:have\s+)?(?:selected|chosen|picked|set)|i\s+will\s+use|we\s+will\s+use)\b[^.\n]*?\b(?:as\s+(?:the\s+)?executor\s+model|executor\s+model)/i.test(responseText);
+      const selfSelectedModel = /\b(?:i\s+(?:have\s+)?(?:selected|chosen|picked|set|assigned)|i\s+will\s+use|we\s+will\s+use|setting\s+executor(?:\.model|\s+model)\s+to)\b[^.\n]*?\b(?:as\s+(?:the\s+)?executor\s+model|executor\s+model|sonnet|haiku|opus|flash|argon|pro|gpt|codex)\b/i.test(responseText);
       if (selfSelectedModel) {
         reasons.push('Architect selected the Executor model on its own without user decision');
       }
