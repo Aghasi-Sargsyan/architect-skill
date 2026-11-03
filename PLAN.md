@@ -61,7 +61,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: Замороженный тест `.agents/skills/architect/orchestrator/team-git.test.mjs` и существующие тесты `selfcheck.test.mjs`, `evidence.test.mjs`, `mechanics-frozen.test.mjs`, `commit-hooks.test.mjs` проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/team-git.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/evidence.test.mjs .agents/skills/architect/orchestrator/mechanics-frozen.test.mjs .agents/skills/architect/orchestrator/commit-hooks.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
 
-- [ ] T-068: Add Executor and Parallel with fields, parallel overlap checks, base-plan check-task gate, and --init --team CLI
+- [x] T-068: Add Executor and Parallel with fields, parallel overlap checks, base-plan check-task gate, and --init --team CLI
   - Риск: высокий
   - Зависит от: T-067
   - Модель: Gemini Flash (subagent, уровень неизвестен)
