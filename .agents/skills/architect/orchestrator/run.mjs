@@ -35,7 +35,7 @@ async function main() {
   const configPath = resolveConfigPath({ workDir: process.cwd(), configPath: opts.configPath, init: opts.init });
   const realGit = which('git');
   if (opts.init) {
-    for (const note of initProject({ workDir: process.cwd(), configPath, realGit })) console.log(`• ${note}`);
+    for (const note of initProject({ workDir: process.cwd(), configPath, realGit, team: opts.team })) console.log(`• ${note}`);
     const ready = loadConfig(configPath);
     const adapter = getAdapter(ready);
     console.log(`\nAllowlist for ${adapter.displayName}: ${adapter.permissions.settingsShown}, keys permissions.allow and permissions.deny.\nRules for command(...) are configured once per computer, with subcommand only: Antigravity matches by prefix, "command(git)" would allow git push too.\nwrite_file(<project>) and denying writes to its .git are configured once per project.\n\n${adapter.permissions.allowlistBlock(adapter.permissions.rulesFor(ready, realOrResolved(ready.workDir ?? process.cwd())))}\n\nInsert the block manually or add it with backup: run with --write-permissions. Then run with --check.`);
@@ -293,6 +293,7 @@ async function main() {
           if (ex.json.status === 'escalation') { stopReason = `${task.id}: Executor escalation (report ${label}.report.md)`; break outer; }
 
           const mech = checkExecutorRun({ realGit, cwd: workDir, base: execBase, task, frozen: plan.frozen, scanPaths, bypassPatterns: config.bypassRegexps, protectedConfigFiles: config.protectedConfigFiles, configPath });
+          if (task.change?.some((f) => f === 'PLAN.md' || f === '.architect/PLAN.md')) mech.violations = mech.violations.filter((v) => !v.includes('modifies PLAN.md'));
           appendEvent(runDir, { type: 'mechanics_checked', taskId: task.id, round, ok: mech.violations.length === 0, commitsCount: mech.commits.length, violations: mech.violations });
           if (mech.violations.length) {
             writeFileSync(path.join(runDir, `${label}.violations.txt`), mech.violations.join('\n'));

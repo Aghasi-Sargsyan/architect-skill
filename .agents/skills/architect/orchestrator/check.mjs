@@ -6,24 +6,20 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { git, gitRaw, head, isIgnored, porcelain } from './git.mjs';
-import { nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
+import { checkParallelTasks, nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
 import { DEFAULTS, RUNS_DIR } from './config.mjs';
 import { isAlwaysFrozenFile, isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
 import { acquireLock, defaultSandboxRoot, installGuards, lockHolder } from './guards.mjs';
 import { findExecutable, readEvents } from './events.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { agySettingsPath } from './permissions.mjs';
-import { checkCommitMsgHook, checkExecutorModelConfig } from './hooks.mjs';
+import { checkCommitMsgHook, checkExecutorModelConfig, resolveExecutorModelInfo } from './hooks.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MIN_NODE = 22;
 const MIN_GIT = [2, 31]; // `rev-parse --path-format=absolute` in the git shim
 
-const probePrompt = (file) => `This is an orchestrator permission probe, not a task: do not read PLAN.md or EXECUTOR.md, do not modify other files.
-1. Run exactly two commands in terminal in sequence: "git status --short" and "git rev-parse --short HEAD". Do not run any other commands.
-2. Using your file writing tool (not terminal), create file ${file} with a single line: one
-3. Using your file editing tool, replace one with two in this file.
-Final answer — strictly following JSON schema: git_status, rev_parse, write and edit — "ok" if step succeeded, "denied" if permissions blocked it, otherwise "failed"; note — one line about what went wrong, or empty string.`;
+const probePrompt = (file) => `This is an orchestrator permission probe, not a task: do not read PLAN.md or EXECUTOR.md, do not modify other files.\n1. Run exactly two commands in terminal in sequence: "git status --short" and "git rev-parse --short HEAD". Do not run any other commands.\n2. Using your file writing tool (not terminal), create file ${file} with a single line: one\n3. Using your file editing tool, replace one with two in this file.\nFinal answer — strictly following JSON schema: git_status, rev_parse, write and edit — "ok" if step succeeded, "denied" if permissions blocked it, otherwise "failed"; note — one line about what went wrong, or empty string.`;
 
 const insideRoot = (p, root) => p === root || p.startsWith(`${root}${path.sep}`);
 
@@ -73,8 +69,7 @@ export function resolveEscalationResume({ realGit, workDir, task, layout = null,
   const stopEvt = events.find((e) => e.type === 'run_stopped');
   let isEscalation = false;
   if (stopEvt) {
-    isEscalation = (stopEvt.category === 'stop_escalation' || stopEvt.status === 'escalation') &&
-      (stopEvt.taskId === task.id || String(stopEvt.stopReason).startsWith(`${task.id}:`));
+    isEscalation = (stopEvt.category === 'stop_escalation' || stopEvt.status === 'escalation') && (stopEvt.taskId === task.id || String(stopEvt.stopReason).startsWith(`${task.id}:`));
   } else if (existsSync(path.join(runDir, 'summary.md'))) {
     const sum = readFileSync(path.join(runDir, 'summary.md'), 'utf8');
     isEscalation = sum.includes(`${task.id}: Executor escalation`) || sum.includes(`${task.id}: эскалация`);
@@ -109,17 +104,13 @@ export function resolveEscalationResume({ realGit, workDir, task, layout = null,
   for (const f of dirtyFiles) {
     if (!taskChange.has(f.replace(/^\.\//, ''))) return { ok: false, reason: `dirty file "${f}" is outside task Change list` };
   }
-
   const planPath = path.join(workDir, layout?.planPath ?? 'PLAN.md');
   const planFrozen = existsSync(planPath) ? (parsePlan(readFileSync(planPath, 'utf8')).frozen ?? []) : [];
   const frozenSet = new Set(planFrozen.map((p) => p.replace(/^\.\//, '')));
   for (const f of dirtyFiles) {
     const norm = f.replace(/^\.\//, '');
-    if (frozenSet.has(norm) || isAlwaysFrozenFile(norm, { workDir })) {
-      return { ok: false, reason: `dirty file "${f}" is in Frozen` };
-    }
+    if (frozenSet.has(norm) || isAlwaysFrozenFile(norm, { workDir })) return { ok: false, reason: `dirty file "${f}" is in Frozen` };
   }
-
   return { ok: true, taskId: task.id, runDir, reportText };
 }
 
@@ -159,11 +150,22 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
     if ((hasExecutor || hasFrozenHeading) && !plan.frozen.includes(layout.executorPath) && !plan.frozen.includes('EXECUTOR.md')) {
       add(false, 'Frozen', `section ## Frozen is missing ${layout.executorPath}`);
     }
+    for (const p of checkParallelTasks(plan)) add(false, 'parallel tasks', p);
   }
   for (const p of checkSkillInstallation({ workDir, layout, orchestratorDir })) add(false, p.name, p.detail);
-  for (const p of checkExecutorModelConfig({ workDir, config })) add(false, p.name, p.detail);
+  const modelInfo = resolveExecutorModelInfo({ workDir, config });
+  for (const p of checkExecutorModelConfig({ workDir, config })) {
+    if (p.name !== 'Executor model') add(false, p.name, p.detail);
+  }
+  add(modelInfo.ok, 'Executor model', modelInfo.detail);
   const ignored = isIgnored(realGit, workDir, `${RUNS_DIR}/`);
   add(ignored, `${RUNS_DIR}/ in .gitignore`, ignored ? 'yes' : 'no — run with --init');
+  for (const rel of ['.architect/config.local.json', '.agents/orchestrator.local.json']) {
+    if (existsSync(path.join(workDir, rel))) {
+      const ign = isIgnored(realGit, workDir, rel);
+      add(ign, `${rel} in .gitignore`, ign ? 'yes' : 'no — local config must be gitignored');
+    }
+  }
   const dirty = porcelain(realGit, workDir);
   let treeOk = !dirty;
   let treeDetail = dirty ? `changes: ${dirty.split('\n').length} — loop starts only with a clean tree` : 'yes';
@@ -174,10 +176,7 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
       const curTask = nextTask(plan, only);
       if (curTask) {
         const res = resolveEscalationResume({ realGit, workDir, task: curTask, layout });
-        if (res.ok) {
-          treeOk = true;
-          treeDetail = `resuming ${curTask.id} after escalation (matches stop snapshot)`;
-        }
+        if (res.ok) { treeOk = true; treeDetail = `resuming ${curTask.id} after escalation (matches stop snapshot)`; }
       }
     }
   }
@@ -264,9 +263,7 @@ export async function probePermissions({ config, workDir, realGit }) {
       res.json.git_status !== 'ok' && `git status: ${res.json.git_status}${denied(res.json.git_status)}`,
       res.json.rev_parse !== 'ok' && `git rev-parse: ${res.json.rev_parse}${denied(res.json.rev_parse)}`,
       !written && `file was not created (agent: ${res.json.write}) — requires write_file for project, run with --write-permissions`,
-      written && !edited && `file was not edited (agent: ${res.json.edit})`,
-      !untouched && 'agent modified repository',
-      res.json.note && `agent: ${String(res.json.note).slice(0, 200)}`,
+      written && !edited && `file was not edited (agent: ${res.json.edit})`, !untouched && 'agent modified repository', res.json.note && `agent: ${String(res.json.note).slice(0, 200)}`,
     ].filter(Boolean);
     const detail = ok ? `commands, file write, and file edit are allowed (${res.seconds}s)` : problems.join('; ');
     return { ok, name, detail, notes: guards.notes };
@@ -288,13 +285,19 @@ export function modelResolver(config, env = process.env) {
   const adapter = getAdapter(config);
   const runnerBin = adapter.resolveBin(config);
   return (task) => {
-    if (!task.model) {
+    if (task?.executorInfo?.runner && task.executorInfo.runner !== (config.runner ?? 'agy')) {
+      const taskEnv = task.executorInfo.env || task.executorInfo.runner;
+      return { error: `task assigned to ${taskEnv}, but local runner is ${config.runner ?? 'agy'}` };
+    }
+    const hasConfigModel = Boolean(config.executor?.model);
+    const candidate = task.model || (!hasConfigModel ? task.executorInfo?.model : null);
+    if (!candidate) {
       if (!config.executor?.model) return { error: `not set in config — choose a model from "${path.basename(runnerBin)} models"` };
       return { model: config.executor.model };
     }
     models ??= adapter.listModels({ bin: runnerBin, env });
-    const id = resolveModel(task.model, models);
-    return id ? { model: id } : { error: `model "${task.model}" from Model field not found in "${path.basename(runnerBin)} models"` };
+    const id = resolveModel(candidate, models);
+    return id ? { model: id } : { error: `model "${candidate}" from Model field not found in "${path.basename(runnerBin)} models"` };
   };
 }
 
@@ -324,6 +327,11 @@ export function readiness({ config, workDir, realGit, only = null, settingsPath 
     return results;
   }
   add(task.change.length > 0, `${task.id}: Change`, task.change.length ? task.change.join(', ') : EMPTY_CHANGE);
+  if (task?.executorInfo?.runner && task.executorInfo.runner !== (config.runner ?? 'agy')) {
+    const taskEnv = task.executorInfo.env || task.executorInfo.runner;
+    add(false, `${task.id}: Executor model`, `task assigned to ${taskEnv}, but local runner is ${config.runner ?? 'agy'}`);
+    return results;
+  }
   let chosen;
   try {
     chosen = modelResolverFn(task);
@@ -366,11 +374,7 @@ export function runCheck({ workDir = process.cwd(), home = os.homedir(), config 
   const checks = localChecks({ config: cfg, workDir, realGit: rGit });
   const repoCheck = checks.find((c) => (c.name === 'git repository' || c.name === 'git-репозиторий') && c.ok);
   if (repoCheck) {
-    try {
-      checks.push(...runnerChecks({ config: cfg, workDir }));
-    } catch {
-      // ignore
-    }
+    try { checks.push(...runnerChecks({ config: cfg, workDir })); } catch { /* ignore */ }
   }
   const ok = checks.every((c) => c.ok);
   return { ok, checks };
@@ -385,8 +389,6 @@ export function formatCheckReport(chk) {
   const lines = ['=== Environment check ===', ''];
   const checks = Array.isArray(chk) ? chk : (chk?.checks ?? []);
   for (const c of checks) lines.push(`[${c.ok ? 'PASS' : 'FAIL'}] ${c.name}: ${c.detail}`);
-  lines.push('');
-  const allOk = checks.length > 0 && checks.every((c) => c.ok);
-  lines.push(allOk ? 'Summary: READY' : 'Summary: NOT READY (fix the [FAIL] items above)');
+  lines.push('', checks.length > 0 && checks.every((c) => c.ok) ? 'Summary: READY' : 'Summary: NOT READY (fix the [FAIL] items above)');
   return lines.join('\n');
 }

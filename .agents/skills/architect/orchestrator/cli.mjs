@@ -10,10 +10,10 @@ import { runSelfCheckGit } from './selfcheck.mjs';
 import { checkEvalEvidence, runRedCheck } from './evidence.mjs';
 import { checkAuditCoverage, runPlanAudit } from './audit.mjs';
 import { checkSkillInstallation } from './check.mjs';
-import { parsePlan } from './plan.mjs';
-import { git } from './git.mjs';
-import { checkExecutorRun, formatMechanicsReport } from './mechanics.mjs';
-import { resolveBaseShaForTask } from './hooks.mjs';
+import { checkParallelTasks, parsePlan } from './plan.mjs';
+import { git, resolveMergeBase } from './git.mjs';
+import { checkExecutorRun, formatMechanicsReport, runTaskVerification } from './mechanics.mjs';
+import { resolveBaseShaForTask, scanRangeCommitMessages } from './hooks.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,30 +30,17 @@ export function nodeVersionProblem(version = process.versions.node) {
 
 export function parseArgs(argv) {
   const opts = {
-    configPath: null,
-    pause: false,
-    only: null,
-    dryRun: false,
-    init: false,
-    check: false,
-    writePermissions: false,
-    background: false,
-    answer: null,
-    watch: null,
-    since: null,
-    status: false,
-    follow: false,
-    selfCheck: false,
-    base: null,
-    auditPlan: false,
-    checkTask: null,
-    installHooks: false,
+    configPath: null, pause: false, only: null, dryRun: false, init: false, check: false, writePermissions: false,
+    background: false, answer: null, watch: null, since: null, status: false, follow: false, selfCheck: false, base: null,
+    auditPlan: false, checkTask: null, installHooks: false, team: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
+    } else if (a === '--team') {
+      opts.team = true;
     } else if (a === '--check-task') {
       const next = argv[++i];
       if (!next || !/^T-\d+$/.test(next)) throw new Error('--check-task requires task ID like T-NNN');
@@ -81,25 +68,15 @@ export function parseArgs(argv) {
     throw new Error('--only expects ID like T-NNN');
   }
 
+  if (opts.team && !opts.init) {
+    throw new Error('--team is allowed only with --init');
+  }
+
   if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) {
     throw new Error('--base is allowed only with --self-check or --check-task');
   }
 
-  const modeFlags = [
-    opts.init,
-    opts.check,
-    opts.dryRun,
-    opts.writePermissions,
-    opts.background,
-    opts.answer !== null,
-    opts.watch !== null,
-    opts.status,
-    opts.follow,
-    opts.selfCheck,
-    opts.auditPlan,
-    opts.checkTask !== null,
-    opts.installHooks,
-  ];
+  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks];
   if (modeFlags.filter(Boolean).length > 1) {
     throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, and --install-hooks: only one per invocation');
   }
@@ -184,25 +161,24 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
   const gitRes = runSelfCheckGit({ realGit: g, cwd: workDir, config: cfg, baseRef, orchestratorDir });
   const evidenceRes = checkEvalEvidence({ realGit: g, cwd: workDir, baseSha: gitRes.baseSha });
   const auditRes = checkAuditCoverage({ workDir, cycleBaseSha: gitRes.baseSha });
+  const layout = cfg?.paths ?? resolveLayout({ config: cfg });
   const installProblems = checkSkillInstallation({
     workDir,
-    layout: cfg?.paths ?? resolveLayout({ config: cfg }),
+    layout,
     orchestratorDir,
   });
+  const planPath = path.join(workDir, layout.planPath);
+  const parallelProblems = existsSync(planPath) ? checkParallelTasks(parsePlan(readFileSync(planPath, 'utf8'))) : [];
 
   const violations = [
     ...gitRes.violations,
     ...evidenceRes.violations,
     ...auditRes.violations,
     ...installProblems.map((p) => `${p.name}: ${p.detail}`),
+    ...parallelProblems,
   ];
-  const notVerified = [
-    ...(gitRes.notVerified ?? []),
-    ...(evidenceRes.notVerified ?? []),
-  ];
-  const waivers = gitRes.waivers ?? [];
-  const rejectedBlockers = auditRes.rejectedBlockers ?? [];
-  const warnings = gitRes.warnings ?? [];
+  const notVerified = [...(gitRes.notVerified ?? []), ...(evidenceRes.notVerified ?? [])];
+  const waivers = gitRes.waivers ?? [], rejectedBlockers = auditRes.rejectedBlockers ?? [], warnings = gitRes.warnings ?? [];
 
   return {
     ok: violations.length === 0,
@@ -226,14 +202,8 @@ export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = nu
   const fast = runFastSelfCheck({ realGit: g, workDir, config: cfg, baseRef, orchestratorDir });
   const redCheck = runRedCheck({ realGit: g, cwd: workDir, baseSha: fast.baseSha, config: cfg, env });
 
-  const violations = [
-    ...fast.violations,
-    ...(redCheck.violations ?? []),
-  ];
-  const notVerified = [
-    ...fast.notVerified,
-    ...(redCheck.notVerified ?? []),
-  ];
+  const violations = [...fast.violations, ...(redCheck.violations ?? [])];
+  const notVerified = [...fast.notVerified, ...(redCheck.notVerified ?? [])];
 
   return {
     ...fast,
@@ -325,35 +295,47 @@ export function runCheckTask({ realGit, workDir = process.cwd(), config = null, 
   const g = realGit ?? which('git');
   const cfg = config ?? loadConfigOrDefaults(null, workDir);
   let layout = cfg.paths ?? resolveLayout({ config: cfg });
-  let planFile = path.join(workDir, layout.planPath);
 
-  if (!existsSync(planFile)) {
-    if (existsSync(path.join(workDir, 'PLAN.md'))) {
-      layout = resolveLayout({ config: { ...cfg, layout: 'classic' } });
-      planFile = path.join(workDir, 'PLAN.md');
-    } else if (existsSync(path.join(workDir, '.architect', 'PLAN.md'))) {
-      layout = resolveLayout({ config: { ...cfg, layout: 'compact' } });
-      planFile = path.join(workDir, '.architect', 'PLAN.md');
+  let baseSha;
+  try {
+    baseSha = resolveBaseShaForTask({ realGit: g, workDir, taskId, baseRef });
+  } catch (err) {
+    return { ok: false, violations: [err instanceof Error ? err.message : String(err)], commits: [], headSha: '', headSubject: '', changedFiles: [] };
+  }
+
+  const mergeBase = resolveMergeBase(g, workDir, baseSha, 'HEAD');
+
+  let planText = null;
+  for (const ref of [baseSha, mergeBase]) {
+    for (const rel of [layout.planPath, 'PLAN.md', '.architect/PLAN.md']) {
+      try {
+        planText = git(g, workDir, ['show', `${ref}:${rel}`]);
+        if (planText) {
+          layout = resolveLayout({ config: { ...cfg, layout: rel.startsWith('.architect') ? 'compact' : 'classic' } });
+          break;
+        }
+      } catch { /* try next */ }
     }
+    if (planText) break;
+  }
+  const planFile = path.join(workDir, layout.planPath);
+  if (!planText && existsSync(planFile)) planText = readFileSync(planFile, 'utf8');
+  if (!planText) {
+    return { ok: false, violations: [`${layout.planPath} not found in base ${baseSha}`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
   }
 
-  if (!existsSync(planFile)) {
-    return { ok: false, violations: [`${layout.planPath} not found in working directory`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
-  }
-
-  const plan = parsePlan(readFileSync(planFile, 'utf8'));
+  const plan = parsePlan(planText);
   const task = plan.tasks.find((t) => t.id === taskId);
   if (!task) {
-    return { ok: false, violations: [`task ${taskId} not found in ${layout.planPath}`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
+    return { ok: false, violations: [`task ${taskId} not found in base ${layout.planPath}`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
   }
 
-  const baseSha = resolveBaseShaForTask({ realGit: g, workDir, taskId, baseRef });
   const bypassRegexps = cfg.bypassRegexps ?? (cfg.bypassPatterns ?? []).map((p) => (p instanceof RegExp ? p : new RegExp(p)));
 
-  return checkExecutorRun({
+  const mechRes = checkExecutorRun({
     realGit: g,
     cwd: workDir,
-    baseSha,
+    baseSha: mergeBase,
     task,
     frozen: plan.frozen,
     scanPaths: cfg.bypassScanPaths,
@@ -364,6 +346,28 @@ export function runCheckTask({ realGit, workDir = process.cwd(), config = null, 
     orchestratorDir,
     config: cfg,
   });
+
+  try {
+    const rangeFiles = git(g, workDir, ['diff', '--name-only', mergeBase, 'HEAD']).split('\n').map((f) => f.trim()).filter(Boolean);
+    if (rangeFiles.some((f) => f === 'PLAN.md' || f === '.architect/PLAN.md' || f.endsWith('/PLAN.md'))) {
+      if (!mechRes.violations.some((v) => v.includes('PLAN.md'))) {
+        mechRes.violations.push('task commits must not modify PLAN.md');
+      }
+    }
+  } catch { /* ignore */ }
+
+  mechRes.violations.push(...checkParallelTasks(plan));
+  const msgWarnings = scanRangeCommitMessages({ realGit: g, cwd: workDir, baseSha: mergeBase, headSha: 'HEAD', commitLanguage: cfg?.commitLanguage });
+  mechRes.violations.push(...msgWarnings);
+
+  if (mechRes.commits.length > 0 && mechRes.violations.length === 0 && (task.verifyCommands ?? []).length > 0) {
+    const vRes = runTaskVerification({ task, workDir, config: cfg });
+    if (!vRes.ok) {
+      mechRes.violations.push(`verification failed: ${vRes.failedCommand ?? vRes.command ?? 'command'} (${vRes.kind}: ${vRes.outputTail || vRes.reason || 'exit ' + vRes.exitCode})`);
+    }
+  }
+  mechRes.ok = mechRes.violations.length === 0;
+  return mechRes;
 }
 
 export async function handleCheckTaskCli({ opts = {}, config, configPath, workDir = process.cwd(), realGit, orchestratorDir = orchDir } = {}) {
