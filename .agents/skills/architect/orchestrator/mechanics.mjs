@@ -1,7 +1,7 @@
 // Deterministic checks the orchestrator runs itself, without a model.
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { git, commitsSince, porcelain } from './git.mjs';
+import { git, commitsSince, porcelain, resolveMergeBase, findSquashViolations } from './git.mjs';
 import { alwaysFrozenFiles, isAlwaysFrozenFile } from './layout.mjs';
 import { which } from './guards.mjs';
 import { BASE_COMMANDS, commandProblem } from './permissions.mjs';
@@ -105,23 +105,17 @@ export function checkExecutorRun(opts) {
   const violations = [];
 
   if (report) {
-    if (report.status !== 'done') {
-      violations.push(`Executor status "${report?.status}" !== "done"`);
-    }
-    if (report.check_passed !== true) {
-      violations.push('check_passed !== true in Executor report');
-    }
-    if (report.self_check !== true) {
-      violations.push('self_check !== true in Executor report');
-    }
-    if (typeof report.retry_count === 'number' && report.retry_count > 2) {
-      violations.push(`retry_count=${report?.retry_count} exceeds limit 2`);
-    }
+    if (report.status !== 'done') violations.push(`Executor status "${report?.status}" !== "done"`);
+    if (report.check_passed !== true) violations.push('check_passed !== true in Executor report');
+    if (report.self_check !== true) violations.push('self_check !== true in Executor report');
+    if (typeof report.retry_count === 'number' && report.retry_count > 2) violations.push(`retry_count=${report?.retry_count} exceeds limit 2`);
   }
 
-  const commits = commitsSince(realGit, cwd, baseSha);
+  const diffBase = resolveMergeBase(realGit, cwd, baseSha, 'HEAD');
+  const commits = commitsSince(realGit, cwd, diffBase);
   const subjectRe = new RegExp(`^${task.id}( \\(fix [0-9]+\\))?: `);
-  if (commits.length === 0) {
+  const taskCommits = commits.filter((c) => !c.isMerge);
+  if (taskCommits.length === 0) {
     violations.push('no new commit on HEAD (baseSha === headSha): no task commits found');
   }
 
@@ -131,6 +125,7 @@ export function checkExecutorRun(opts) {
   const scanPaths = rawScanPaths ?? codePaths ?? [];
 
   for (const c of commits) {
+    if (c.isMerge && c.files.length === 0) continue;
     const short = c.sha.slice(0, 7);
     if (!subjectRe.test(c.subject)) {
       violations.push(`foreign commit ${short}: HEAD commit message "${c.subject}" does not start with "${task.id}:"`);
@@ -139,6 +134,10 @@ export function checkExecutorRun(opts) {
       violations.push(`commit contains no files: ${short}`);
     }
     for (const f of c.files) {
+      const nf = f.replace(/\\/g, '/').replace(/^\.\//, '');
+      if (nf === 'PLAN.md' || nf === '.architect/PLAN.md') {
+        violations.push(`${short} modifies ${f}: task commits must not modify PLAN.md`);
+      }
       if (effectiveFrozen.has(f) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
         violations.push(`${short} touches Frozen — touched Frozen: ${f}`);
       } else {
@@ -158,11 +157,14 @@ export function checkExecutorRun(opts) {
   }
 
   if (commits.length && scanPaths.length && bypassPatterns.length) {
-    const diff = git(realGit, cwd, ['diff', '-U0', baseSha, 'HEAD', '--', ...scanPaths]);
+    const diff = git(realGit, cwd, ['diff', '-U0', diffBase, 'HEAD', '--', ...scanPaths]);
     for (const added of findBypasses(diff, bypassPatterns, testFilePatterns)) {
       violations.push(`check bypassing in diff (check bypass): ${added.slice(0, 120)}`);
     }
   }
+
+  const squashViolations = findSquashViolations({ realGit, cwd, baseSha: diffBase, headSha: 'HEAD', commits });
+  violations.push(...squashViolations);
 
   const allFiles = new Set(commits.flatMap((c) => c.files));
   if (Array.isArray(task.testFiles) && task.testFiles.length > 0) {
@@ -203,9 +205,7 @@ export function checkArchitectRun({ realGit, cwd, base, task, verdict, plan }) {
   const violations = [];
   const commits = commitsSince(realGit, cwd, base);
   for (const c of commits) {
-    if (!c.subject.startsWith('arch: ')) {
-      violations.push(`non-arch commit appeared after review: ${c.sha.slice(0, 7)}: "${c.subject}"`);
-    }
+    if (!c.subject.startsWith('arch: ')) violations.push(`non-arch commit appeared after review: ${c.sha.slice(0, 7)}: "${c.subject}"`);
   }
   const t = plan.tasks.find((x) => x.id === task.id);
   if (!t) {
@@ -213,13 +213,9 @@ export function checkArchitectRun({ realGit, cwd, base, task, verdict, plan }) {
   } else if (verdict === 'accepted' && !t.done) {
     violations.push(`verdict is "accepted", but ${task.id} is not marked [x] in PLAN.md`);
   }
-  if (verdict === 'accepted' && commits.length === 0) {
-    violations.push('verdict is "accepted", but no acceptance commit (arch:)');
-  }
+  if (verdict === 'accepted' && commits.length === 0) violations.push('verdict is "accepted", but no acceptance commit (arch:)');
   const status = porcelain(realGit, cwd);
-  if (status) {
-    violations.push(`working tree is not clean after review:\n${status}`);
-  }
+  if (status) violations.push(`working tree is not clean after review:\n${status}`);
   return { violations, commits };
 }
 

@@ -62,7 +62,7 @@ export function checkEvalEvidence({ realGit, cwd = process.cwd(), baseSha }) {
   }
 
   const allCommits = commitsSince(realGit, cwd, baseSha);
-  const nonExecCommits = allCommits.filter((c) => !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
+  const nonExecCommits = allCommits.filter((c) => !c.isMerge && !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
 
   // Check commit messages of non-executor commits
   for (const c of nonExecCommits) {

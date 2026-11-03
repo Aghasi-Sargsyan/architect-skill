@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { git, commitsSince } from './git.mjs';
+import { git, commitsSince, findSquashViolations } from './git.mjs';
 import { DEFAULT_TEST_FILE_PATTERNS, isTestFile, findBypasses } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
 import { scanRangeCommitMessages } from './hooks.mjs';
@@ -44,7 +44,14 @@ const PROMISE_CATCH_RE = /(\.catch\s*\(\s*(?:\([^)]*\)|[a-zA-Z0-9_$]+)?\s*(?:=>|
 const CLEANUP_RE = /\b(?:stop|abort|close)\b/i;
 
 export function resolveSelfCheckBase({ realGit, cwd, baseRef = null }) {
-  if (baseRef) return { sha: git(realGit, cwd, ['rev-parse', baseRef]), source: 'explicit' };
+  if (baseRef) {
+    try {
+      return { sha: git(realGit, cwd, ['rev-parse', `${baseRef}^{commit}`]), source: 'explicit' };
+    } catch {
+      // cleanup: abort base resolution with fail-closed hint
+      throw new Error(`Cannot resolve --base "${baseRef}" to a commit — ensure the branch/ref is fetched (e.g. fetch-depth: 0)`);
+    }
+  }
   const headSha = git(realGit, cwd, ['rev-parse', 'HEAD']);
   const log = git(realGit, cwd, ['log', '--format=%H %s', 'HEAD']).split('\n').filter(Boolean);
   const isClose = (s) => /^arch:\s*(?:close cycle|закрытие цикла)\b/i.test(s);
@@ -198,8 +205,13 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, warnings: [], waivers, notVerified };
 
   const warnings = scanRangeCommitMessages({ realGit, cwd, baseSha, headSha, commitLanguage: config?.commitLanguage });
+  if (config?.team === true && warnings.length > 0) {
+    violations.push(...warnings);
+  }
   const allCommits = commitsSince(realGit, cwd, baseSha);
-  const nonExecCommits = allCommits.filter((c) => !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
+  const nonExecCommits = allCommits.filter((c) => !c.isMerge && !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
+  const squashViolations = findSquashViolations({ realGit, cwd, baseSha, headSha, commits: allCommits });
+  violations.push(...squashViolations);
   const bypassPatterns = config?.bypassRegexps ?? (config?.bypassPatterns ?? []).map((p) => new RegExp(p));
   const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean);
   const headFileSet = new Set(headFiles);
@@ -329,7 +341,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   // 3. Fix-frozen check after plan commit
   if (requireFixFrozen || planIdx !== -1) {
-    const commitsToCheck = requireFixFrozen ? nonExecCommits : allCommits.slice(planIdx + 1).filter((c) => !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
+    const commitsToCheck = requireFixFrozen ? nonExecCommits : allCommits.slice(planIdx + 1).filter((c) => !c.isMerge && !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
 
     const isProtected = (f) => {
       const nf = norm(f);
