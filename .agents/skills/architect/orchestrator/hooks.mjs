@@ -27,79 +27,103 @@ const isValidModel = (val) => {
   return Boolean(s) && s.toLowerCase() !== 'inherit' && !/^<.*>$/.test(s);
 };
 
-export function checkExecutorModelConfig({ workDir = process.cwd(), config = null } = {}) {
-  const problems = [];
-  const claudeAgentPath = path.join(workDir, '.claude', 'agents', 'executor.md');
-  let claudeModel = null;
-  let hasClaudeFile = false;
+export function resolveExecutorModelInfo({ workDir = process.cwd(), config = null } = {}) {
+  if (config?._modelSources?.executor?.endsWith('.local.json') && isValidModel(config.executor?.model)) {
+    const model = normalizeModelValue(config.executor.model);
+    const source = config._modelSources.executor;
+    return { ok: true, model, source, detail: `${model} (source: ${source})`, problems: [] };
+  }
+  for (const rel of ['.architect/config.local.json', '.agents/orchestrator.local.json']) {
+    const full = path.join(workDir, rel);
+    if (existsSync(full)) {
+      try {
+        const raw = JSON.parse(readFileSync(full, 'utf8'));
+        if (isValidModel(raw?.executor?.model)) {
+          const model = normalizeModelValue(raw.executor.model);
+          return { ok: true, model, source: rel, detail: `${model} (source: ${rel})`, problems: [] };
+        }
+      } catch (err) {
+        if (err?.code !== 'ENOENT') throw err;
+      }
+    }
+  }
 
+  if (config?._modelSources?.executor && isValidModel(config.executor?.model)) {
+    const model = normalizeModelValue(config.executor.model);
+    const source = config._modelSources.executor;
+    return { ok: true, model, source, detail: `${model} (source: ${source})`, problems: [] };
+  }
+  if (config && !config._missingConfigFile && isValidModel(config.executor?.model)) {
+    const model = normalizeModelValue(config.executor.model);
+    const source = config.paths?.planPath?.startsWith('.architect') ? '.architect/config.json' : '.agents/orchestrator.json';
+    return { ok: true, model, source, detail: `${model} (source: ${source})`, problems: [] };
+  }
+  for (const rel of ['.architect/config.json', '.agents/orchestrator.json']) {
+    const full = path.join(workDir, rel);
+    if (existsSync(full)) {
+      try {
+        const raw = JSON.parse(readFileSync(full, 'utf8'));
+        if (isValidModel(raw?.executor?.model)) {
+          const model = normalizeModelValue(raw.executor.model);
+          return { ok: true, model, source: rel, detail: `${model} (source: ${rel})`, problems: [] };
+        }
+      } catch (err) {
+        if (err?.code !== 'ENOENT') throw err;
+      }
+    }
+  }
+
+  for (const file of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
+    const full = path.join(workDir, file);
+    if (existsSync(full)) {
+      const text = readFileSync(full, 'utf8');
+      const m1 = text.match(/(?:Executor model|Модель Исполнителя)[*_ \t]*:[ \t]*([^\r\n]*)/i);
+      const m2 = text.match(/Исполнитель по умолчанию[ \t]*[—–-][ \t]*(\S[^\r\n.]*)/i);
+      const candidate = (m1 ? m1[1] : (m2 ? m2[1] : '')).trim();
+      if (isValidModel(candidate)) {
+        const model = normalizeModelValue(candidate);
+        return { ok: true, model, source: file, detail: `${model} (source: ${file})`, problems: [] };
+      }
+    }
+  }
+
+  const claudeAgentPath = path.join(workDir, '.claude', 'agents', 'executor.md');
   if (existsSync(claudeAgentPath)) {
-    hasClaudeFile = true;
+    const text = readFileSync(claudeAgentPath, 'utf8');
+    const m = text.match(/^model:[ \t]*(\S.*)$/im);
+    if (m && isValidModel(m[1])) {
+      const model = normalizeModelValue(m[1]);
+      const source = '.claude/agents/executor.md';
+      return { ok: true, model, source, detail: `${model} (source: ${source})`, problems: [] };
+    }
+  }
+
+  const detail = 'Executor model is not configured — set executor.model in .agents/orchestrator.json, "Executor model: ..." in AGENTS.md / CLAUDE.md / GEMINI.md, or model in .claude/agents/executor.md';
+  return { ok: false, model: null, source: null, detail, problems: [detail] };
+}
+
+export function checkExecutorModelConfig({ workDir = process.cwd(), config = null } = {}) {
+  const claudeAgentPath = path.join(workDir, '.claude', 'agents', 'executor.md');
+  if (existsSync(claudeAgentPath)) {
     const text = readFileSync(claudeAgentPath, 'utf8');
     const m = text.match(/^model:[ \t]*(\S.*)$/im);
     if (!m || !isValidModel(m[1])) {
-      problems.push({
+      return [{
         ok: false,
         name: 'Executor model (.claude/agents/executor.md)',
         detail: '.claude/agents/executor.md must set an explicit "model:" (found inherit or missing)',
-      });
-      return problems;
-    }
-    claudeModel = m[1].trim();
-  }
-
-  let configured = false;
-
-  if (config && !config._missingConfigFile && isValidModel(config.executor?.model)) {
-    configured = true;
-  }
-
-  if (!configured) {
-    for (const rel of ['.agents/orchestrator.json', '.architect/config.json']) {
-      const full = path.join(workDir, rel);
-      if (existsSync(full)) {
-        try {
-          const raw = JSON.parse(readFileSync(full, 'utf8'));
-          if (isValidModel(raw?.executor?.model)) {
-            configured = true;
-            break;
-          }
-        } catch (err) {
-          if (err?.code !== 'ENOENT') throw err;
-        }
-      }
+      }];
     }
   }
-
-  if (!configured) {
-    for (const file of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
-      const full = path.join(workDir, file);
-      if (existsSync(full)) {
-        const text = readFileSync(full, 'utf8');
-        const m1 = text.match(/(?:Executor model|Модель Исполнителя)[*_ \t]*:[ \t]*([^\r\n]*)/i);
-        const m2 = text.match(/Исполнитель по умолчанию[ \t]*[—–-][ \t]*(\S[^\r\n.]*)/i);
-        const candidate = (m1 ? m1[1] : (m2 ? m2[1] : '')).trim();
-        if (isValidModel(candidate)) {
-          configured = true;
-          break;
-        }
-      }
-    }
-  }
-
-  if (!configured && hasClaudeFile && isValidModel(claudeModel)) {
-    configured = true;
-  }
-
-  if (!configured) {
-    problems.push({
+  const info = resolveExecutorModelInfo({ workDir, config });
+  if (!info.ok) {
+    return [{
       ok: false,
       name: 'Executor model',
-      detail: 'Executor model is not configured — set executor.model in .agents/orchestrator.json, "Executor model: ..." in AGENTS.md / CLAUDE.md / GEMINI.md, or model in .claude/agents/executor.md',
-    });
+      detail: info.detail,
+    }];
   }
-
-  return problems;
+  return [];
 }
 
 /**
@@ -112,9 +136,9 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
 export function resolveBaseShaForTask({ realGit, workDir, taskId, baseRef = null }) {
   if (baseRef) {
     try {
-      return git(realGit, workDir, ['rev-parse', baseRef]).trim();
+      return git(realGit, workDir, ['rev-parse', '--verify', `${baseRef}^{commit}`]).trim();
     } catch {
-      return baseRef;
+      throw new Error(`Cannot resolve --base "${baseRef}" to a commit — ensure the branch/ref is fetched (e.g. fetch-depth: 0)`);
     }
   }
   let logOutput = '';
@@ -160,6 +184,7 @@ if (!msgFile || !existsSync(msgFile)) process.exit(0);
 const lines = readFileSync(msgFile, 'utf8').split('\\n').filter((l) => !l.startsWith('#'));
 const subject = (lines.find((l) => l.trim().length > 0) || '').trim();
 if (!subject) process.exit(0);
+if (/^Merge\\b/.test(subject)) process.exit(0);
 
 let root = '.';
 try { root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(); } catch { root = '.'; }
@@ -267,20 +292,27 @@ export function checkCommitMsgHook({ workDir = process.cwd(), realGit }) {
   return { ok: true, name: 'commit-msg hook', detail: 'installed (.git/hooks/commit-msg)' };
 }
 
-export function validateCommitMessage({ subject, commitLanguage = null, stagedFiles = [], planDiff = '' } = {}) {
+export function validateCommitMessage({ subject, commitLanguage = null, stagedFiles = [], planDiff = '', isMerge = false } = {}) {
   const s = String(subject ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
   if (!s) return { ok: true, error: null };
+
+  if (isMerge || /^Merge\b/.test(s)) {
+    return { ok: true, error: null };
+  }
 
   if (commitLanguage === 'en' && /[^\P{L}\p{Script=Latin}]/u.test(s)) {
     return { ok: false, error: `commit subject contains non-Latin characters (commitLanguage is "${commitLanguage}")` };
   }
 
-  if (/^t-\d+/i.test(s) && !/^T-\d+(?: \(fix \d+\))?: \S/.test(s)) {
+  const isTask = /^T-\d+(?: \(fix \d+\))?: \S/.test(s);
+  const isArch = /^arch: \S/.test(s);
+
+  if (/^t-\d+/i.test(s) && !isTask) {
     return { ok: false, error: 'malformed T-NNN commit subject: must match /^T-\\d+(?: \\(fix \\d+\\))?: \\S/' };
   }
 
   if (/^(?:arch:|arch\s|arch$)/i.test(s)) {
-    if (!/^arch: \S/.test(s)) {
+    if (!isArch) {
       return { ok: false, error: 'malformed arch commit subject: must match /^arch: \\S/' };
     }
     if (/^arch:\s*fix-frozen\b/i.test(s) && !/^arch:\s*fix-frozen\s+(?:T-\d+|audit):\s+\S/.test(s)) {
@@ -289,6 +321,10 @@ export function validateCommitMessage({ subject, commitLanguage = null, stagedFi
     if (/^arch:\s*accept\b/i.test(s) && !/^arch:\s*accept\s+T-\d+\b/.test(s)) {
       return { ok: false, error: 'malformed arch: accept commit subject: must start with arch: accept T-NNN' };
     }
+  }
+
+  if (!isTask && !isArch) {
+    return { ok: false, error: 'commit subject must start with T-NNN: or arch:' };
   }
 
   const files = Array.isArray(stagedFiles) ? stagedFiles : [];
@@ -324,8 +360,11 @@ export function scanRangeCommitMessages({ realGit, workDir = process.cwd(), cwd 
   for (const sha of shas) {
     let subject = '';
     let files = [];
+    let isMerge = false;
     try {
       subject = git(realGit, dir, ['show', '-s', '--format=%s', sha]);
+      const parents = git(realGit, dir, ['show', '-s', '--format=%P', sha]).trim().split(/\s+/).filter(Boolean);
+      isMerge = parents.length > 1;
       files = git(realGit, dir, ['show', '--name-only', '--no-renames', '--format=', sha]).split('\n').map((f) => f.trim()).filter(Boolean);
     } catch {
       continue;
@@ -337,7 +376,7 @@ export function scanRangeCommitMessages({ realGit, workDir = process.cwd(), cwd 
         try { planDiff = git(realGit, dir, ['show', '-U0', sha, '--', files[0]]); } catch { planDiff = ''; }
       }
     }
-    const res = validateCommitMessage({ subject, commitLanguage, stagedFiles: files, planDiff });
+    const res = validateCommitMessage({ subject, commitLanguage, stagedFiles: files, planDiff, isMerge });
     if (!res.ok) {
       warnings.push(`commit ${sha.slice(0, 7)}: ${res.error} ("${subject}")`);
     }

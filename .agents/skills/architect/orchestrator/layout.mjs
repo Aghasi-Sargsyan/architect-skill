@@ -7,6 +7,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export const COMPACT_CONFIG_PATH = '.architect/config.json';
 export const CLASSIC_CONFIG_PATH = '.agents/orchestrator.json';
+export const COMPACT_LOCAL_CONFIG_PATH = '.architect/config.local.json';
+export const CLASSIC_LOCAL_CONFIG_PATH = '.agents/orchestrator.local.json';
+
+export function resolveLocalConfigPath(configPath = '') {
+  if (!configPath) return COMPACT_LOCAL_CONFIG_PATH;
+  const s = String(configPath);
+  if (s.endsWith('.local.json')) return s;
+  if (s.endsWith('.json')) return s.slice(0, -5) + '.local.json';
+  return s + '.local.json';
+}
 
 const LAYOUTS = {
   classic: {
@@ -103,6 +113,7 @@ export function isAlwaysFrozenFile(filePath, opts = {}) {
   }
   const { workDir = process.cwd(), orchestratorDir = here } = options;
   const norm = String(filePath ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
+  if (norm.startsWith('.github/workflows/')) return true;
   const list = alwaysFrozenFiles(cfg, { workDir, orchestratorDir });
   if (list.includes(norm)) return true;
 
@@ -135,6 +146,11 @@ export function alwaysFrozenFiles(configPath = '', opts = {}) {
     '.architect/EXECUTOR.md',
     '.agents/orchestrator.json',
     '.architect/config.json',
+    COMPACT_LOCAL_CONFIG_PATH,
+    CLASSIC_LOCAL_CONFIG_PATH,
+    'CODEOWNERS',
+    '.github/CODEOWNERS',
+    'docs/CODEOWNERS',
   ];
   if (orchestratorDir) {
     const skillDir = path.dirname(orchestratorDir);
