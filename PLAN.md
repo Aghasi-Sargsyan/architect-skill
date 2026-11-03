@@ -49,7 +49,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: Замороженный тест `.agents/skills/architect/orchestrator/team-config.test.mjs` и существующие тесты `layout.test.mjs`, `config.test.mjs`, `commit-hooks.test.mjs`, `check-task.test.mjs` проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/team-config.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/config.test.mjs .agents/skills/architect/orchestrator/commit-hooks.test.mjs .agents/skills/architect/orchestrator/check-task.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
 
-- [ ] T-067: Support merge-commit history, merge-base diffing, squash detection, and team-only strict commits
+- [x] T-067: Support merge-commit history, merge-base diffing, squash detection, and team-only strict commits
   - Риск: высокий
   - Зависит от: T-066
   - Модель: Gemini Flash (subagent, уровень неизвестен)
