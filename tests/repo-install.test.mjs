@@ -65,6 +65,48 @@ test('repository installation: root LICENSE matches skill LICENSE byte-for-byte 
     'root README.md must link to skill README.ru.md',
   );
   assert.match(rootReadme, /LICENSE/, 'root README.md must reference LICENSE');
+  assert.match(rootReadme, /^## Feedback\b/m, 'root README.md must contain a Feedback section');
+  assert.match(
+    rootReadme,
+    /field-report\.yml/,
+    'root README.md Feedback section must link to field-report.yml',
+  );
+});
+
+test('repository installation: .github/ISSUE_TEMPLATE/field-report.yml defines English tester feedback form and privacy notice', () => {
+  const formPath = path.join(repoRoot, '.github', 'ISSUE_TEMPLATE', 'field-report.yml');
+  const formText = readFileSync(formPath, 'utf8');
+  assert.match(
+    formText,
+    /Do not paste project code, task names, or personal data/i,
+    'field-report.yml must explicitly warn against pasting code, task names, or personal data',
+  );
+  for (const token of [
+    'id: environment',
+    'Antigravity',
+    'Claude Code',
+    'Codex',
+    'Other',
+    'id: architect_model',
+    'id: executor_model',
+    'id: executor_mode',
+    'Orchestrator',
+    'Subagent',
+    'Separate chat',
+    'id: progress_stage',
+    'Installation',
+    'First plan (PLAN.md)',
+    'One cycle',
+    'Multiple cycles',
+    'id: where_stuck',
+    'id: worst_agent_action',
+    'id: manual_interventions',
+    'id: self_check_output',
+    '--self-check',
+    'id: continue_using',
+  ]) {
+    assert.ok(formText.includes(token), `field-report.yml must include ${token}`);
+  }
 });
 
 test('repository installation: sanitized historical stage-4 plan contains no local absolute home path', () => {

@@ -1,0 +1,108 @@
+name: Field Report
+description: Share feedback from testing the Architect + Executor workflow. Do not paste project code, task names, or personal data.
+title: "[Field Report]: "
+labels: ["field-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for testing the Architect + Executor skill!
+        **Important:** Do not paste project code, task names, or personal data in this form.
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Which AI coding environment did you use?
+      options:
+        - Antigravity
+        - Claude Code
+        - Codex
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: architect_model
+    attributes:
+      label: Architect Model
+      description: Model (and thinking/effort tier, if applicable) used for the Chief Architect role.
+      placeholder: e.g. Claude Opus 4.6, Gemini 3.1 Pro (High), GPT-5.4
+    validations:
+      required: true
+
+  - type: input
+    id: executor_model
+    attributes:
+      label: Executor Model
+      description: Model (and thinking/effort tier, if applicable) used for the Executor role.
+      placeholder: e.g. Gemini 3.8 Flash (High), Claude Sonnet 4.6
+    validations:
+      required: true
+
+  - type: dropdown
+    id: executor_mode
+    attributes:
+      label: Executor Mode
+      description: How did you run the Executor?
+      options:
+        - Orchestrator
+        - Subagent
+        - Separate chat
+    validations:
+      required: true
+
+  - type: dropdown
+    id: progress_stage
+    attributes:
+      label: How far did you get?
+      description: Which stage of the workflow did you reach?
+      options:
+        - Installation
+        - First plan (PLAN.md)
+        - One cycle
+        - Multiple cycles
+    validations:
+      required: true
+
+  - type: textarea
+    id: where_stuck
+    attributes:
+      label: Where did you get stuck?
+      description: Describe any blockers, unclear instructions, or friction points (or write "None"). Do not paste code, task names, or personal data.
+    validations:
+      required: true
+
+  - type: textarea
+    id: worst_agent_action
+    attributes:
+      label: Most incorrect agent action (quote)
+      description: Quote or describe the most incorrect action taken by the Architect or Executor (redact any code, task names, or personal data).
+    validations:
+      required: true
+
+  - type: input
+    id: manual_interventions
+    attributes:
+      label: How many times did you have to intervene manually?
+      description: Number of manual interventions required to fix or redirect the agent or loop.
+      placeholder: e.g. 0, 2, 5+
+    validations:
+      required: true
+
+  - type: input
+    id: self_check_output
+    attributes:
+      label: "--self-check output line"
+      description: Paste the summary line from `node .agents/skills/architect/orchestrator/run.mjs --self-check` (or "N/A" if not run).
+      placeholder: e.g. Self-check PASSED: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: continue_using
+    attributes:
+      label: Will you continue using it, and why?
+      description: Will you keep using this skill on future tasks, and why or why not?
+    validations:
+      required: true

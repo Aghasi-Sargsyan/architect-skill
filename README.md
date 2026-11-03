@@ -27,3 +27,7 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
 - Detailed English Guide: [.agents/skills/architect/README.en.md](.agents/skills/architect/README.en.md)
 - Detailed Russian Guide: [.agents/skills/architect/README.ru.md](.agents/skills/architect/README.ru.md)
 - License: [LICENSE](LICENSE) (MIT)
+
+## Feedback
+
+- Field Report (GitHub Issues): [Submit a Field Report](https://github.com/Aghasi-Sargsyan/architect-skill/issues/new?template=field-report.yml) ([.github/ISSUE_TEMPLATE/field-report.yml](.github/ISSUE_TEMPLATE/field-report.yml))
