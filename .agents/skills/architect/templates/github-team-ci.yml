@@ -1,0 +1,112 @@
+name: Architect Team CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - 'cycle/**'
+  pull_request:
+    branches:
+      - master
+      - main
+      - 'cycle/**'
+
+jobs:
+  task-gate:
+    name: Task PR Gate (task/T-NNN -> cycle/*)
+    if: github.event_name == 'pull_request' && startsWith(github.base_ref, 'cycle/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR merge ref with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract task ID and run mechanical task gate
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [[ ! "$HEAD_REF" =~ ^task/(T-[0-9]+)($|[-/]) ]]; then
+            echo "Error: PR branch into $BASE_REF must be named task/T-NNN (got: $HEAD_REF)" >&2
+            exit 1
+          fi
+          TASK_ID="${BASH_REMATCH[1]}"
+          ORCH=".agents/skills/architect/orchestrator/run.mjs"
+          if [ ! -f "$ORCH" ]; then
+            ORCH=".claude/skills/architect/orchestrator/run.mjs"
+          fi
+          node "$ORCH" --check-task "$TASK_ID" --base "origin/$BASE_REF"
+
+  cycle-self-check:
+    name: Cycle Branch Self-Check (push -> cycle/*)
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'cycle/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run Architect self-check on cycle branch
+        run: |
+          ORCH=".agents/skills/architect/orchestrator/run.mjs"
+          if [ ! -f "$ORCH" ]; then
+            ORCH=".claude/skills/architect/orchestrator/run.mjs"
+          fi
+          node "$ORCH" --self-check
+
+  full-suite:
+    name: Full Test Suite & Self-Check (master/main)
+    if: >
+      (github.event_name == 'push' && (github.ref_name == 'master' || github.ref_name == 'main')) ||
+      (github.event_name == 'pull_request' && (github.base_ref == 'master' || github.base_ref == 'main'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run full project test suite from config
+        run: |
+          TEST_CMD=$(node -e '
+            const fs = require("node:fs");
+            const p = fs.existsSync(".architect/config.json") ? ".architect/config.json" : ".agents/orchestrator.json";
+            const cfg = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : {};
+            const cmd = (cfg.fullTestCommand || (Array.isArray(cfg.allowedCommands) && cfg.allowedCommands[0]) || "npm test").trim();
+            process.stdout.write(cmd);
+          ')
+          echo "Running full test command: $TEST_CMD"
+          sh -e -c "$TEST_CMD"
+
+      - name: Run Architect self-check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          ORCH=".agents/skills/architect/orchestrator/run.mjs"
+          if [ ! -f "$ORCH" ]; then
+            ORCH=".claude/skills/architect/orchestrator/run.mjs"
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$BASE_REF" ]; then
+            node "$ORCH" --self-check --base "origin/$BASE_REF"
+          else
+            node "$ORCH" --self-check
+          fi

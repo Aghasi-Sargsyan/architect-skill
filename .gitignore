@@ -1,4 +1,6 @@
 .agent-runs/
+.architect/config.local.json
+.agents/orchestrator.local.json
 node_modules/
 .DS_Store
 .idea/

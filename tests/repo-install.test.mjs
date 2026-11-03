@@ -178,3 +178,40 @@ test('T-065: root README.md and skill README.en/ru have a 2-step Quickstart, Man
   assert.match(orchRef, /--write-permissions/);
 });
 
+test('T-069: root README.md, skill README.en/ru, AGENTS.md, references/team.md, and templates/github-team-ci.yml document Team Use, Linux checks, and GitHub settings with official links', () => {
+  const rootReadme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+  const readmeEn = readFileSync(path.join(skillDir, 'README.en.md'), 'utf8');
+  const readmeRu = readFileSync(path.join(skillDir, 'README.ru.md'), 'utf8');
+  const agentsMd = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
+  const skillText = readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
+  const teamRef = readFileSync(path.join(skillDir, 'references', 'team.md'), 'utf8');
+  const teamCiTpl = readFileSync(path.join(skillDir, 'templates', 'github-team-ci.yml'), 'utf8');
+
+  assert.match(rootReadme, /^# Architect \+ Executor Skill \(`v3\.30 \/ 1\.8`\)/m);
+  assert.match(rootReadme, /^##\s+Team Use\b/m, 'root README.md must include a ## Team Use section');
+  assert.match(rootReadme, /--init --team/, 'root README.md must mention --init --team');
+  assert.match(rootReadme, /cycle\/<N>/, 'root README.md must mention cycle/<N> branch');
+  assert.match(rootReadme, /task\/T-NNN/, 'root README.md must mention task/T-NNN branch');
+  assert.match(rootReadme, /docs\.github\.com/, 'root README.md must link to official GitHub Docs');
+
+  for (const [label, md] of [['README.en.md', readmeEn], ['README.ru.md', readmeRu]]) {
+    assert.match(md, /^##\s+9\.\s+/m, `${label} must include Section 9 for Team Use`);
+    assert.match(md, /--init --team/, `${label} must document --init --team`);
+    assert.match(md, /config\.local\.json/, `${label} must document config.local.json`);
+    assert.match(md, /orchestrator\.local\.json/, `${label} must document orchestrator.local.json`);
+    assert.match(md, /cycle\/\*/, `${label} must document cycle/* ruleset`);
+    assert.match(md, /https:\/\/docs\.github\.com\/en\/repositories\/configuring-branches-and-merges-in-your-repository/, `${label} must link to GitHub Docs for branch protection / rulesets / merge methods`);
+  }
+
+  assert.match(skillText, /references\/team\.md/, 'SKILL.md must link to references/team.md');
+  assert.match(teamRef, /"team":\s*true/, 'references/team.md must state it applies when "team": true');
+  assert.match(teamCiTpl, /ubuntu-latest/, 'templates/github-team-ci.yml must run on ubuntu-latest');
+  assert.match(teamCiTpl, /--check-task/, 'templates/github-team-ci.yml must invoke --check-task');
+  assert.match(teamCiTpl, /fullTestCommand/, 'templates/github-team-ci.yml must read fullTestCommand from project config');
+
+  assert.match(agentsMd, /--init --team|--team/, 'AGENTS.md must document --init --team');
+  assert.match(agentsMd, /orchestrator\.local\.json|config\.local\.json/, 'AGENTS.md must mention local gitignored config');
+  assert.match(agentsMd, /Linux/i, 'AGENTS.md must mention Linux support for --check, --check-task, and --self-check');
+});
+
+

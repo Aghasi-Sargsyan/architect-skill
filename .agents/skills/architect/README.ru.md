@@ -1,11 +1,11 @@
-<!-- skill-readme-sync: v3.29 / 1.8 -->
-# Скилл «Архитектор + Исполнитель» (`v3.29 / 1.8`)
+<!-- skill-readme-sync: v3.30 / 1.8 -->
+# Скилл «Архитектор + Исполнитель» (`v3.30 / 1.8`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
-2. **Автоматический оркестратор (`orchestrator/run.mjs`):** цикл на чистом Node.js без npm-зависимостей; требует **Node.js 22+** и **git 2.31+**. **Оркестратор — только macOS. Linux и WSL2 не тестируются, Windows не поддерживается. Ядро правил работает в любой ОС.** Поддерживает только раннеры **`agy`** (Antigravity) и **`claude`** (Claude Code); системные уведомления работают на **macOS** (`osascript`), также поддерживается вебхук `AGENT_LOOP_WEBHOOK_URL`.
+2. **Автоматический оркестратор (`orchestrator/run.mjs`):** CLI на чистом Node.js без npm-зависимостей; требует **Node.js 22+** и **git 2.31+**. **Детерминированные проверки (`--check`, `--check-task`, `--self-check`) официально поддерживаются на macOS и Linux (`ubuntu-latest`); цикл запуска агентов поддерживается только на macOS (Windows не поддерживается).** Поддерживает раннеры **`agy`** (Antigravity) и **`claude`** (Claude Code); системные уведомления работают на **macOS** (`osascript`), также поддерживается вебхук `AGENT_LOOP_WEBHOOK_URL`.
 
-- **Рабочие промпты (единый источник правил на английском):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks}.md`.
+- **Рабочие промпты (единый источник правил на английском):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks,team}.md`.
 - **Руководства для человека (`<= 25 КБ` каждое):** `README.ru.md` (на русском) и `README.en.md` (на английском).
 
 ---
@@ -59,33 +59,32 @@
    ```
 
 ### A. Antigravity (`agy`) — Ядро + Оркестратор
-1. Положите скилл в подпапку `.agents/skills/architect/`.
-2. Скопируйте `.agents/skills/architect/EXECUTOR.md` в `EXECUTOR.md` в корне проекта.
-3. Для автоматического цикла (`runner: "agy"`, только macOS, Node 22+) выполните `--init` для создания `.architect/config.json` (или `.agents/orchestrator.json`), затем после проверки правил запишите allowlist в `~/.gemini/antigravity-cli/settings.json`:
+1. Положите скилл в `.agents/skills/architect/` и скопируйте `EXECUTOR.md` в корень проекта.
+2. Для автоматического цикла (`runner: "agy"`, macOS, Node 22+) выполните `--init`, затем запишите allowlist в `~/.gemini/antigravity-cli/settings.json`:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check
    ```
 
 ### B. Claude Code (`claude`) — Ядро + Оркестратор или Субагент
-1. Положите скилл в `.agents/skills/architect/` или `.claude/skills/architect/` и скопируйте `EXECUTOR.md` в корень проекта.
-2. **Режим субагента:** скопируйте `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и проверьте, что поле `model:` задано явно (например, `model: sonnet`, никогда `inherit`).
-3. **Режим оркестратора (только macOS, Node 22+):** укажите `"runner": "claude"`, `"executor": { "model": "sonnet" }` и `"architect": { "model": "opus" }` в `.architect/config.json` (или `.agents/orchestrator.json`), затем выполните:
+1. Положите скилл в `.agents/skills/architect/` или `.claude/skills/architect/` и скопируйте `EXECUTOR.md` в корень.
+2. **Субагент:** скопируйте `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (например, `model: sonnet`, никогда `inherit`).
+3. **Оркестратор (macOS, Node 22+):** укажите `"runner": "claude"`, `"executor": { "model": "sonnet" }` и `"architect": { "model": "opus" }` в конфиге, затем выполните:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check
    ```
 
 ### C. Gemini CLI, OpenAI Codex CLI, Cursor и другие агенты — Только ядро
-- Положите скилл в `.agents/skills/architect/`, скопируйте `EXECUTOR.md` в корень проекта и добавьте врезку из раздела 4 (включая `Executor model: …`) в `GEMINI.md`, `AGENTS.md` или `.cursorrules`. Запускайте Архитектора и Исполнителя в отдельных чатах.
+- Положите скилл в `.agents/skills/architect/`, скопируйте `EXECUTOR.md` в корень и добавьте врезку из раздела 4 (включая `Executor model: …`) в `GEMINI.md`, `AGENTS.md` или `.cursorrules`. Запускайте Архитектора и Исполнителя в отдельных чатах.
 
 ### D. Обновление скилла в существующем проекте
-1. Выполните ту же однострочную команду установки из раздела 1 («Быстрый старт») для `.agents/skills/` или `.claude/skills/` — команда идемпотентна (`mktemp -d`, `rm -rf` старой папки скилла перед `cp -R`). Ваш конфиг (`.architect/config.json` или `.agents/orchestrator.json`) и история (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) лежат вне папки скилла и сохраняются.
-2. Обновите проектную копию `EXECUTOR.md`:
+1. Выполните ту же однострочную команду из раздела 1 (`mktemp -d`, `rm -rf` старой папки перед `cp -R`). Конфиг и история (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) лежат вне папки скилла и сохраняются.
+2. Обновите проектную копию `EXECUTOR.md` и проверьте настройку:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
+   node .agents/skills/architect/orchestrator/run.mjs --check
    ```
-3. Если используете оркестратор, выполните `node .agents/skills/architect/orchestrator/run.mjs --check` для проверки совпадения копии `EXECUTOR.md` и базового набора разрешённых команд.
 
 ---
 
@@ -105,42 +104,35 @@
 
 ## 5. Структура `PLAN.md` и раскладка файлов в проекте
 
-Рабочие файлы можно хранить как в корне проекта (`PLAN.md`, `EXECUTOR.md`, `docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`), так и компактно в папке `.architect/` (`planPath: ".architect/PLAN.md"`, `executorPath: ".architect/EXECUTOR.md"`).
-
-Парсер `plan.mjs` поддерживает и русские, и английские названия полей задачи `T-NNN`:
+Рабочие файлы можно хранить в корне (`PLAN.md`, `EXECUTOR.md`, `docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) или компактно в `.architect/` (`planPath: ".architect/PLAN.md"`, `executorPath: ".architect/EXECUTOR.md"`). Парсер `plan.mjs` поддерживает русские и английские поля задачи `T-NNN`:
 - `Риск` (`Risk`): `низкий` | `средний` | `высокий` (`low` | `medium` | `high`)
-- `Зависит от` (`Depends on`): `—` или `T-NNN`
-- `Модель` (`Model`): целевая модель Исполнителя
-- `Читать` (`Read`): файлы для чтения перед работой
-- `Менять` (`Change`): точный список файлов, которые разрешено создать или изменить (`<= 3–5` файлов)
-- `Задача и инварианты` (`Task and invariants`), `Граничные случаи` (`Edge cases`), `Тест-кейсы` (`Test cases`), `Готово, когда` (`Done when`), `Проверка` (`Check`).
+- `Зависит от` (`Depends on`): `—` или `T-NNN`; `Параллельно с` (`Parallel with`): `T-MMM`
+- `Исполнитель` (`Executor`): `@<github-ник> · <Окружение> · <Модель (\`id\`)>`; `Модель` (`Model`): целевая модель
+- `Читать` (`Read`), `Менять` (`Change`, `<= 3–5` файлов), `Задача и инварианты` (`Task and invariants`), `Граничные случаи` (`Edge cases`), `Тест-кейсы` (`Test cases`), `Готово, когда` (`Done when`), `Проверка` (`Check`).
 
 ### Настройка под свой стек (`config.json` / `orchestrator.json`)
-Для стеков вне `node:test` (Python/`pytest`, Go/`go test`, Rust/`cargo test`, Vitest/Jest) настройте в конфиге `testFilePatterns`, `testPatterns`, `assertPatterns` (по умолчанию включены `assert.` и `expect(`) и `redCheckCommand` (например, `"pytest {file}"` или `"npx vitest run {file}"`). Если для эталонного теста из `Frozen` не подходит `redCheckCommand` или в тест-файле 0 распознанных утверждений, `--self-check` выдаёт явный `NOT VERIFIED` с именем файла, а не молчаливый `PASS`.
+Для стеков вне `node:test` (`pytest`, `go test`, `cargo test`, Vitest/Jest) задайте `testFilePatterns`, `testPatterns`, `assertPatterns` (`assert.` и `expect(` по умолчанию) и `redCheckCommand` (например, `"pytest {file}"`). При отсутствии подходящей `redCheckCommand` или 0 утверждений в тесте `--self-check` выдаёт явный `NOT VERIFIED`.
 
 ---
 
 ## 6. Справочник команд оркестратора (`orchestrator/run.mjs`)
 
-Добавьте `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` в `scripts` файла `package.json` (или вызывайте `node .agents/skills/architect/orchestrator/run.mjs` напрямую):
+Добавьте `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` в `scripts` файла `package.json`:
 
 | Флаг | Назначение |
 |---|---|
-| `--init` | Создание `.architect/config.json` (или `.agents/orchestrator.json`), установка `.git/hooks/commit-msg`, добавление `.agent-runs/` в `.gitignore` и вывод блока allowlist |
-| `--install-hooks` | Установка zero-dependency Node-хука `.git/hooks/commit-msg` (без перезаписи существующего хука или `core.hooksPath`) |
-| `--check` | Проверка ОС, Node.js 22+, git 2.31+, установки скилла в подпапку, совпадения копии `EXECUTOR.md`, хука `commit-msg`, модели Исполнителя, `PLAN.md`, CLI раннеров и allowlist |
-| `--check-task T-NNN [--base <ref>]` | Механическая проверка коммитов Исполнителя по задаче `T-NNN` вне цикла оркестратора (границы `Change`, `Frozen`, обходы проверок) |
-| `--write-permissions` | Запись безопасного allowlist команд и путей для `agy` или `claude` (после явного согласия пользователя) |
-| `--dry-run` | Проверка готовности, `--self-check` (включая `red-check`) и показ промпта следующей задачи без вызова LLM |
-| `--self-check [--base <ref>]` | Детерминированная самопроверка Архитектора (обходы, пустой `catch`, таймеры в тестах, монотонность, `fix-frozen`, сверка `eval`, покрытие аудита и `red-check`) |
-| `--audit-plan` | Совещательный read-only аудит плана другой моделью (`references/plan-audit.md`) через `config.auditor` (платный вызов, не более 1 повтора на базу цикла) |
-| `--background` | Запуск цикла в фоне (с PID-блокировкой `.agent-runs/.lock`) |
-| `--watch [мин] [--since N]` | Ожидание запроса разрешения (код `2`), остановки цикла (код `3`) или вехи задачи (код `4`) |
-| `--status` | Короткая сводка состояния цикла и прогресса задач |
-| `--follow` | Живая лента мыслей агента, вызовов инструментов, команд и вердиктов в терминале |
-| `--answer <1\|2\|3>` | Ответ на запрос разрешения (`1` префикс, `2` точная команда, `3` отказ) |
-| `--pause` | Остановка после каждой принятой задачи для подтверждения в терминале |
-| `--only T-NNN` | Прогон только одной указанной задачи `T-NNN` |
+| `--init [--team]` | Создание конфига, установка `.git/hooks/commit-msg`, добавление `.agent-runs/` и `*.local.json` в `.gitignore`; с `--team` пишет `"team": true` и `.github/workflows/team-ci.yml` |
+| `--install-hooks` | Установка Node-хука `.git/hooks/commit-msg` (без перезаписи существующего хука или `core.hooksPath`) |
+| `--check` | Проверка ОС, Node 22+, git 2.31+, подпапки скилла, копии `EXECUTOR.md`, хука `commit-msg`, итоговой модели Исполнителя и её источника, `PLAN.md`, параллельных задач, раннеров и allowlist |
+| `--check-task T-NNN [--base <ref>]` | Шлюз задачи `T-NNN` по `<base>:PLAN.md` и `git merge-base <base> HEAD` (`Change`, `Frozen`, обходы, коммиты, запрет squash и `Verify`-команды задачи) |
+| `--write-permissions` | Запись allowlist команд и путей для `agy` или `claude` (после явного согласия пользователя) |
+| `--dry-run` | Проверка готовности, `--self-check` (`red-check`) и показ промпта следующей задачи без вызова LLM |
+| `--self-check [--base <ref>]` | Самопроверка Архитектора (обходы, пустой `catch`, таймеры, монотонность, `fix-frozen`, `eval`, аудит, параллельные задачи и `red-check`) |
+| `--audit-plan` | Read-only аудит плана другой моделью (`references/plan-audit.md`) через `config.auditor` (до 1 повтора на базу цикла) |
+| `--background` | Запуск цикла в фоне (`.agent-runs/.lock`) |
+| `--watch [мин] [--since N]` | Ожидание запроса разрешения (`2`), остановки (`3`) или вехи задачи (`4`) |
+| `--status` / `--follow` | Сводка состояния цикла (`--status`) или живая лента в терминале (`--follow`) |
+| `--answer <1\|2\|3>` / `--pause` / `--only T-NNN` | Ответ на запрос разрешения, пауза после задачи или прогон одной задачи `T-NNN` |
 
 ---
 
@@ -163,4 +155,37 @@
 - **Полностью (Ядро + Оркестратор):** долгоживущие продукты с зонами высокого риска (аутентификация и права доступа, биллинг, миграции БД, конкурентность, инварианты данных) на macOS с раннерами `agy` или `claude`.
 - **Только ядро (`SKILL.md` + `EXECUTOR.md`):** проекты среднего размера, другие стеки и агенты (`Gemini CLI`, `Codex`, `Cursor`), Linux/WSL2 или Windows, где важны двухфазное планирование, замороженные контракты (`Frozen`) и изоляция контекста Исполнителя без цикла на Node.js.
 - **Не использовать:** одноразовые прототипы, быстрая проверка продуктовых гипотез, геймджемы, разовые скрипты и задачи с чисто визуальной приёмкой.
-- **Командные проекты с существующими PR и CI:** берите ключевые идеи (Фаза 1 только для чтения, эталонные тесты в `Frozen` до реализации, изолированный контекст Исполнителя) без обязательных конвенций сообщений коммитов `arch:` / `T-NNN:`.
+- **Командные проекты с существующими PR и CI:** включите командный режим (`--init --team`, раздел 9) или используйте базовые практики ядра (Фаза 1 только для чтения, эталонные тесты в `Frozen`, изолированный Исполнитель).
+
+---
+
+## 9. Командный режим и настройки репозитория GitHub
+
+В командном режиме (1 Главный Архитектор / техлид + N Исполнителей в Antigravity, Claude Code, Codex) инициализируйте проект командой:
+```bash
+node .agents/skills/architect/orchestrator/run.mjs --init --team
+```
+Команда прописывает `"team": true` и `"fullTestCommand": "npm test"` в общий конфиг, добавляет `.architect/config.local.json` и `.agents/orchestrator.local.json` в `.gitignore` и создаёт `.github/workflows/team-ci.yml` (из шаблона `templates/github-team-ci.yml`).
+
+### Личный локальный конфиг и общий конфиг политики
+- **Общий конфиг (`.architect/config.json` или `.agents/orchestrator.json`, в git):** хранит политику проекта (`team`, `commitLanguage`, `permissions`, `allowedCommands`, `blockedScripts`, `protectedConfigFiles`, `bypassScanPaths`, `bypassPatterns`, `fullTestCommand`).
+- **Личный локальный конфиг (`.architect/config.local.json` или `.agents/orchestrator.local.json`, в `.gitignore`):** переопределяет только личное окружение (`executor`, `architect`, `auditor`, `runner`, `runnerBin`, `agyBin`, `notify`). Поля политики в `.local.json` отклоняются fail-closed.
+- **Цепочка выбора модели (`--check` выводит модель и её источник):** `.local.json` → общий конфиг → файл агента (`.claude/agents/executor.md` / `AGENTS.md`). В карточке задачи поле `Executor: @<github-ник> · <Окружение> · <Модель (\`id\`)>` задаёт назначение, а `Parallel with: T-MMM` — параллельные задачи; модель из `Executor` не переопределяет `.local.json`, а при несовпадении окружения с локальным `runner` оркестратор отказывается брать задачу.
+
+### Поток веток (`cycle/<N>`, `task/T-NNN`, `master`)
+1. **Старт цикла:** Архитектор создаёт `cycle/<N>` от `master`, коммитит `arch: plan ...` с `PLAN.md` и красными `Frozen`-тестами, человек-техлид пушит `cycle/<N>`.
+2. **Выполнение задачи:** разработчик отводит `task/T-NNN` от `cycle/<N>`, запускает агента-Исполнителя локально (агент коммитит `T-NNN: ...` и не делает push), пушит `task/T-NNN` и открывает PR `task/T-NNN → cycle/<N>` с отчётом Исполнителя в описании.
+3. **Шлюз PR и приёмка:** на PR в `cycle/*` CI запускает `run.mjs --check-task T-NNN --base origin/cycle/<N>` (читает `PLAN.md` из `<base>`, считает diff от `git merge-base <base> HEAD`, запрещает правку `PLAN.md` / `.github/workflows/**` / `CODEOWNERS`, проверяет коммиты и отсутствие squash и запускает только `Verify`-команды задачи). После ревью по `references/auto-review.md` техлид вливает PR в `cycle/<N>` через **Create a merge commit** (`--no-ff`), затем в `cycle/<N>` делает коммит `arch: accept T-NNN` (`- [x] T-NNN:` в `PLAN.md`) и пушит напрямую в `cycle/<N>`.
+4. **Закрытие цикла:** когда все задачи `[x]`, Архитектор коммитит `arch: close cycle <N>` в `cycle/<N>` и открывает PR `cycle/<N> → master`. CI гоняет полный `fullTestCommand` и `--self-check --base origin/master`; техлид вливает PR через **Create a merge commit**.
+
+### Точные настройки GitHub для репозитория команды
+1. **Способы слияния PR ([Configuring commit merging for pull requests](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-merging-for-pull-requests)):**
+   - Включите **Allow merge commits**.
+   - **Отключите Allow squash merging** и **Allow rebase merging**, чтобы сохранять атомарные коммиты `T-NNN:` и `arch:` для `--check-task` и `--self-check`.
+2. **Ruleset для `cycle/*` ([About rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets), [Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)):**
+   - **Target branches:** `cycle/*`.
+   - **Bypass list:** добавьте **Tech Lead / Architect** (чтобы Архитектор пушил `arch: plan`, `arch: accept T-NNN` и `arch: close cycle <N>` напрямую в `cycle/<N>`, а Исполнители работали только через PR).
+   - **Rules:** включите *Require a pull request before merging* (только **Merge**), *Require status checks to pass* (`Task PR Gate (task/T-NNN -> cycle/*)`) и *Block force pushes*.
+3. **Ruleset / Branch Protection для `master` / `main` ([About protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)):**
+   - **Target branches:** основная ветка (`master` или `main`), без обхода прямым пушем.
+   - **Rules:** включите *Require a pull request before merging* (только **Merge**), *Require status checks to pass* (`Full Test Suite & Self-Check (master/main)`) и *Block force pushes*.

@@ -1,11 +1,11 @@
-<!-- skill-readme-sync: v3.29 / 1.8 -->
-# Architect + Executor Skill (`v3.29 / 1.8`)
+<!-- skill-readme-sync: v3.30 / 1.8 -->
+# Architect + Executor Skill (`v3.30 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
-2. **Automated Orchestrator (`orchestrator/run.mjs`):** zero-dependency Node.js loop requiring **Node.js 22+** and **git 2.31+**. **The orchestrator officially supports macOS only. Linux and WSL2 are untested, Windows is not supported. The core rules work on any OS.** Supports only headless runners **`agy`** (Antigravity) and **`claude`** (Claude Code); native desktop notifications work on **macOS** (`osascript`), and `AGENT_LOOP_WEBHOOK_URL` webhook notifications are also supported.
+2. **Automated Orchestrator (`orchestrator/run.mjs`):** zero-dependency Node.js CLI requiring **Node.js 22+** and **git 2.31+**. **Deterministic checks (`--check`, `--check-task`, `--self-check`) are officially supported on macOS and Linux (`ubuntu-latest`); the headless agent loop supports macOS only (Windows is not supported).** Supports headless runners **`agy`** (Antigravity) and **`claude`** (Claude Code); native desktop notifications work on **macOS** (`osascript`), and `AGENT_LOOP_WEBHOOK_URL` webhook notifications are also supported.
 
-- **Active prompts (English, single source of truth):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks}.md`.
+- **Active prompts (English, single source of truth):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks,team}.md`.
 - **Human guides (`<= 25 KB` each):** `README.en.md` (English) and `README.ru.md` (Russian).
 
 ---
@@ -126,13 +126,13 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 
 | Flag | Description |
 |---|---|
-| `--init` | Create `.architect/config.json` (or `.agents/orchestrator.json`), install `.git/hooks/commit-msg`, add `.agent-runs/` to `.gitignore`, and print the allowlist block |
+| `--init [--team]` | Create `.architect/config.json` (or `.agents/orchestrator.json`), install `.git/hooks/commit-msg`, add `.agent-runs/` and `*.local.json` to `.gitignore`; with `--team`, set `"team": true` and create `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Install the zero-dependency Node `.git/hooks/commit-msg` hook (without overwriting an existing custom hook or `core.hooksPath`) |
-| `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, Executor model config, `PLAN.md`, runner binaries, and allowlists |
-| `--check-task T-NNN [--base <ref>]` | Mechanically verify Executor commits for `T-NNN` outside the automated loop (`Change` boundaries, `Frozen`, check bypasses) |
+| `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, resolved Executor model and its source, `PLAN.md`, parallel task boundaries, runner binaries, and allowlists |
+| `--check-task T-NNN [--base <ref>]` | Mechanically verify task `T-NNN` against `<base>:PLAN.md` and `git merge-base <base> HEAD` (`Change` boundaries, `Frozen`, bypasses, commit messages, no-squash, and task `Verify` commands) |
 | `--write-permissions` | Write safe command/file allowlists for `agy` or `claude` (only after explicit user confirmation) |
 | `--dry-run` | Validate readiness, run `--self-check` (including `red-check`), and preview the next task prompt without calling any LLM |
-| `--self-check [--base <ref>]` | Run deterministic Architect self-check (bypasses, empty `catch`, test timers, monotonicity, `fix-frozen`, `eval` evidence, audit coverage, and `red-check`) |
+| `--self-check [--base <ref>]` | Run deterministic Architect self-check (bypasses, empty `catch`, test timers, monotonicity, `fix-frozen`, `eval` evidence, audit coverage, parallel task overlaps, and `red-check`) |
 | `--audit-plan` | Run advisory read-only cross-model plan audit (`references/plan-audit.md`) via `config.auditor` (paid live call, max 1 re-run per cycle base) |
 | `--background` | Start the detached background loop (`PID` lock in `.agent-runs/.lock`) |
 | `--watch [min] [--since N]` | Wait for a permission prompt (exit `2`), loop stop (exit `3`), or task milestone (exit `4`) |
@@ -163,4 +163,37 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 - **Full skill (Core + Orchestrator):** long-lived products with critical risk areas (authentication, access control, billing, database migrations, concurrency, data invariants) on macOS using `agy` or `claude`.
 - **Core only (`SKILL.md` + `EXECUTOR.md`):** medium-sized projects, other agents (`Gemini CLI`, `Codex`, `Cursor`), Linux/WSL2, or Windows environments where Two-Phase planning, `Frozen` contracts, and context-isolated tasks pay off without the headless Node.js runner.
 - **Do not use:** throwaway prototypes, quick hypothesis validation, game jams, one-off scripts, or tasks where acceptance is purely visual.
-- **Team repositories with existing PR review and CI:** adopt the core practices (read-only Phase 1 brainstorm, `Frozen` reference tests written before implementation, context-isolated Executor) without enforcing the `arch:` / `T-NNN:` commit message conventions.
+- **Team repositories with existing PR review and CI:** either enable full Team Mode (`--init --team`, Section 9) or adopt only the core practices (read-only Phase 1 brainstorm, `Frozen` reference tests, context-isolated Executor).
+
+---
+
+## 9. Team Use and GitHub Repository Settings
+
+In Team Mode (1 Chief Architect / tech lead + N Executors across Antigravity, Claude Code, Codex), initialize the repository with:
+```bash
+node .agents/skills/architect/orchestrator/run.mjs --init --team
+```
+This sets `"team": true` and `"fullTestCommand": "npm test"` in the shared config, adds `.architect/config.local.json` and `.agents/orchestrator.local.json` to `.gitignore`, and writes `.github/workflows/team-ci.yml` (copied from `templates/github-team-ci.yml`).
+
+### Personal Local Config vs Shared Project Policy
+- **Shared config (`.architect/config.json` or `.agents/orchestrator.json`, committed):** stores project policy (`team`, `commitLanguage`, `permissions`, `allowedCommands`, `blockedScripts`, `protectedConfigFiles`, `bypassScanPaths`, `bypassPatterns`, `fullTestCommand`).
+- **Personal local config (`.architect/config.local.json` or `.agents/orchestrator.local.json`, git-ignored):** overrides only personal environment settings (`executor`, `architect`, `auditor`, `runner`, `runnerBin`, `agyBin`, `notify`). Policy fields in `.local.json` are rejected fail-closed.
+- **Model resolution chain (`--check` shows the resolved model and its source):** `.local.json` → shared config → agent file (`.claude/agents/executor.md` / `AGENTS.md`). Task cards use `Executor: @<github-handle> · <Environment> · <Model (\`id\`)>` for assignment and `Parallel with: T-MMM` for concurrent tasks; the model in `Executor` never overrides `.local.json`, and the orchestrator refuses a task whose assigned environment does not match the local `runner`.
+
+### Branch Flow (`cycle/<N>`, `task/T-NNN`, `master`)
+1. **Start cycle:** Architect creates `cycle/<N>` from `master`, commits `arch: plan ...` with `PLAN.md` and red `Frozen` reference tests, and the human tech lead pushes `cycle/<N>`.
+2. **Execute task:** A developer branches `task/T-NNN` from `cycle/<N>`, runs the Executor agent locally (the agent commits `T-NNN: ...` and never pushes), pushes `task/T-NNN`, and opens PR `task/T-NNN → cycle/<N>` with the Executor Completion Report in the PR description.
+3. **PR Gate & Acceptance:** On PRs targeting `cycle/*`, CI runs `run.mjs --check-task T-NNN --base origin/cycle/<N>` (reads `PLAN.md` from `<base>`, diffs from `git merge-base <base> HEAD`, rejects `PLAN.md` / `.github/workflows/**` / `CODEOWNERS` edits, enforces commit rules and no-squash, and runs only the task's `Verify` commands). After review per `references/auto-review.md`, the tech lead merges the PR into `cycle/<N>` using **Create a merge commit** (`--no-ff`), then commits `arch: accept T-NNN` (`- [x] T-NNN:` in `PLAN.md`) and pushes directly to `cycle/<N>`.
+4. **Close cycle:** Once all tasks are `[x]`, the Architect commits `arch: close cycle <N>` on `cycle/<N>` and opens PR `cycle/<N> → master`. CI runs the full `fullTestCommand` suite and `--self-check --base origin/master`; the tech lead merges `cycle/<N> → master` using **Create a merge commit**.
+
+### Exact GitHub Repository Settings
+1. **Pull Request merge methods ([Configuring commit merging for pull requests](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-merging-for-pull-requests)):**
+   - Enable **Allow merge commits** (default commit message).
+   - **Disable Allow squash merging** and **Disable Allow rebase merging** so `T-NNN:` and `arch:` commit granularity is preserved for `--check-task` and `--self-check`.
+2. **Ruleset for `cycle/*` ([About rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets), [Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)):**
+   - **Target branches:** `cycle/*`.
+   - **Bypass list:** Add the **Tech Lead / Architect** role or user (so the Architect can push `arch: plan`, `arch: accept T-NNN`, and `arch: close cycle <N>` directly to `cycle/<N>` while Executors must use PRs).
+   - **Rules:** enable *Require a pull request before merging* (Allow **Merge** only), *Require status checks to pass* (`Task PR Gate (task/T-NNN -> cycle/*)`), and *Block force pushes*.
+3. **Ruleset / Branch Protection for `master` / `main` ([About protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)):**
+   - **Target branches:** Default branch (`master` or `main`), no direct push bypass.
+   - **Rules:** enable *Require a pull request before merging* (Allow **Merge** only), *Require status checks to pass* (`Full Test Suite & Self-Check (master/main)`), and *Block force pushes*.

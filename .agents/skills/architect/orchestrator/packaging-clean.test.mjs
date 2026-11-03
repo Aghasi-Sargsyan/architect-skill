@@ -131,7 +131,7 @@ test('T-061: skill files contain no host-specific leak strings and host ci.yml u
     assert.ok(ciContent.includes('macos-latest'), 'ci.yml must use macos-latest runner');
     assert.ok(ciContent.includes('22'), 'ci.yml must include Node 22');
     assert.ok(ciContent.includes('24'), 'ci.yml must include Node 24');
-    assert.equal(ciContent.includes('ubuntu'), false, 'ci.yml must not use ubuntu');
+    assert.ok(ciContent.includes('ubuntu-latest'), 'ci.yml must include ubuntu-latest in matrix');
   }
 });
 

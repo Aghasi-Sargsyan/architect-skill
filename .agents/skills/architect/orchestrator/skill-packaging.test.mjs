@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SKILL_ROOT = path.resolve(__dirname, '..');
 
 export const MAX_README_BYTES = 25 * 1024;
-export const REFERENCE_NAMES = ['auto-review', 'orchestrator', 'plan-audit', 'retro', 'stacks'];
+export const REFERENCE_NAMES = ['auto-review', 'orchestrator', 'plan-audit', 'retro', 'stacks', 'team'];
 
 // Allowed bilingual tokens when English docs mention backward-compatible Russian PLAN.md / verdict / header tokens
 const ALLOWED_CYRILLIC_TOKENS = [
@@ -172,6 +172,7 @@ function buildValidFixture() {
     'references/plan-audit.md': '# Plan Audit\n\n## 1. Checklist\nText\n',
     'references/retro.md': '# Retro\n\n## 1. Checks\nText\n',
     'references/stacks.md': '# Stacks\n\n## 1. Commands\nText\n',
+    'references/team.md': '# Team\n\n## 1. Branches\nText\n',
   };
 }
 
