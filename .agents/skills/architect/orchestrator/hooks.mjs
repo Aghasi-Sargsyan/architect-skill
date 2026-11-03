@@ -9,14 +9,21 @@ import { git } from './git.mjs';
  * 2. An explicit Executor model must be set in at least one place:
  *    - config.executor.model (when config is not from a missing file and not 'inherit')
  *    - on disk in .agents/orchestrator.json or .architect/config.json
- *    - in AGENTS.md or CLAUDE.md ("Executor model: ...", "Модель Исполнителя: ...", "Исполнитель по умолчанию — ...")
+ *    - in AGENTS.md, CLAUDE.md, or GEMINI.md ("Executor model: ...", "Модель Исполнителя: ...", "Исполнитель по умолчанию — ...")
  *    - in .claude/agents/executor.md ("model: <name>")
  * @param {{ workDir?: string, config?: object }} param0
  * @returns {Array<{ ok: boolean, name: string, detail: string }>}
  */
+const normalizeModelValue = (val) => {
+  if (typeof val !== 'string') return '';
+  let s = val.trim().replace(/^[*_\s]+|[*_\s]+$/g, '');
+  const bt = s.match(/`([^`]*)`/);
+  if (bt) s = bt[1];
+  return s.trim().replace(/^[*_` \t]+|[*_` \t]+$/g, '');
+};
+
 const isValidModel = (val) => {
-  if (typeof val !== 'string') return false;
-  const s = val.trim();
+  const s = normalizeModelValue(val);
   return Boolean(s) && s.toLowerCase() !== 'inherit' && !/^<.*>$/.test(s);
 };
 
@@ -65,11 +72,11 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
   }
 
   if (!configured) {
-    for (const file of ['AGENTS.md', 'CLAUDE.md']) {
+    for (const file of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
       const full = path.join(workDir, file);
       if (existsSync(full)) {
         const text = readFileSync(full, 'utf8');
-        const m1 = text.match(/(?:Executor model|Модель Исполнителя)[ \t]*:[ \t]*(\S[^\r\n]*)/i);
+        const m1 = text.match(/(?:Executor model|Модель Исполнителя)[*_ \t]*:[ \t]*([^\r\n]*)/i);
         const m2 = text.match(/Исполнитель по умолчанию[ \t]*[—–-][ \t]*(\S[^\r\n.]*)/i);
         const candidate = (m1 ? m1[1] : (m2 ? m2[1] : '')).trim();
         if (isValidModel(candidate)) {
@@ -88,7 +95,7 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
     problems.push({
       ok: false,
       name: 'Executor model',
-      detail: 'Executor model is not configured — set executor.model in .agents/orchestrator.json, "Executor model: ..." in AGENTS.md, or model in .claude/agents/executor.md',
+      detail: 'Executor model is not configured — set executor.model in .agents/orchestrator.json, "Executor model: ..." in AGENTS.md / CLAUDE.md / GEMINI.md, or model in .claude/agents/executor.md',
     });
   }
 

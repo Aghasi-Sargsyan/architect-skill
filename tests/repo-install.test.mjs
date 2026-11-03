@@ -138,6 +138,8 @@ test('T-065: root README.md and skill README.en/ru have a 2-step Quickstart, Man
   assert.match(rootQuickstart, /^\s*2\.\s+/m, 'root Quickstart must have step 2');
   assert.doesNotMatch(rootQuickstart, /^\s*3\.\s+/m, 'root Quickstart must have only 2 steps');
   assert.match(rootQuickstart, /git clone[\s\S]*\.agents\/skills\/architect/, 'root Quickstart step 1 must show one-command git clone + cp into .agents/skills/architect');
+  assert.match(rootQuickstart, /mktemp -d[\s\S]*rm -rf \.agents\/skills\/architect[\s\S]*cp -R "\$tmp\/\.agents\/skills\/architect" \.agents\/skills\//, 'root Quickstart must have idempotent .agents/skills/ install command');
+  assert.match(rootQuickstart, /mktemp -d[\s\S]*rm -rf \.claude\/skills\/architect[\s\S]*cp -R "\$tmp\/\.agents\/skills\/architect" \.claude\/skills\//, 'root Quickstart must have standalone idempotent .claude/skills/ install command');
   assert.match(rootQuickstart, /\.claude\/skills\/architect/, 'root Quickstart step 1 must mention .claude/skills/architect for Claude Code');
   assert.match(rootQuickstart, /\/architect/, 'root Quickstart step 2 must mention /architect');
   assert.match(rootQuickstart, /SKILL\.md/, 'root Quickstart step 2 must mention reading SKILL.md');
@@ -158,15 +160,20 @@ test('T-065: root README.md and skill README.en/ru have a 2-step Quickstart, Man
     assert.match(qs, /^\s*2\.\s+/m, `${label} Quickstart must have step 2`);
     assert.doesNotMatch(qs, /^\s*3\.\s+/m, `${label} Quickstart must have only 2 steps`);
     assert.match(qs, /git clone[\s\S]*\.agents\/skills\/architect/, `${label} Quickstart must include git clone + cp`);
+    assert.match(qs, /mktemp -d[\s\S]*rm -rf \.agents\/skills\/architect[\s\S]*cp -R "\$tmp\/\.agents\/skills\/architect" \.agents\/skills\//, `${label} Quickstart must have idempotent .agents/skills/ command`);
+    assert.match(qs, /mktemp -d[\s\S]*rm -rf \.claude\/skills\/architect[\s\S]*cp -R "\$tmp\/\.agents\/skills\/architect" \.claude\/skills\//, `${label} Quickstart must have standalone idempotent .claude/skills/ command`);
     assert.match(qs, /\.claude\/skills\/architect/, `${label} Quickstart must mention .claude/skills/architect`);
     assert.match(qs, /\/architect/, `${label} Quickstart must mention /architect`);
     assert.match(qs, /--init[\s\S]*--check[\s\S]*--dry-run/, `${label} Quickstart must describe automatic --init, --check, --dry-run`);
     assert.match(qs, /--write-permissions/, `${label} Quickstart must state permission is asked only for --write-permissions`);
     assert.match(md, manualHeading, `${label} must include Manual Installation / Ручная установка section`);
+    const updateSec = md.split(/^###\s+D\.\s+/m)[1]?.split(/^##\s+/m)[0] ?? '';
+    assert.match(updateSec, /mktemp -d/, `${label} Updating section must reference the same idempotent command`);
   }
 
   assert.match(skillText, /First run in a new project/i);
   assert.match(skillText, /AGENTS\.md/);
+  assert.match(skillText, /GEMINI\.md/);
   assert.match(skillText, /--init[\s\S]*--check[\s\S]*--dry-run/);
   assert.match(orchRef, /--write-permissions/);
 });

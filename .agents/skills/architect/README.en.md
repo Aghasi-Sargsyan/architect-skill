@@ -12,12 +12,17 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 
 ## 1. Quickstart (2 Steps)
 
-1. **Install the skill in one command** (for Claude Code, replace `.agents/skills/architect` with `.claude/skills/architect` — or ask your agent: *"Install the `architect` skill from `https://github.com/Aghasi-Sargsyan/architect-skill` into `.agents/skills/architect`"*):
-   ```bash
-   git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git /tmp/architect-skill && mkdir -p .agents/skills && cp -R /tmp/architect-skill/.agents/skills/architect .agents/skills/architect && rm -rf /tmp/architect-skill
-   ```
+1. **Install or update the skill in one command** (or ask your agent: *"Install the `architect` skill from `https://github.com/Aghasi-Sargsyan/architect-skill` into `.agents/skills/architect`"*):
+   - **Antigravity, Gemini CLI, Codex, Cursor (`.agents/skills/`):**
+     ```bash
+     tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/.agents/skills/architect" .agents/skills/ && rm -rf "$tmp"
+     ```
+   - **Claude Code (`.claude/skills/`):**
+     ```bash
+     tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
+     ```
 2. **Open your agent and write `/architect`** (or *"Read `.agents/skills/architect/SKILL.md`"*):
-   - **First run in a new project:** in Phase 1 (read-only), the Architect touches no files before your approval, asks in a single question for the **Executor model** (proposing options available in your current environment without picking a model itself), and offers to add the roles block to `AGENTS.md`. After you approve the plan in Phase 2, the Architect copies `EXECUTOR.md` itself and records the chosen model, `AGENTS.md` block, `EXECUTOR.md`, and `PLAN.md` together in the first `arch: plan ...` commit. If you want the automated orchestrator, the Architect runs `--init`, `--check`, and `--dry-run` itself, asking `"yes"` only before `--write-permissions`.
+   - **First run in a new project:** in Phase 1 (read-only), the Architect touches no files before your approval, asks in a single question for the **Executor model** (proposing options available in your current environment without picking a model itself), and offers to add the roles block to `AGENTS.md` (or `CLAUDE.md` / `GEMINI.md`). After you approve the plan in Phase 2, the Architect copies `EXECUTOR.md` itself and records the chosen model, roles block, `EXECUTOR.md`, and `PLAN.md` together in the first `arch: plan ...` commit. If you want the automated orchestrator, the Architect runs `--init`, `--check`, and `--dry-run` itself, asking `"yes"` only before `--write-permissions`.
 
 ---
 
@@ -43,7 +48,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 2. **Copy `EXECUTOR.md`** into the project root (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, or `.architect/EXECUTOR.md` in compact layout).
 3. **Set the Executor model once for your project:**
    - **With the orchestrator (`agy` or `claude`):** set `executor.model` in `.architect/config.json` or `.agents/orchestrator.json`.
-   - **Without the orchestrator:** add `Executor model: <Model / Tier>` to your project's `AGENTS.md` (see Section 4 snippet). For Claude Code subagents, copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and set an explicit `model:` field (never leave `inherit` or omit `model`).
+   - **Without the orchestrator:** add `Executor model: <Model / Tier>` to your project's `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` (see Section 4 snippet). For Claude Code subagents, copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and set an explicit `model:` field (never leave `inherit` or omit `model`).
 4. **Verify setup and run tasks (`T-NNN`):**
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -75,7 +80,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 - Place the skill in `.agents/skills/architect/`, copy `EXECUTOR.md` to the project root, and add the Section 4 snippet (including `Executor model: …`) to `GEMINI.md`, `AGENTS.md`, or `.cursorrules`. Run Architect and Executor sessions in separate chats.
 
 ### D. Updating the Skill in an Existing Project
-1. Replace the contents of `.agents/skills/architect/` (or `.claude/skills/architect/`) with the new release. Your project config (`.architect/config.json` or `.agents/orchestrator.json`) and history (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) live outside the skill folder and are untouched.
+1. Re-run the same one-line install command from Section 1 (`Quickstart`) for `.agents/skills/` or `.claude/skills/` — it is idempotent (`mktemp -d`, `rm -rf` of the old skill folder before `cp -R`). Your project config (`.architect/config.json` or `.agents/orchestrator.json`) and history (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) live outside the skill folder and are untouched.
 2. Refresh the project copy of `EXECUTOR.md`:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md

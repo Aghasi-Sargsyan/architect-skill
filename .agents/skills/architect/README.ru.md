@@ -12,12 +12,17 @@
 
 ## 1. Быстрый старт (2 шага)
 
-1. **Установите скилл одной командой** (для Claude Code замените `.agents/skills/architect` на `.claude/skills/architect` — либо попросите агента: *«Установи скилл `architect` из `https://github.com/Aghasi-Sargsyan/architect-skill` в `.agents/skills/architect`»*):
-   ```bash
-   git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git /tmp/architect-skill && mkdir -p .agents/skills && cp -R /tmp/architect-skill/.agents/skills/architect .agents/skills/architect && rm -rf /tmp/architect-skill
-   ```
+1. **Установите или обновите скилл одной командой** (либо попросите агента: *«Установи скилл `architect` из `https://github.com/Aghasi-Sargsyan/architect-skill` в `.agents/skills/architect`»*):
+   - **Antigravity, Gemini CLI, Codex, Cursor (`.agents/skills/`):**
+     ```bash
+     tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/.agents/skills/architect" .agents/skills/ && rm -rf "$tmp"
+     ```
+   - **Claude Code (`.claude/skills/`):**
+     ```bash
+     tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
+     ```
 2. **Откройте агента и напишите `/architect`** (или *«прочитай `.agents/skills/architect/SKILL.md`»*):
-   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор до утверждения не трогает файлы, одним вопросом спрашивает **модель Исполнителя** (предлагает варианты, доступные в текущем окружении, сам модель не выбирает) и предлагает добавить блок ролей в `AGENTS.md`. После утверждения плана в Фазе 2 Архитектор сам копирует `EXECUTOR.md` и записывает выбранную модель, блок ролей в `AGENTS.md`, `EXECUTOR.md` и `PLAN.md` вместе с первым коммитом плана (`arch: plan ...`). Если нужен автоматический оркестратор — Архитектор сам запускает `--init`, `--check` и `--dry-run`, а явное «да» спрашивает только для `--write-permissions`.
+   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор до утверждения не трогает файлы, одним вопросом спрашивает **модель Исполнителя** (предлагает варианты, доступные в текущем окружении, сам модель не выбирает) и предлагает добавить блок ролей в `AGENTS.md` (или `CLAUDE.md` / `GEMINI.md`). После утверждения плана в Фазе 2 Архитектор сам копирует `EXECUTOR.md` и записывает выбранную модель, блок ролей, `EXECUTOR.md` и `PLAN.md` вместе с первым коммитом плана (`arch: plan ...`). Если нужен автоматический оркестратор — Архитектор сам запускает `--init`, `--check` и `--dry-run`, а явное «да» спрашивает только для `--write-permissions`.
 
 ---
 
@@ -43,7 +48,7 @@
 2. **Скопируйте `EXECUTOR.md`** в корень проекта (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, либо в `.architect/EXECUTOR.md` при компактной раскладке).
 3. **Задайте модель Исполнителя один раз на проект:**
    - **С оркестратором (`agy` или `claude`):** укажите `executor.model` в `.architect/config.json` или `.agents/orchestrator.json`.
-   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md` проекта (см. врезку в разделе 4). Для субагента Claude Code скопируйте шаблон `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (не оставляйте `inherit` или пустое поле).
+   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md`, `CLAUDE.md` или `GEMINI.md` проекта (см. врезку в разделе 4). Для субагента Claude Code скопируйте шаблон `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (не оставляйте `inherit` или пустое поле).
 4. **Проверьте настройку и запускайте задачи (`T-NNN`):**
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -75,7 +80,7 @@
 - Положите скилл в `.agents/skills/architect/`, скопируйте `EXECUTOR.md` в корень проекта и добавьте врезку из раздела 4 (включая `Executor model: …`) в `GEMINI.md`, `AGENTS.md` или `.cursorrules`. Запускайте Архитектора и Исполнителя в отдельных чатах.
 
 ### D. Обновление скилла в существующем проекте
-1. Замените содержимое папки `.agents/skills/architect/` (или `.claude/skills/architect/`) новой версией. Ваш конфиг (`.architect/config.json` или `.agents/orchestrator.json`) и история (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) лежат вне папки скилла и сохраняются.
+1. Выполните ту же однострочную команду установки из раздела 1 («Быстрый старт») для `.agents/skills/` или `.claude/skills/` — команда идемпотентна (`mktemp -d`, `rm -rf` старой папки скилла перед `cp -R`). Ваш конфиг (`.architect/config.json` или `.agents/orchestrator.json`) и история (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) лежат вне папки скилла и сохраняются.
 2. Обновите проектную копию `EXECUTOR.md`:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md

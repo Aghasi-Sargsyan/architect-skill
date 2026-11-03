@@ -135,6 +135,27 @@ test('T-057: checkExecutorModelConfig and localChecks warn when Executor model i
     const probs2 = hooksMod.checkExecutorModelConfig({ workDir: root, config: missingCfg });
     assert.equal(probs2.length, 0, `expected AGENTS.md Executor model to satisfy check: ${JSON.stringify(probs2)}`);
 
+    // 2b. Markdown-formatted role block edge cases in AGENTS.md and GEMINI.md
+    for (const badLine of [
+      '- **Executor model:** `inherit`',
+      '- **Executor model:** `<Model / Tier>`',
+      '- **Executor model:**',
+    ]) {
+      writeFileSync(path.join(root, 'AGENTS.md'), `# Project Rules\n${badLine}\n`);
+      const badProbs = hooksMod.checkExecutorModelConfig({ workDir: root, config: missingCfg });
+      assert.equal(badProbs.length, 1, `expected "${badLine}" to fail checkExecutorModelConfig`);
+    }
+
+    writeFileSync(path.join(root, 'AGENTS.md'), '# Project Rules\n- **Executor model:** `Gemini Flash / High`\n');
+    const mdGoodProbs = hooksMod.checkExecutorModelConfig({ workDir: root, config: missingCfg });
+    assert.equal(mdGoodProbs.length, 0, 'expected "- **Executor model:** `Gemini Flash / High`" in AGENTS.md to pass');
+
+    rmSync(path.join(root, 'AGENTS.md'), { force: true });
+    writeFileSync(path.join(root, 'GEMINI.md'), '# Project Rules\n- **Executor model:** `<Model / Tier>`\n');
+    assert.equal(hooksMod.checkExecutorModelConfig({ workDir: root, config: missingCfg }).length, 1, 'placeholder in GEMINI.md must fail');
+    writeFileSync(path.join(root, 'GEMINI.md'), '# Project Rules\n- **Executor model:** `Gemini Flash / High`\n');
+    assert.equal(hooksMod.checkExecutorModelConfig({ workDir: root, config: missingCfg }).length, 0, 'valid model in GEMINI.md must pass');
+
     // 3. Creating .claude/agents/executor.md with model: inherit -> fails even when AGENTS.md or config has a model!
     mkdirSync(path.join(root, '.claude', 'agents'), { recursive: true });
     writeFileSync(

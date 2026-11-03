@@ -9,10 +9,15 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
 
 ## Quickstart
 
-1. **Install skill in one command** (for Claude Code use `.claude/skills/architect` — or ask your agent: *"Install the skill from https://github.com/Aghasi-Sargsyan/architect-skill into .agents/skills/architect"*):
-   ```bash
-   git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git /tmp/architect-skill && mkdir -p .agents/skills && cp -R /tmp/architect-skill/.agents/skills/architect .agents/skills/architect && rm -rf /tmp/architect-skill
-   ```
+1. **Install or update the skill in one command** (or ask your agent: *"Install the skill from https://github.com/Aghasi-Sargsyan/architect-skill into .agents/skills/architect"*):
+   - **Antigravity, Gemini CLI, Codex, Cursor (`.agents/skills/`):**
+     ```bash
+     tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/.agents/skills/architect" .agents/skills/ && rm -rf "$tmp"
+     ```
+   - **Claude Code (`.claude/skills/`):**
+     ```bash
+     tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
+     ```
 2. **Open your agent and write `/architect`** (or read `.agents/skills/architect/SKILL.md`). On first run in a new project, the Architect asks for the Executor model and configures the project safely before any code changes.
 
 ## Manual Installation
@@ -22,7 +27,7 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
    ```
-3. Set `executor.model` in `.architect/config.json` (or `.agents/orchestrator.json`), or declare it in your project's `AGENTS.md`.
+3. Set `executor.model` in `.architect/config.json` (or `.agents/orchestrator.json`), or declare it in your project's `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`.
 4. Verify setup and run:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
