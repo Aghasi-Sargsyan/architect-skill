@@ -1,7 +1,8 @@
 # PLAN
 
 ## Goal / Requirements
-Скилл `architect` (`v3.29 / 1.8`) и репозиторий полностью обновлены по итогам Цикла 17 (`203/203 PASS` на Node 22 и 24, `Self-check PASSED`): `Quickstart` в корневом `README.md` и в `README.en.md` / `README.ru.md` сокращён до двух шагов с выносом ручной настройки в `Manual Installation` / «Ручная установка», в `SKILL.md` и `references/orchestrator.md` зафиксирован протокол первого запуска в новом проекте, а 6-й поведенческий eval-сценарий `first_run_no_executor_model` прошёл живой прогон на обеих целевых моделях (`eval 2026-11-03T14-14-27-157Z @ 3a046ba: 2/2 PASS`).
+Скилл `architect` (`v3.29 / 1.8`) и репозиторий полностью обновлены по итогам Цикла 17 (`203/203 PASS` на Node 22 и 24, `Self-check PASSED`): `Quickstart` в корневом `README.md` и в `README.en.md` / `README.ru.md` сокращён до двух шагов с выносом ручной настройки в `Manual Installation` / «Ручная установка», а в `SKILL.md` и `references/orchestrator.md` зафиксирован протокол первого запуска в новом проекте.
+- **Живой прогон нового сценария `first_run_no_executor_model`:** `eval 2026-11-03T14-14-27-157Z @ 3a046ba: 2/2 PASS` (`agy:gemini-4-argon-high` и `claude:haiku`).
 
 ### Перенесено из предыдущего цикла (`NOT VERIFIED` и очередь)
 - **Контроль ячеек eval `first_run_no_executor_model` (`NOT VERIFIED (sample < 5)`):** `eval 2026-11-03T14-14-27-157Z @ 3a046ba: 2/2 PASS` (`agy:gemini-4-argon-high` и `claude:haiku`, по 1 прогону на ячейку, `NOT VERIFIED (sample < 5)`).
