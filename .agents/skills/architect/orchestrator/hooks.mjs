@@ -29,7 +29,7 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
   if (existsSync(claudeAgentPath)) {
     hasClaudeFile = true;
     const text = readFileSync(claudeAgentPath, 'utf8');
-    const m = text.match(/^model:\s*(.+)$/im);
+    const m = text.match(/^model:[ \t]*(\S.*)$/im);
     if (!m || !isValidModel(m[1])) {
       problems.push({
         ok: false,
@@ -69,8 +69,8 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
       const full = path.join(workDir, file);
       if (existsSync(full)) {
         const text = readFileSync(full, 'utf8');
-        const m1 = text.match(/(?:Executor model|Модель Исполнителя)\s*:\s*([^\n]+)/i);
-        const m2 = text.match(/Исполнитель по умолчанию\s*[—–-]\s*([^\n.]+)/i);
+        const m1 = text.match(/(?:Executor model|Модель Исполнителя)[ \t]*:[ \t]*(\S[^\r\n]*)/i);
+        const m2 = text.match(/Исполнитель по умолчанию[ \t]*[—–-][ \t]*(\S[^\r\n.]*)/i);
         const candidate = (m1 ? m1[1] : (m2 ? m2[1] : '')).trim();
         if (isValidModel(candidate)) {
           configured = true;

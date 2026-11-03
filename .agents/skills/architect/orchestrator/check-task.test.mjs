@@ -228,6 +228,23 @@ test('T-064: fresh --init and claude-agent-executor.md template leave models uns
     const templateProbs = hooksMod.checkExecutorModelConfig({ workDir: root, config: DEFAULTS });
     assert.equal(templateProbs.length, 1, 'unmodified claude-agent-executor.md template must fail checkExecutorModelConfig');
     assert.match(templateProbs[0].detail, /\.claude\/agents\/executor\.md.*model/i);
+
+    // 3b. Empty "model:" followed by newline and "---" must not match across newline
+    writeFileSync(
+      path.join(root, '.claude', 'agents', 'executor.md'),
+      '---\nname: executor\nmodel:\n---\nRead EXECUTOR.md and PLAN.md.\n',
+    );
+    const emptyModelProbs = hooksMod.checkExecutorModelConfig({ workDir: root, config: DEFAULTS });
+    assert.equal(emptyModelProbs.length, 1, 'empty "model:" before "---" must fail checkExecutorModelConfig');
+    assert.match(emptyModelProbs[0].detail, /\.claude\/agents\/executor\.md.*model/i);
+
+    writeFileSync(
+      path.join(root, '.claude', 'agents', 'executor.md'),
+      '---\nname: executor\nmodel:   \t \n---\nRead EXECUTOR.md and PLAN.md.\n',
+    );
+    const whitespaceModelProbs = hooksMod.checkExecutorModelConfig({ workDir: root, config: DEFAULTS });
+    assert.equal(whitespaceModelProbs.length, 1, 'whitespace-only "model:   " before "---" must fail checkExecutorModelConfig');
+    assert.match(whitespaceModelProbs[0].detail, /\.claude\/agents\/executor\.md.*model/i);
     rmSync(path.join(root, '.claude'), { recursive: true, force: true });
 
     // 4. Once human sets executor.model and architect.model in .architect/config.json, localChecks passes
