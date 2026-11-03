@@ -1,11 +1,11 @@
-# Architect + Executor Skill (`v3.29 / 1.8`)
+# Architect + Executor Skill (`v3.30 / 1.8`)
 
 A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator.
 
 ## System Requirements
 
 - **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** Works with any AI coding agent (Claude Code, Gemini CLI, OpenAI Codex CLI, Antigravity, Cursor, etc.), any tech stack, and any OS (macOS, Linux, Windows).
-- **Automated Orchestrator (`orchestrator/run.mjs`):** Node.js 22+ and git 2.31+ on macOS (Linux/WSL2 untested, Windows unsupported). Supports headless runners `agy` and `claude`.
+- **Automated Orchestrator (`orchestrator/run.mjs`):** Node.js 22+ and git 2.31+. Commands `--check`, `--check-task`, and `--self-check` are supported on macOS and Linux (CI/local); the automated agent loop runs on macOS. Supports headless runners `agy` and `claude`.
 
 ## Quickstart
 
@@ -34,6 +34,16 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
    node .agents/skills/architect/orchestrator/run.mjs --dry-run
    node .agents/skills/architect/orchestrator/run.mjs --self-check
    ```
+
+## Team Use
+
+Initialize team mode (1 Architect / tech lead + N Executors across branches and PRs):
+```bash
+node .agents/skills/architect/orchestrator/run.mjs --init --team
+```
+- **Branches:** `cycle/<N>` for plan and frozen tests; developers branch `task/T-NNN` and open PRs into `cycle/<N>` with PR gate `--check-task T-NNN`.
+- **Local config:** `.architect/config.local.json` (or `.agents/orchestrator.local.json`, git-ignored) overrides personal runners/models without affecting team policy.
+- **GitHub settings:** Use Merge commit only (no squash/rebase). Configure [GitHub Rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets) for `cycle/*` (tech lead in bypass list) and `master` (require CI). See Section 9 of [README.en.md](.agents/skills/architect/README.en.md) / [README.ru.md](.agents/skills/architect/README.ru.md).
 
 ## Documentation & License
 

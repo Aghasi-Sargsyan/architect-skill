@@ -1,6 +1,6 @@
 # Architect Skill — правила для агентов
 
-Переносимый скилл разделения ролей Главный Архитектор + Исполнитель (`.agents/skills/architect/`) и детерминированный оркестратор на чистом Node.js (`orchestrator/run.mjs`) без внешних npm-зависимостей. Системные требования оркестратора: Node.js 22+ (только macOS) и `git 2.31+`.
+Переносимый скилл разделения ролей Главный Архитектор + Исполнитель (`.agents/skills/architect/`) и детерминированный оркестратор на чистом Node.js (`orchestrator/run.mjs`) без внешних npm-зависимостей. Системные требования оркестратора: Node.js 22+ и `git 2.31+`; команды `--check`, `--check-task` и `--self-check` поддерживаются на macOS и Linux, автоматический цикл агентов — только на macOS.
 
 ## 1. Роли и язык
 - **Сессия Архитектора** (вызов `/architect` или запрос на архитектуру, план `PLAN.md`, ревью или разбор проблемы): первым действием прочитай `.agents/skills/architect/SKILL.md` и следуй двухфазному протоколу (`[MODE: ... · PHASE 1/2]`).
@@ -11,7 +11,7 @@
 - Чистый Node.js 22+ (`node:fs`, `node:path`, `node:child_process`, `node:test`, `node:assert/strict`), ES-модули (`.mjs`), без внешних зависимостей.
 - `.agents/skills/architect/` — ядро скилла (`SKILL.md`, `EXECUTOR.md`, `MAINTAINING.md`, `README.ru.md`, `README.en.md`, `LICENSE`, `CHANGELOG.md`, `references/*.md`) и оркестратор (`orchestrator/*.mjs`, `orchestrator/adapters/*.mjs`, `orchestrator/schemas/*.json`).
 - Корневой `EXECUTOR.md` — побайтная копия `.agents/skills/architect/EXECUTOR.md`.
-- Конфиг оркестратора — `.agents/orchestrator.json`, логи прогонов — `.agent-runs/`.
+- Конфиг оркестратора — `.agents/orchestrator.json` (или `.architect/config.json`), личный gitignored-оверлей — `.agents/orchestrator.local.json` / `.architect/config.local.json`, логи прогонов — `.agent-runs/`.
 - Файлы больше ~400 строк — архитектурный долг; при чтении сначала ищи по символу/grep, затем читай участок 30–80 строк.
 
 ## 3. Команды
@@ -21,7 +21,7 @@
 | `npm test` | запуск всех тестов оркестратора, скилла и `tests/*.test.mjs` |
 | `node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs tests/*.test.mjs` | полный набор тестов напрямую через `node --test` (совместимо с Node 22 и Node 24) |
 | `VERIFY_STEP_A1=1 npm test` | полная проверка упаковки скилла и синхронизации `README.*.md` (`MAINTAINING.md` Step A1) |
-| `npm run agents` | автоматический цикл по `PLAN.md` (Исполнитель → проверка механики → приёмка Архитектором). Флаги: `-- --init`, `-- --install-hooks`, `-- --check`, `-- --check-task T-NNN [--base <ref>]`, `-- --write-permissions` (только после явного «да» пользователя), `-- --dry-run`, `-- --self-check [--base <ref>]`, `-- --audit-plan`, `-- --background`, `-- --watch [мин] [--since N]`, `-- --status`, `-- --follow`, `-- --answer <1\|2\|3>`, `-- --pause`, `-- --only T-NNN` |
+| `npm run agents` | автоматический цикл по `PLAN.md` (Исполнитель → проверка механики → приёмка Архитектором). Флаги: `-- --init [--team]`, `-- --install-hooks`, `-- --check`, `-- --check-task T-NNN [--base <ref>]`, `-- --write-permissions` (только после явного «да» пользователя), `-- --dry-run`, `-- --self-check [--base <ref>]`, `-- --audit-plan`, `-- --background`, `-- --watch [мин] [--since N]`, `-- --status`, `-- --follow`, `-- --answer <1\|2\|3>`, `-- --pause`, `-- --only T-NNN` |
 
 ## 4. Инварианты и обходы проверок
 - Рабочие файлы правил (`SKILL.md`, `EXECUTOR.md`, `references/*.md`) — только на английском; единственная разрешённая `.ru.md` копия в папке скилла — `README.ru.md` (`ADR-032`).
