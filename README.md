@@ -1,4 +1,4 @@
-# Architect + Executor Skill (`v3.28 / 1.8`)
+# Architect + Executor Skill (`v3.29 / 1.8`)
 
 A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator.
 
@@ -9,13 +9,21 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
 
 ## Quickstart
 
-1. **Install skill folder:** Copy `.agents/skills/architect/` into a subfolder of your project (e.g. `.agents/skills/architect/`). Never unpack directly into the repository root.
-2. **Install executor rules:** Copy `EXECUTOR.md` to the project root:
+1. **Install skill in one command** (for Claude Code use `.claude/skills/architect` — or ask your agent: *"Install the skill from https://github.com/Aghasi-Sargsyan/architect-skill into .agents/skills/architect"*):
+   ```bash
+   git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git /tmp/architect-skill && mkdir -p .agents/skills && cp -R /tmp/architect-skill/.agents/skills/architect .agents/skills/architect && rm -rf /tmp/architect-skill
+   ```
+2. **Open your agent and write `/architect`** (or read `.agents/skills/architect/SKILL.md`). On first run in a new project, the Architect asks for the Executor model and configures the project safely before any code changes.
+
+## Manual Installation
+
+1. Copy `.agents/skills/architect/` into a subfolder of your project (never unpack directly into the repository root).
+2. Copy `EXECUTOR.md` to the project root:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
    ```
-3. **Configure Executor model:** Set `executor.model` in `.architect/config.json` (or `.agents/orchestrator.json`), or declare it in your project's `AGENTS.md`.
-4. **Verify setup and run:**
+3. Set `executor.model` in `.architect/config.json` (or `.agents/orchestrator.json`), or declare it in your project's `AGENTS.md`.
+4. Verify setup and run:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
    node .agents/skills/architect/orchestrator/run.mjs --dry-run

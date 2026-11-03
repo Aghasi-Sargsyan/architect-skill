@@ -94,12 +94,12 @@ test('T-034 (Г3): a turn without a valid JSON answer is ERROR (neither PASS nor
       return calls % 3 === 1 ? { ok: false, error: 'status ERROR' } : { ok: true, deniedActions: [] };
     },
   });
-  assert.equal(failing.total, 5);
+  assert.equal(failing.total, 6);
   assert.equal(failing.passed, 0, 'a failed model turn must never be graded PASS');
   assert.equal(failing.failed, 0, 'a failed model turn is ERROR, not FAIL');
-  assert.equal(failing.errors, 5);
+  assert.equal(failing.errors, 6);
   assert.ok(failing.results.every((r) => r.status === 'ERROR' && r.pass === false), JSON.stringify(failing.results));
-  assert.equal(calls, 10, 'each ERROR is retried maxErrorRetries (1) more time');
+  assert.equal(calls, 12, 'each ERROR is retried maxErrorRetries (1) more time');
 
   let attempt = 0;
   const flaky = await runLiveEvals({

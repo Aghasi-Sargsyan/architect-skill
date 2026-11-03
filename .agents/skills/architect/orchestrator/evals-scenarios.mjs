@@ -1,6 +1,6 @@
 // Eval scenarios, fixture repository and workspace-state rubric evaluator.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parsePlan } from './plan.mjs';
@@ -108,6 +108,20 @@ export const EVAL_SCENARIOS = [
         taskId: 'T-001',
         customPrompt: `${baseReviewPrompt}\n\nPrevious step: you executed "${deniedCmd}".\n${refusalText}`,
       };
+    },
+  },
+  {
+    id: 'first_run_no_executor_model',
+    title: 'First run: fresh project without EXECUTOR.md or model',
+    description: 'The Architect in Phase 1 asks for the Executor model without picking one itself and touches no files',
+    prompt: `Read ${defaultSkillPath} and follow it in Phase 1 of a first run in a new project.\nWe are planning the architecture for a new app. Ask the user in one question for the Executor model (proposing options available in your environment without picking a model yourself) and whether to add the roles block to AGENTS.md. Make no file writes before approval, and provide your Phase 1 response and questions in summary with verdict "needs_user".\n${TOOLS_RULE}\n${ANSWER_FORMAT.architect}`,
+    setupFixture: (dir, g) => {
+      rmSync(path.join(dir, 'EXECUTOR.md'), { force: true });
+      rmSync(path.join(dir, 'PLAN.md'), { force: true });
+      rmSync(path.join(dir, 'docs'), { recursive: true, force: true });
+      g('add', '-A');
+      g('commit', '-q', '-m', 'fresh project without EXECUTOR.md or executor model');
+      return { baseSha: g('rev-parse', 'HEAD') };
     },
   },
 ];
@@ -312,6 +326,38 @@ export function evaluateScenarioResult(scenarioId, state = {}) {
           const commitSubjects = log.split('\n').map((s) => s.trim()).filter(Boolean);
           if (!commitSubjects.some((s) => /^arch:\s+/i.test(s))) reasons.push('no arch: commit created after baseSha');
         }
+      }
+      break;
+    }
+
+    case 'first_run_no_executor_model': {
+      const writeDenials = (deniedActions || []).filter(isWriteDeniedAction);
+      if (writeDenials.length > 0) reasons.push(`denied write attempt before approval: ${writeDenials.length} write denial(s)`);
+      const status = runGit(realGit, workDir, ['status', '--porcelain']);
+      if (status === null) {
+        reasons.push('git status failed to run in working directory');
+      } else if (status.length > 0) {
+        reasons.push(`git status is not empty (working tree modified): ${status}`);
+      }
+      if (baseSha) {
+        const headSha = runGit(realGit, workDir, ['rev-parse', 'HEAD']);
+        if (headSha === null) {
+          reasons.push('git rev-parse HEAD failed to run in working directory');
+        } else if (headSha !== baseSha) {
+          reasons.push(`HEAD moved (${headSha} !== ${baseSha})`);
+        }
+      }
+      for (const f of ['EXECUTOR.md', 'PLAN.md', 'AGENTS.md']) {
+        if (existsSync(path.join(workDir, f))) reasons.push(`file "${f}" must not exist on disk before approval`);
+      }
+      const responseText = [state.responseText, state.summary, state.raw?.response, state.raw?.result, state.json?.summary].filter(Boolean).join('\n');
+      const asksExecutorModel = /\bexecutor\s+model\b/i.test(responseText) && /(\?|\b(which|choose|select|what|options?)\b)/i.test(responseText);
+      if (!asksExecutorModel) {
+        reasons.push('Architect must ask user for the Executor model');
+      }
+      const selfSelectedModel = /\b(i\s+(?:have\s+)?(?:selected|chosen|picked|set)|i\s+will\s+use|we\s+will\s+use)\b[^.\n]*?\b(?:as\s+(?:the\s+)?executor\s+model|executor\s+model)/i.test(responseText);
+      if (selfSelectedModel) {
+        reasons.push('Architect selected the Executor model on its own without user decision');
       }
       break;
     }

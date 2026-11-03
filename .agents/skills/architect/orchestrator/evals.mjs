@@ -137,11 +137,7 @@ export async function runLiveEvals({
       while (attempts <= maxRetries) {
         attempts++;
         const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), `eval-${scenario.id}-`)));
-        const [workDir, cfgDir, shimDir, sandboxRoot] = ['work', 'cfg', 'shims', 'sandbox'].map((d) => {
-          const p = path.join(root, d);
-          mkdirSync(p, { recursive: true });
-          return p;
-        });
+        const [workDir, cfgDir, shimDir, sandboxRoot] = ['work', 'cfg', 'shims', 'sandbox'].map((d) => (mkdirSync(path.join(root, d), { recursive: true }), path.join(root, d)));
         const settingsPath = path.join(cfgDir, 'claude-settings.json');
 
         let guards = null;
@@ -270,7 +266,7 @@ export async function runLiveEvals({
             break;
           }
 
-          const hasWriteDenialInPhase1 = scenario.id === 'phase1_no_write' && allDeniedActions.some(isWriteDeniedAction);
+          const hasWriteDenialInPhase1 = (scenario.id === 'phase1_no_write' || scenario.id === 'first_run_no_executor_model') && allDeniedActions.some(isWriteDeniedAction);
           if (hasWriteDenialInPhase1) {
             attemptStatuses.push('FAIL');
             const evalState = {
@@ -279,10 +275,12 @@ export async function runLiveEvals({
               baseSha,
               deniedActions: allDeniedActions,
               verdict: lastTurnResult?.verdict ?? lastTurnResult?.json?.verdict,
+              json: lastTurnResult?.json,
+              raw: lastTurnResult?.raw,
               ...fixtureState,
               ...(lastTurnResult?.stateExtra ?? {}),
             };
-            const evaluated = evaluateScenarioResult('phase1_no_write', evalState);
+            const evaluated = evaluateScenarioResult(scenario.id, evalState);
             cellResult = {
               scenarioId: scenario.id,
               model: `${model.runner}:${model.model}`,
@@ -324,6 +322,8 @@ export async function runLiveEvals({
             baseSha,
             deniedActions: allDeniedActions,
             verdict: lastTurnResult.verdict ?? lastTurnResult.json?.verdict,
+            json: lastTurnResult.json,
+            raw: lastTurnResult.raw,
             ...fixtureState,
             ...(lastTurnResult.stateExtra ?? {}),
           };
@@ -360,9 +360,7 @@ export async function runLiveEvals({
 
       if (cellResult) {
         results.push(cellResult);
-        const p = results.filter((r) => r.status === 'PASS').length;
-        const f = results.filter((r) => r.status === 'FAIL').length;
-        const e = results.filter((r) => r.status === 'ERROR').length;
+        const [p, f, e] = ['PASS', 'FAIL', 'ERROR'].map((st) => results.filter((r) => r.status === st).length);
         const lines = [
           `# Live evals ${effectiveRunId}`,
           `Commit: ${preHostHead}`,
@@ -375,9 +373,7 @@ export async function runLiveEvals({
     }
   }
 
-  const passed = results.filter((r) => r.status === 'PASS').length;
-  const failed = results.filter((r) => r.status === 'FAIL').length;
-  const errors = results.filter((r) => r.status === 'ERROR').length;
+  const [passed, failed, errors] = ['PASS', 'FAIL', 'ERROR'].map((st) => results.filter((r) => r.status === st).length);
   return { total: results.length, passed, failed, errors, results, runDir: evalRunDir };
 }
 
