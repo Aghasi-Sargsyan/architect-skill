@@ -169,6 +169,7 @@ test('T-067 (c): squash commits are rejected with a clear message in --check-tas
 
     // 2. GitHub squash commit: (#15) in subject + squashed commit bullets in body -> rejected as squash!
     g('checkout', '-q', 'master');
+    mkdirSync(path.join(root, 'src'), { recursive: true });
     writeFileSync(path.join(root, 'src', 'a.mjs'), 'export const a = 2;\n');
     g('add', 'src/a.mjs');
     g('commit', '-q', '-m', 'T-001: implement a (#15)\n\n* T-001: part 1\n* T-001 (fix 1): part 2');
