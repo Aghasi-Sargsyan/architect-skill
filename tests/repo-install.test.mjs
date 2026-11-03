@@ -125,3 +125,49 @@ test('repository installation: sanitized historical stage-4 plan contains no loc
   );
 });
 
+test('T-065: root README.md and skill README.en/ru have a 2-step Quickstart, Manual Installation section, and first-run onboarding rules', () => {
+  const rootReadme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+  const readmeEn = readFileSync(path.join(skillDir, 'README.en.md'), 'utf8');
+  const readmeRu = readFileSync(path.join(skillDir, 'README.ru.md'), 'utf8');
+  const skillText = readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
+  const orchRef = readFileSync(path.join(skillDir, 'references', 'orchestrator.md'), 'utf8');
+
+  const rootQuickstart = rootReadme.split(/^##\s+Quickstart\b/m)[1]?.split(/^##\s+/m)[0] ?? '';
+  assert.ok(rootQuickstart, 'root README.md must have a Quickstart section');
+  assert.match(rootQuickstart, /^\s*1\.\s+/m, 'root Quickstart must have step 1');
+  assert.match(rootQuickstart, /^\s*2\.\s+/m, 'root Quickstart must have step 2');
+  assert.doesNotMatch(rootQuickstart, /^\s*3\.\s+/m, 'root Quickstart must have only 2 steps');
+  assert.match(rootQuickstart, /git clone[\s\S]*\.agents\/skills\/architect/, 'root Quickstart step 1 must show one-command git clone + cp into .agents/skills/architect');
+  assert.match(rootQuickstart, /\.claude\/skills\/architect/, 'root Quickstart step 1 must mention .claude/skills/architect for Claude Code');
+  assert.match(rootQuickstart, /\/architect/, 'root Quickstart step 2 must mention /architect');
+  assert.match(rootQuickstart, /SKILL\.md/, 'root Quickstart step 2 must mention reading SKILL.md');
+
+  assert.match(rootReadme, /^##\s+Manual Installation\b/m, 'root README.md must have a Manual Installation section');
+  const rootManual = rootReadme.split(/^##\s+Manual Installation\b/m)[1]?.split(/^##\s+/m)[0] ?? '';
+  assert.match(rootManual, /cp\s+\.agents\/skills\/architect\/EXECUTOR\.md\s+EXECUTOR\.md/);
+  assert.match(rootManual, /--check/);
+  assert.match(rootManual, /--dry-run/);
+  assert.match(rootManual, /--self-check/);
+
+  for (const [label, md, manualHeading] of [
+    ['README.en.md', readmeEn, /Manual Installation/],
+    ['README.ru.md', readmeRu, /Ручная установка/],
+  ]) {
+    const qs = md.split(/^##\s+1\.\s+/m)[1]?.split(/^##\s+2\.\s+/m)[0] ?? '';
+    assert.match(qs, /^\s*1\.\s+/m, `${label} Quickstart must have step 1`);
+    assert.match(qs, /^\s*2\.\s+/m, `${label} Quickstart must have step 2`);
+    assert.doesNotMatch(qs, /^\s*3\.\s+/m, `${label} Quickstart must have only 2 steps`);
+    assert.match(qs, /git clone[\s\S]*\.agents\/skills\/architect/, `${label} Quickstart must include git clone + cp`);
+    assert.match(qs, /\.claude\/skills\/architect/, `${label} Quickstart must mention .claude/skills/architect`);
+    assert.match(qs, /\/architect/, `${label} Quickstart must mention /architect`);
+    assert.match(qs, /--init[\s\S]*--check[\s\S]*--dry-run/, `${label} Quickstart must describe automatic --init, --check, --dry-run`);
+    assert.match(qs, /--write-permissions/, `${label} Quickstart must state permission is asked only for --write-permissions`);
+    assert.match(md, manualHeading, `${label} must include Manual Installation / Ручная установка section`);
+  }
+
+  assert.match(skillText, /First run in a new project/i);
+  assert.match(skillText, /AGENTS\.md/);
+  assert.match(skillText, /--init[\s\S]*--check[\s\S]*--dry-run/);
+  assert.match(orchRef, /--write-permissions/);
+});
+

@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.28 / 1.8 -->
-# Architect + Executor Skill (`v3.28 / 1.8`)
+<!-- skill-readme-sync: v3.29 / 1.8 -->
+# Architect + Executor Skill (`v3.29 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
@@ -10,22 +10,14 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 
 ---
 
-## 1. Quickstart (5 Minutes)
+## 1. Quickstart (2 Steps)
 
-1. **Copy the skill folder into a subfolder of your project** (e.g. `.agents/skills/architect/`, or `.claude/skills/architect/` for Claude Code). Never unpack the skill directly into the repository root (`--check` rejects root-level installation).
-2. **Copy `EXECUTOR.md`** into the project root (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, or `.architect/EXECUTOR.md` in compact layout).
-3. **Set the Executor model once for your project:**
-   - **With the orchestrator (`agy` or `claude`):** set `executor.model` in `.architect/config.json` or `.agents/orchestrator.json`.
-   - **Without the orchestrator:** add `Executor model: <Model / Tier>` to your project's `AGENTS.md` (see Section 4 snippet). For Claude Code subagents, copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and set an explicit `model:` field (never leave `inherit` or omit `model`).
-4. **Start a chat with the Architect** (`/architect` or ask the model to read `SKILL.md`):
-   - **Phase 1 (Read-Only Brainstorm):** The Architect diagnoses the problem, challenges weak assumptions, and proposes 1–3 options without touching any files.
-   - **Phase 2 (Plan & Execution):** After you pick an option, the Architect records ADRs, locks `Frozen` reference tests for high-risk tasks, and commits `PLAN.md`.
-5. **Execute tasks (`T-NNN`)** via the orchestrator, an isolated subagent with an explicit model, or a separate Executor chat (`Read EXECUTOR.md and PLAN.md. Execute task T-001.`):
+1. **Install the skill in one command** (for Claude Code, replace `.agents/skills/architect` with `.claude/skills/architect` — or ask your agent: *"Install the `architect` skill from `https://github.com/Aghasi-Sargsyan/architect-skill` into `.agents/skills/architect`"*):
    ```bash
-   node .agents/skills/architect/orchestrator/run.mjs --dry-run
-   node .agents/skills/architect/orchestrator/run.mjs --background
-   node .agents/skills/architect/orchestrator/run.mjs --follow
+   git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git /tmp/architect-skill && mkdir -p .agents/skills && cp -R /tmp/architect-skill/.agents/skills/architect .agents/skills/architect && rm -rf /tmp/architect-skill
    ```
+2. **Open your agent and write `/architect`** (or *"Read `.agents/skills/architect/SKILL.md`"*):
+   - **First run in a new project:** in Phase 1 (read-only), the Architect touches no files before your approval, asks in a single question for the **Executor model** (proposing options available in your current environment without picking a model itself), and offers to add the roles block to `AGENTS.md`. After you approve the plan in Phase 2, the Architect copies `EXECUTOR.md` itself and records the chosen model, `AGENTS.md` block, `EXECUTOR.md`, and `PLAN.md` together in the first `arch: plan ...` commit. If you want the automated orchestrator, the Architect runs `--init`, `--check`, and `--dry-run` itself, asking `"yes"` only before `--write-permissions`.
 
 ---
 
@@ -44,7 +36,22 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 
 ---
 
-## 3. Installation and Updating by Environment
+## 3. Manual Installation and Updating by Environment
+
+### Manual Installation (Step by Step)
+1. **Copy the skill folder into a subfolder of your project** (e.g. `.agents/skills/architect/`, or `.claude/skills/architect/` for Claude Code). Never unpack the skill directly into the repository root (`--check` rejects root-level installation).
+2. **Copy `EXECUTOR.md`** into the project root (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, or `.architect/EXECUTOR.md` in compact layout).
+3. **Set the Executor model once for your project:**
+   - **With the orchestrator (`agy` or `claude`):** set `executor.model` in `.architect/config.json` or `.agents/orchestrator.json`.
+   - **Without the orchestrator:** add `Executor model: <Model / Tier>` to your project's `AGENTS.md` (see Section 4 snippet). For Claude Code subagents, copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and set an explicit `model:` field (never leave `inherit` or omit `model`).
+4. **Verify setup and run tasks (`T-NNN`):**
+   ```bash
+   node .agents/skills/architect/orchestrator/run.mjs --check
+   node .agents/skills/architect/orchestrator/run.mjs --dry-run
+   node .agents/skills/architect/orchestrator/run.mjs --self-check
+   node .agents/skills/architect/orchestrator/run.mjs --background
+   node .agents/skills/architect/orchestrator/run.mjs --follow
+   ```
 
 ### A. Antigravity (`agy`) — Core + Orchestrator
 1. Place the skill in a subfolder: `.agents/skills/architect/`.

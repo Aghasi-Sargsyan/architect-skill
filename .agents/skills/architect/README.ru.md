@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.28 / 1.8 -->
-# Скилл «Архитектор + Исполнитель» (`v3.28 / 1.8`)
+<!-- skill-readme-sync: v3.29 / 1.8 -->
+# Скилл «Архитектор + Исполнитель» (`v3.29 / 1.8`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
@@ -10,22 +10,14 @@
 
 ---
 
-## 1. Быстрый старт (за 5 минут)
+## 1. Быстрый старт (2 шага)
 
-1. **Скопируйте папку скилла в подпапку проекта** (например, `.agents/skills/architect/`, либо `.claude/skills/architect/` для Claude Code). Не распаковывайте скилл прямо в корень репозитория (`--check` отклоняет корневую раскладку).
-2. **Скопируйте `EXECUTOR.md`** в корень проекта (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, либо в `.architect/EXECUTOR.md` при компактной раскладке).
-3. **Задайте модель Исполнителя один раз на проект:**
-   - **С оркестратором (`agy` или `claude`):** укажите `executor.model` в `.architect/config.json` или `.agents/orchestrator.json`.
-   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md` проекта (см. врезку в разделе 4). Для субагента Claude Code скопируйте шаблон `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (не оставляйте `inherit` или пустое поле).
-4. **Откройте чат Архитектора** (`/architect` или попросите модель прочитать `SKILL.md`):
-   - **Фаза 1 (Read-Only брейншторм):** Архитектор проводит диагностику, критикует слабые решения и предлагает 1–3 варианта без изменения файлов.
-   - **Фаза 2 (План и выполнение):** После выбора варианта Архитектор фиксирует ADR, создаёт замороженные эталонные тесты (`Frozen`) для задач высокого риска и коммитит `PLAN.md`.
-5. **Выполняйте задачи (`T-NNN`)** через оркестратор, изолированного субагента с явно заданной моделью или в отдельном чате Исполнителя (`Read EXECUTOR.md and PLAN.md. Execute task T-001.`):
+1. **Установите скилл одной командой** (для Claude Code замените `.agents/skills/architect` на `.claude/skills/architect` — либо попросите агента: *«Установи скилл `architect` из `https://github.com/Aghasi-Sargsyan/architect-skill` в `.agents/skills/architect`»*):
    ```bash
-   node .agents/skills/architect/orchestrator/run.mjs --dry-run
-   node .agents/skills/architect/orchestrator/run.mjs --background
-   node .agents/skills/architect/orchestrator/run.mjs --follow
+   git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git /tmp/architect-skill && mkdir -p .agents/skills && cp -R /tmp/architect-skill/.agents/skills/architect .agents/skills/architect && rm -rf /tmp/architect-skill
    ```
+2. **Откройте агента и напишите `/architect`** (или *«прочитай `.agents/skills/architect/SKILL.md`»*):
+   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор до утверждения не трогает файлы, одним вопросом спрашивает **модель Исполнителя** (предлагает варианты, доступные в текущем окружении, сам модель не выбирает) и предлагает добавить блок ролей в `AGENTS.md`. После утверждения плана в Фазе 2 Архитектор сам копирует `EXECUTOR.md` и записывает выбранную модель, блок ролей в `AGENTS.md`, `EXECUTOR.md` и `PLAN.md` вместе с первым коммитом плана (`arch: plan ...`). Если нужен автоматический оркестратор — Архитектор сам запускает `--init`, `--check` и `--dry-run`, а явное «да» спрашивает только для `--write-permissions`.
 
 ---
 
@@ -44,7 +36,22 @@
 
 ---
 
-## 3. Установка и обновление по средам
+## 3. Ручная установка и обновление по средам
+
+### Ручная установка (по шагам)
+1. **Скопируйте папку скилла в подпапку проекта** (например, `.agents/skills/architect/`, либо `.claude/skills/architect/` для Claude Code). Не распаковывайте скилл прямо в корень репозитория (`--check` отклоняет корневую раскладку).
+2. **Скопируйте `EXECUTOR.md`** в корень проекта (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, либо в `.architect/EXECUTOR.md` при компактной раскладке).
+3. **Задайте модель Исполнителя один раз на проект:**
+   - **С оркестратором (`agy` или `claude`):** укажите `executor.model` в `.architect/config.json` или `.agents/orchestrator.json`.
+   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md` проекта (см. врезку в разделе 4). Для субагента Claude Code скопируйте шаблон `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (не оставляйте `inherit` или пустое поле).
+4. **Проверьте настройку и запускайте задачи (`T-NNN`):**
+   ```bash
+   node .agents/skills/architect/orchestrator/run.mjs --check
+   node .agents/skills/architect/orchestrator/run.mjs --dry-run
+   node .agents/skills/architect/orchestrator/run.mjs --self-check
+   node .agents/skills/architect/orchestrator/run.mjs --background
+   node .agents/skills/architect/orchestrator/run.mjs --follow
+   ```
 
 ### A. Antigravity (`agy`) — Ядро + Оркестратор
 1. Положите скилл в подпапку `.agents/skills/architect/`.
