@@ -37,7 +37,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-066: Add local gitignored config overlay, --init team mode, workflow/CODEOWNERS alwaysFrozen, and model source resolution
+- [x] T-066: Add local gitignored config overlay, --init team mode, workflow/CODEOWNERS alwaysFrozen, and model source resolution
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (subagent, уровень неизвестен)
