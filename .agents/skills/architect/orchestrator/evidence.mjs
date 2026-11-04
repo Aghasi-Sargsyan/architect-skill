@@ -230,8 +230,23 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
   const rawCmdTemplate = config?.redCheckCommand ?? 'node --test {file}';
   const cmdTpl = typeof rawCmdTemplate === 'string' ? rawCmdTemplate.trim() : '';
   const isDefaultNodeTest = /^node\s+--test(?:\s+\{file\})?$/.test(cmdTpl);
+  const bypassScanPaths = config?.bypassScanPaths ?? ['src', 'tests'];
+  const isCodeFile = (f) => !/\.(?:md|json|ya?ml)$/i.test(f);
+  const isInScanPaths = (f) => {
+    const norm = f.replace(/\\/g, '/').replace(/^\.\//, '');
+    return bypassScanPaths.some((p) => {
+      const np = p.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+      return norm === np || norm.startsWith(np + '/');
+    });
+  };
 
   for (const task of highRiskTasks) {
+    if ((task.referenceTests ?? []).length === 0) {
+      if ((task.change ?? []).some((f) => isCodeFile(f) && isInScanPaths(f))) {
+        notVerified.push(`high-risk task ${task.id} has no frozen referenceTests in PLAN.md (NOT VERIFIED)`);
+      }
+      continue;
+    }
     for (const file of task.referenceTests ?? []) {
       const normFile = file.replace(/\\/g, '/').replace(/^\.\//, '');
       if (seenFiles.has(normFile)) continue;

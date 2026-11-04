@@ -216,6 +216,25 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean);
   const headFileSet = new Set(headFiles);
   const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '');
+
+  const CLOSE_CYCLE_RE = /^arch:\s*(?:close cycle|закрытие цикла)\b/i;
+  const ARCHIVE_PLAN_RE = /(?:^|\/)(?:docs|\.architect)\/plans\/[^/]+\.md$/;
+  const RETRO_HEADER_RE = /^##\s+.*(?:Ретроспектива(?![а-яёА-ЯЁ])|Retrospective\b)/im;
+  const RULES_ADDED_RE = /\bRules:\s*added\s+\d+\s*\/\s*removed\s+\d+/i;
+  const checkedArchives = new Set();
+  for (const c of nonExecCommits) {
+    if (!CLOSE_CYCLE_RE.test(c.subject)) continue;
+    for (const rawFile of c.files) {
+      const f = norm(rawFile);
+      if (!ARCHIVE_PLAN_RE.test(f) || !headFileSet.has(f) || checkedArchives.has(f)) continue;
+      checkedArchives.add(f);
+      let content = '';
+      try { content = git(realGit, cwd, ['show', `HEAD:${f}`]); } catch { /* cleanup: abort reading archive */ continue; }
+      if (!RETRO_HEADER_RE.test(content) || !RULES_ADDED_RE.test(content)) {
+        violations.push(`cycle closure archive ${f} is missing ## Retrospective / Ретроспектива section or "Rules: added N / removed M" line`);
+      }
+    }
+  }
   const planIdx = allCommits.findIndex((c) => /^arch:\s*(?:plan|план)\b/i.test(c.subject));
   const frozenTests = new Set();
   if (planIdx !== -1) {
@@ -282,14 +301,10 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       const headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
       const baseTests = countTests(baseContent, config);
       const headTests = countTests(headContent, config);
-      if (headTests < baseTests) {
-        violations.push(`monotonicity: in ${testFile} test/it count decreased from ${baseTests} to ${headTests}`);
-      }
+      if (headTests < baseTests) violations.push(`monotonicity: in ${testFile} test/it count decreased from ${baseTests} to ${headTests}`);
       const baseAsserts = countAsserts(baseContent, config);
       const headAsserts = countAsserts(headContent, config);
-      if (headAsserts < baseAsserts) {
-        violations.push(`monotonicity: in ${testFile} assert count decreased from ${baseAsserts} to ${headAsserts}`);
-      }
+      if (headAsserts < baseAsserts) violations.push(`monotonicity: in ${testFile} assert count decreased from ${baseAsserts} to ${headAsserts}`);
     }
   }
 
@@ -299,10 +314,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     const headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
     const headTests = countTests(headContent, config);
     const headAsserts = countAsserts(headContent, config);
-    if (
-      headAsserts === 0
-      && (headTests > 0 || frozenTests.has(testFile) || isNamedTestFile(testFile, config?.testFilePatterns))
-    ) {
+    if (headAsserts === 0 && (headTests > 0 || frozenTests.has(testFile) || isNamedTestFile(testFile, config?.testFilePatterns))) {
       notVerified.push(`test file ${testFile} has 0 recognized assertions (NOT VERIFIED)`);
     }
   }
@@ -322,9 +334,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       const baseArr = Array.isArray(baseJson[key]) ? baseJson[key] : [];
       const headArr = Array.isArray(headJson[key]) ? headJson[key] : [];
       for (const item of baseArr) {
-        if (!headArr.includes(item)) {
-          violations.push(`monotonicity: in ${cfgFile} array ${key} missing element "${item}" present in base`);
-        }
+        if (!headArr.includes(item)) violations.push(`monotonicity: in ${cfgFile} array ${key} missing element "${item}" present in base`);
       }
     }
   }
@@ -333,9 +343,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   if (fixturePath) {
     const fixturesText = git(realGit, cwd, ['show', `HEAD:${fixturePath}`]);
     for (const anchor of EVAL_FIXTURE_ANCHORS) {
-      if (!fixturesText.includes(anchor)) {
-        violations.push(`monotonicity: eval-fixtures.mjs missing anchor: ${anchor}`);
-      }
+      if (!fixturesText.includes(anchor)) violations.push(`monotonicity: eval-fixtures.mjs missing anchor: ${anchor}`);
     }
   }
 
@@ -345,14 +353,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
     const isProtected = (f) => {
       const nf = norm(f);
-      return (
-        frozenTests.has(nf)
-        || nf.endsWith('/eval-fixtures.mjs')
-        || nf === 'eval-fixtures.mjs'
-        || protectedConfigFiles.has(nf)
-        || nf === 'config.example.json'
-        || nf.endsWith('/orchestrator/config.example.json')
-      );
+      return frozenTests.has(nf) || nf.endsWith('/eval-fixtures.mjs') || nf === 'eval-fixtures.mjs' || protectedConfigFiles.has(nf) || nf === 'config.example.json' || nf.endsWith('/orchestrator/config.example.json');
     };
 
     for (const c of commitsToCheck) {
@@ -374,10 +375,8 @@ export function checkPostReviewSelfCheck({ realGit, cwd, baseSha, config }) {
   try {
     const diff = git(realGit, cwd, ['diff', '-U0', baseSha, 'HEAD', '--', 'PLAN.md']);
     for (const line of diff.split('\n')) {
-      if (line.startsWith('+') && !line.startsWith('+++')) {
-        if (/^\+\s*-\s*WAIVER\b/.test(line)) {
-          violations.push(`new WAIVER line added during automated cycle is forbidden: ${line.slice(1).trim()}`);
-        }
+      if (line.startsWith('+') && !line.startsWith('+++') && /^\+\s*-\s*WAIVER\b/.test(line)) {
+        violations.push(`new WAIVER line added during automated cycle is forbidden: ${line.slice(1).trim()}`);
       }
     }
   } catch { /* cleanup: abort diff inspection */ }
