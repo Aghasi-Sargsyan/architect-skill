@@ -23,7 +23,7 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-076: Механический гейт увеличения версии при изменении SKILL.md, references/*.md и EXECUTOR.md в selfcheck.mjs
+- [x] T-076: Механический гейт увеличения версии при изменении SKILL.md, references/*.md и EXECUTOR.md в selfcheck.mjs
   - Риск: высокий
   - Менять: `.agents/skills/architect/orchestrator/selfcheck.mjs`
   - Не трогать: `.agents/skills/architect/orchestrator/selfcheck.test.mjs`, `EXECUTOR.md`
