@@ -79,12 +79,17 @@
 - Положите скилл в `.agents/skills/architect/`, скопируйте `EXECUTOR.md` в корень и добавьте врезку из раздела 4 (включая `Executor model: …`) в `GEMINI.md`, `AGENTS.md` или `.cursorrules`. Запускайте Архитектора и Исполнителя в отдельных чатах.
 
 ### D. Обновление скилла в существующем проекте
-1. Выполните ту же однострочную команду из раздела 1 (`mktemp -d`, `rm -rf` старой папки перед `cp -R`). Конфиг и история (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) лежат вне папки скилла и сохраняются.
-2. Обновите проектную копию `EXECUTOR.md` и проверьте настройку:
+1. **С оркестратором (основной способ):** одной командой:
+   ```bash
+   node .agents/skills/architect/orchestrator/run.mjs --update
+   # или: npm run agents -- --update
+   ```
+   Клонирует свежий коммит, обновляет папки скилла (`.agents/skills/architect` / `.claude/skills/architect`), пишет SHA в `.version`, синхронизирует `EXECUTOR.md` и хуки, не затрагивая конфиги (`config.json`, `config.local.json`) и историю.
+2. **Без Node.js:** однострочник из раздела 1 с `mktemp -d` (`rm -rf` перед `cp -R`), затем:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
-   node .agents/skills/architect/orchestrator/run.mjs --check
    ```
+3. Выполните `node .agents/skills/architect/orchestrator/run.mjs --check` для проверки синхронизации.
 
 ---
 
@@ -123,6 +128,7 @@
 |---|---|
 | `--init [--team]` | Создание конфига, установка `.git/hooks/commit-msg`, добавление `.agent-runs/` и `*.local.json` в `.gitignore`; с `--team` пишет `"team": true` и `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Установка Node-хука `.git/hooks/commit-msg` (без перезаписи существующего хука или `core.hooksPath`) |
+| `--update` | Клонирование свежего коммита, атомарное обновление папки скилла, запись SHA в `.version`, синхронизация `EXECUTOR.md` и обновление хуков |
 | `--check` | Проверка ОС, Node 22+, git 2.31+, подпапки скилла, копии `EXECUTOR.md`, хука `commit-msg`, итоговой модели Исполнителя и её источника, `PLAN.md`, параллельных задач, раннеров и allowlist |
 | `--check-task T-NNN [--base <ref>]` | Шлюз задачи `T-NNN` по `<base>:PLAN.md` и `git merge-base <base> HEAD` (`Change`, `Frozen`, обходы, коммиты, запрет squash и `Verify`-команды задачи) |
 | `--write-permissions` | Запись allowlist команд и путей для `agy` или `claude` (после явного согласия пользователя) |
@@ -152,10 +158,10 @@
 
 ## 8. Когда скилл использовать и когда не использовать
 
-- **Полностью (Ядро + Оркестратор):** долгоживущие продукты с зонами высокого риска (аутентификация и права доступа, биллинг, миграции БД, конкурентность, инварианты данных) на macOS с раннерами `agy` или `claude`.
-- **Только ядро (`SKILL.md` + `EXECUTOR.md`):** проекты среднего размера, другие стеки и агенты (`Gemini CLI`, `Codex`, `Cursor`), Linux/WSL2 или Windows, где важны двухфазное планирование, замороженные контракты (`Frozen`) и изоляция контекста Исполнителя без цикла на Node.js.
-- **Не использовать:** одноразовые прототипы, быстрая проверка продуктовых гипотез, геймджемы, разовые скрипты и задачи с чисто визуальной приёмкой.
-- **Командные проекты с существующими PR и CI:** включите командный режим (`--init --team`, раздел 9) или используйте базовые практики ядра (Фаза 1 только для чтения, эталонные тесты в `Frozen`, изолированный Исполнитель).
+- **Полностью (Ядро + Оркестратор):** долгоживущие продукты с зонами высокого риска (права доступа, биллинг, миграции БД, конкурентность) на macOS с раннерами `agy` или `claude`.
+- **Только ядро (`SKILL.md` + `EXECUTOR.md`):** проекты любого размера, другие стеки и агенты (`Gemini CLI`, `Codex`, `Cursor`), Linux или Windows (двухфазное планирование, `Frozen`, изоляция контекста без цикла Node.js).
+- **Не использовать:** одноразовые прототипы, геймджемы, разовые скрипты и задачи с чисто визуальной приёмкой.
+- **Командные проекты с PR и CI:** командный режим (`--init --team`, раздел 9) или базовые практики ядра (Фаза 1 только для чтения, `Frozen`, изолированный Исполнитель).
 
 ---
 
@@ -170,13 +176,13 @@ node .agents/skills/architect/orchestrator/run.mjs --init --team
 ### Личный локальный конфиг и общий конфиг политики
 - **Общий конфиг (`.architect/config.json` или `.agents/orchestrator.json`, в git):** хранит политику проекта (`team`, `commitLanguage`, `permissions`, `allowedCommands`, `blockedScripts`, `protectedConfigFiles`, `bypassScanPaths`, `bypassPatterns`, `fullTestCommand`).
 - **Личный локальный конфиг (`.architect/config.local.json` или `.agents/orchestrator.local.json`, в `.gitignore`):** переопределяет только личное окружение (`executor`, `architect`, `auditor`, `runner`, `runnerBin`, `agyBin`, `notify`). Поля политики в `.local.json` отклоняются fail-closed.
-- **Цепочка выбора модели (`--check` выводит модель и её источник):** `.local.json` → общий конфиг → файл агента (`.claude/agents/executor.md` / `AGENTS.md`). В карточке задачи поле `Executor: @<github-ник> · <Окружение> · <Модель (\`id\`)>` задаёт назначение, а `Parallel with: T-MMM` — параллельные задачи; модель из `Executor` не переопределяет `.local.json`, а при несовпадении окружения с локальным `runner` оркестратор отказывается брать задачу.
+- **Цепочка выбора модели (`--check` выводит модель и источник):** `.local.json` → общий конфиг → файл агента (`.claude/agents/executor.md` / `AGENTS.md`). В карточке задачи поле `Executor:` задаёт назначение, а `Parallel with: T-MMM` — параллельные задачи; при несовпадении окружения с локальным `runner` оркестратор задачу не берёт.
 
 ### Поток веток (`cycle/<N>`, `task/T-NNN`, `master`)
-1. **Старт цикла:** Архитектор создаёт `cycle/<N>` от `master`, коммитит `arch: plan ...` с `PLAN.md` и красными `Frozen`-тестами, человек-техлид пушит `cycle/<N>`.
-2. **Выполнение задачи:** разработчик отводит `task/T-NNN` от `cycle/<N>`, запускает агента-Исполнителя локально (агент коммитит `T-NNN: ...` и не делает push), пушит `task/T-NNN` и открывает PR `task/T-NNN → cycle/<N>` с отчётом Исполнителя в описании.
-3. **Шлюз PR и приёмка:** на PR в `cycle/*` CI запускает `run.mjs --check-task T-NNN --base origin/cycle/<N>` (читает `PLAN.md` из `<base>`, считает diff от `git merge-base <base> HEAD`, запрещает правку `PLAN.md` / `.github/workflows/**` / `CODEOWNERS`, проверяет коммиты и отсутствие squash и запускает только `Verify`-команды задачи). После ревью по `references/auto-review.md` техлид вливает PR в `cycle/<N>` через **Create a merge commit** (`--no-ff`), затем в `cycle/<N>` делает коммит `arch: accept T-NNN` (`- [x] T-NNN:` в `PLAN.md`) и пушит напрямую в `cycle/<N>`.
-4. **Закрытие цикла:** когда все задачи `[x]`, Архитектор коммитит `arch: close cycle <N>` в `cycle/<N>` и открывает PR `cycle/<N> → master`. CI гоняет полный `fullTestCommand` и `--self-check --base origin/master`; техлид вливает PR через **Create a merge commit**.
+1. **Старт цикла:** Архитектор создаёт `cycle/<N>` от `master`, коммитит `arch: plan ...` с `PLAN.md` и красными `Frozen`-тестами, техлид пушит `cycle/<N>`.
+2. **Выполнение задачи:** разработчик отводит `task/T-NNN` от `cycle/<N>`, запускает агента локально (агент коммитит `T-NNN: ...` без push), пушит `task/T-NNN` и открывает PR `task/T-NNN → cycle/<N>` с отчётом.
+3. **Шлюз PR и приёмка:** на PR в `cycle/*` CI запускает `run.mjs --check-task T-NNN --base origin/cycle/<N>` (границы `Change`, `Frozen`, коммиты, запрет squash и `Verify`-команды задачи). После ревью по `references/auto-review.md` техлид вливает PR через **Create a merge commit** (`--no-ff`), делает коммит `arch: accept T-NNN` (`- [x] T-NNN:` в `PLAN.md`) и пушит в `cycle/<N>`.
+4. **Закрытие цикла:** когда все задачи `[x]`, Архитектор коммитит `arch: close cycle <N>` в `cycle/<N>` и открывает PR `cycle/<N> → master`. CI гоняет `fullTestCommand` и `--self-check --base origin/master`; техлид вливает PR через **Create a merge commit**.
 
 ### Точные настройки GitHub для репозитория команды
 1. **Способы слияния PR ([Configuring commit merging for pull requests](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-merging-for-pull-requests)):**

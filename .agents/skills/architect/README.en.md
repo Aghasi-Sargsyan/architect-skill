@@ -80,12 +80,17 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 - Place the skill in `.agents/skills/architect/`, copy `EXECUTOR.md` to the project root, and add the Section 4 snippet (including `Executor model: …`) to `GEMINI.md`, `AGENTS.md`, or `.cursorrules`. Run Architect and Executor sessions in separate chats.
 
 ### D. Updating the Skill in an Existing Project
-1. Re-run the same one-line install command from Section 1 (`Quickstart`) for `.agents/skills/` or `.claude/skills/` — it is idempotent (`mktemp -d`, `rm -rf` of the old skill folder before `cp -R`). Your project config (`.architect/config.json` or `.agents/orchestrator.json`) and history (`docs/decisions.md`, `docs/executor-profiles.md`, `docs/plans/`) live outside the skill folder and are untouched.
-2. Refresh the project copy of `EXECUTOR.md`:
+1. **With the orchestrator (one-command update):**
+   ```bash
+   node .agents/skills/architect/orchestrator/run.mjs --update
+   # or: npm run agents -- --update
+   ```
+   This automatically clones the latest commit into a temporary directory, atomically updates installed skill folders (`.agents/skills/architect` / `.claude/skills/architect`), records the commit SHA in `.version`, synchronizes root `EXECUTOR.md`, and refreshes git hooks without touching your project configs (`config.json`, `config.local.json`) or history.
+2. **Without Node.js / orchestrator:** re-run the same idempotent one-line install command from Section 1 (`Quickstart`) for `.agents/skills/` or `.claude/skills/` using `mktemp -d` (`rm -rf` of the old skill folder before `cp -R`), then refresh the project copy of `EXECUTOR.md`:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
    ```
-3. If using the orchestrator, run `node .agents/skills/architect/orchestrator/run.mjs --check` to verify installation parity and base allowlist commands.
+3. Run `node .agents/skills/architect/orchestrator/run.mjs --check` to verify installation parity and base allowlist commands.
 
 ---
 
@@ -128,6 +133,7 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 |---|---|
 | `--init [--team]` | Create `.architect/config.json` (or `.agents/orchestrator.json`), install `.git/hooks/commit-msg`, add `.agent-runs/` and `*.local.json` to `.gitignore`; with `--team`, set `"team": true` and create `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Install the zero-dependency Node `.git/hooks/commit-msg` hook (without overwriting an existing custom hook or `core.hooksPath`) |
+| `--update` | Fetch latest commit, atomically update installed skill folder, write commit SHA to `.version`, sync `EXECUTOR.md`, and refresh git hooks |
 | `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, resolved Executor model and its source, `PLAN.md`, parallel task boundaries, runner binaries, and allowlists |
 | `--check-task T-NNN [--base <ref>]` | Mechanically verify task `T-NNN` against `<base>:PLAN.md` and `git merge-base <base> HEAD` (`Change` boundaries, `Frozen`, bypasses, commit messages, no-squash, and task `Verify` commands) |
 | `--write-permissions` | Write safe command/file allowlists for `agy` or `claude` (only after explicit user confirmation) |

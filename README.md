@@ -28,11 +28,12 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
    ```
 3. Set `executor.model` in `.architect/config.json` (or `.agents/orchestrator.json`), or declare it in your project's `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`.
-4. Verify setup and run:
+4. Verify setup and run (or update):
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
    node .agents/skills/architect/orchestrator/run.mjs --dry-run
    node .agents/skills/architect/orchestrator/run.mjs --self-check
+   node .agents/skills/architect/orchestrator/run.mjs --update
    ```
 
 ## Team Use
