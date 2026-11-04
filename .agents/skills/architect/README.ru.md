@@ -21,7 +21,7 @@
      ```bash
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
      ```
-   - **Обновление уже установленного скилла (одной командой):**
+   - **Обновление уже установленного скилла (одной командой):** напишите в чате **`/architect update`** или выполните в терминале:
      ```bash
      node .agents/skills/architect/orchestrator/run.mjs --update
      # или: npm run agents -- --update

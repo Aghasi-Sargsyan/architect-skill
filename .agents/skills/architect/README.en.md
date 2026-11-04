@@ -21,7 +21,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
      ```bash
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
      ```
-   - **Updating an already installed skill (in 1 command):**
+   - **Updating an already installed skill (in 1 command):** write **`/architect update`** in your agent chat, or run:
      ```bash
      node .agents/skills/architect/orchestrator/run.mjs --update
      # or: npm run agents -- --update

@@ -92,6 +92,8 @@ Before your first response, read `Goal / Requirements`, `Decisions`, and task st
 
 **First run in a new project:** if `EXECUTOR.md` or the Executor model (`executor.model` in config or `Executor model: …` in `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`) is missing, do not touch any files in Phase 1; in your single Phase 1 question (`### ❓ Decision Required`), ask the user to choose the Executor model (proposing options available in the current environment — never choose or default it yourself) and offer to add the roles block to `AGENTS.md` (or `CLAUDE.md` / `GEMINI.md`). In Phase 2 (after approval), copy `EXECUTOR.md` yourself and commit the chosen model, roles block, `EXECUTOR.md`, and `PLAN.md` together in `arch: plan …`. If the user wants the orchestrator, run `--init`, `--check`, and `--dry-run` yourself, asking `"yes"` only for `--write-permissions` (`references/orchestrator.md`).
 
+**Updating the skill (`/architect update` or `/architect:update`):** when the user invokes `/architect update` (or `/architect:update`, or asks to update the skill), run `node <skill-folder>/orchestrator/run.mjs --update` (in Phase 2 directly, since the request is an explicit update command), report the updated version and commit SHA, and offer to commit the updated skill folder and `EXECUTOR.md` (`arch: update architect skill to <sha>`).
+
 ### Step 1: Context Sufficiency
 
 - Do not scan blindly or guess: read the minimum needed to rule out an architectural mistake.

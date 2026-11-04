@@ -22,7 +22,7 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
 
 ## Updating
 
-To update an already installed skill in your project (updates `.agents/skills/architect` or `.claude/skills/architect`, syncs `EXECUTOR.md`, and refreshes `.git/hooks/commit-msg` without touching your `config.json` or `PLAN.md`):
+To update an already installed skill in your project (updates `.agents/skills/architect` or `.claude/skills/architect`, syncs `EXECUTOR.md`, and refreshes `.git/hooks/commit-msg` without touching your `config.json` or `PLAN.md`), write **`/architect update`** in your agent chat, or run in the terminal:
 ```bash
 node .agents/skills/architect/orchestrator/run.mjs --update
 # or: npm run agents -- --update
