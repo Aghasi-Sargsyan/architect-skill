@@ -117,13 +117,7 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
     const hookResult = installCommitMsgHook({ workDir, realGit: g });
 
     const cachePath = path.join(workDir, '.agent-runs', '.update-check.json');
-    if (existsSync(cachePath)) {
-      try {
-        rmSync(cachePath, { force: true });
-      } catch (err) {
-        // clearing cache file failed: non-fatal
-      }
-    }
+    rmSync(cachePath, { force: true });
 
     return {
       ok: true,
@@ -235,12 +229,14 @@ export function checkSkillUpdateAvailable({
   if (!force && existsSync(cacheFile)) {
     try {
       const cache = JSON.parse(readFileSync(cacheFile, 'utf8'));
+      const shaMatches = cache?.localSha === localSha ||
+        (!localSha && Boolean(cache?.localSha && cache?.remoteSha && cache.localSha === cache.remoteSha.slice(0, 7)));
       if (
         cache &&
         typeof cache.checkedAt === 'number' &&
         (now - cache.checkedAt) >= 0 &&
         (now - cache.checkedAt) < effectiveTtl &&
-        cache.localSha === localSha
+        shaMatches
       ) {
         return {
           updateAvailable: Boolean(cache.updateAvailable),
@@ -251,7 +247,7 @@ export function checkSkillUpdateAvailable({
         };
       }
     } catch (err) {
-      // cache corrupted or unreadable: continue with live check
+      rmSync(cacheFile, { force: true });
     }
   }
 
@@ -304,6 +300,11 @@ export function checkSkillUpdateAvailable({
     return { updateAvailable: false, localSha, remoteSha: null, notice: null, cached: false };
   }
 
+  if (!localSha) {
+    const anc = spawnSync(g, ['merge-base', '--is-ancestor', remoteSha, 'HEAD'], { cwd: workDir, stdio: 'ignore' });
+    if (anc.status === 0) localSha = remoteSha.slice(0, 7);
+  }
+
   const isMatch = Boolean(
     localSha &&
     (remoteSha.toLowerCase().startsWith(localSha.toLowerCase()) ||
@@ -328,7 +329,7 @@ export function checkSkillUpdateAvailable({
     mkdirSync(path.dirname(cacheFile), { recursive: true });
     writeFileSync(cacheFile, JSON.stringify(cacheData, null, 2), 'utf8');
   } catch (err) {
-    // writing update check cache failed: non-fatal
+    /* cleanup: abort cache write on read-only fs */
   }
 
   return {
