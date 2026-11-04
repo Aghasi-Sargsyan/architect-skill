@@ -252,3 +252,81 @@ test('T-075 (b): checkSkillUpdateAvailable fails open on unreachable repo and su
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('T-077: --update refuses to overwrite uncommitted tracked changes in skill folder or EXECUTOR.md unless --force is passed, while allowing dirty project files outside the skill', async () => {
+  const withForce = parseArgs(['--update', '--force']);
+  assert.equal(withForce.update, true);
+  assert.equal(withForce.force, true);
+  assert.throws(
+    () => parseArgs(['--check', '--force']),
+    /--force is allowed only with --update/,
+    '--force must be rejected when --update is not set',
+  );
+
+  const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'update-dirty-guard-test-')));
+  try {
+    const upstreamDir = path.join(tmp, 'upstream');
+    const projectDir = path.join(tmp, 'project');
+    mkdirSync(upstreamDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+
+    const upstreamSha = initUpstreamRepo(upstreamDir, 'v3.99', '1.9');
+
+    execFileSync('git', ['init', '-b', 'master'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'dev@example.com'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.name', 'Dev'], { cwd: projectDir, stdio: 'ignore' });
+
+    const projSkillDir = path.join(projectDir, '.agents', 'skills', 'architect');
+    mkdirSync(path.dirname(projSkillDir), { recursive: true });
+    cpSync(skillDir, projSkillDir, { recursive: true });
+    writeFileSync(path.join(projectDir, 'EXECUTOR.md'), readFileSync(path.join(skillDir, 'EXECUTOR.md'), 'utf8'));
+    writeFileSync(path.join(projectDir, 'app.js'), 'export const v = 1;\n');
+    execFileSync('git', ['add', '.'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'initial commit'], { cwd: projectDir, stdio: 'ignore' });
+
+    // 1. Dirty project file outside skill folder (app.js) does NOT block --update
+    writeFileSync(path.join(projectDir, 'app.js'), 'export const v = 2;\n');
+    const cleanSkillRes = await cliMod.handleUpdateCli({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      print: () => {},
+    });
+    assert.equal(cleanSkillRes.ok, true, 'dirty project files outside skill folder must not block --update');
+    assert.equal(readFileSync(path.join(projectDir, 'app.js'), 'utf8'), 'export const v = 2;\n', 'dirty project file must remain untouched');
+    execFileSync('git', ['add', '.'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'commit updated skill'], { cwd: projectDir, stdio: 'ignore' });
+
+    // 2. Dirty tracked file inside .agents/skills/architect/ blocks --update without --force
+    const localSkillMd = path.join(projSkillDir, 'SKILL.md');
+    writeFileSync(localSkillMd, '# Architect Prompt v3.50\nLOCAL UNCOMMITTED EDIT\n');
+    const lines = [];
+    const blockedSkillRes = await cliMod.handleUpdateCli({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      print: (l) => lines.push(l),
+    });
+    assert.equal(blockedSkillRes.ok, false, '--update must fail when tracked skill files have uncommitted edits');
+    assert.match(blockedSkillRes.error, /uncommitted changes in skill files/i);
+    assert.match(blockedSkillRes.error, /--force/);
+    assert.match(readFileSync(localSkillMd, 'utf8'), /LOCAL UNCOMMITTED EDIT/, 'local uncommitted edit in SKILL.md must not be overwritten');
+
+    // 3. Passing force: true (--update --force) overwrites dirty skill files and updates cleanly
+    const forcedRes = await cliMod.handleUpdateCli({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      force: true,
+      print: () => {},
+    });
+    assert.equal(forcedRes.ok, true, '--update --force must succeed and overwrite dirty skill files');
+    assert.equal(forcedRes.commitSha, upstreamSha);
+    assert.match(readFileSync(localSkillMd, 'utf8'), /^# Architect Prompt v3\.99/m);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});

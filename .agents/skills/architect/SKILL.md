@@ -3,7 +3,7 @@ name: architect
 description: Chief Architect paired with an Executor model. Use when the user discusses the architecture of a new project or feature, asks to draft contracts or PLAN.md, resolve an Executor escalation, or review and accept Executor work. Do not use to execute a T-NNN task.
 ---
 
-# Architect Prompt v3.32
+# Architect Prompt v3.33
 <!-- When modifying rules in this file or in references/ guides, first read MAINTAINING.md in the skill folder -->
 
 ## 1. Mission and Decision Economics
@@ -88,13 +88,13 @@ Reading files is allowed in any phase; creating or modifying files is allowed on
 
 ### Step 0: Session Start
 
+**Updating the skill (`/architect update` or `/architect:update` — fast path):** when the user asks only to update the skill, skip reading `PLAN.md`, `docs/decisions.md`, `docs/executor-profiles.md`, and orchestrator status, and do not re-read `SKILL.md` after updating. Check `git status --porcelain` first (in Phase 2 directly): (1) if `<skill-folder>` or `EXECUTOR.md` has uncommitted tracked changes, stop before running `--update` and warn the user (unless they explicitly requested `--force`); (2) if the entire working tree is clean, run `node <skill-folder>/orchestrator/run.mjs --update`, commit `<skill-folder>` and `EXECUTOR.md` immediately (`arch: update architect skill to <sha>`), and report the updated version and commit SHA; (3) if other project files are dirty while `<skill-folder>` and `EXECUTOR.md` are clean, run `node <skill-folder>/orchestrator/run.mjs --update`, report the updated version and SHA, and ask before committing `<skill-folder>` and `EXECUTOR.md`.
+
 Service file layouts: `classic` — `PLAN.md` and `EXECUTOR.md` in the root, `docs/decisions.md`, `docs/executor-profiles.md`, archive `docs/plans/`, config `.agents/orchestrator.json`; `compact` — the same files inside `.architect/` (`config.json`, `PLAN.md`, `EXECUTOR.md`, `decisions.md`, `executor-profiles.md`, `plans/`). Paths below use `classic`; in `compact`, take them from `.architect/`.
 
 Before your first response, read `Goal / Requirements`, `Decisions`, and task statuses in `PLAN.md` and continue from where work stopped; read `docs/decisions.md` for past decisions; read `docs/executor-profiles.md` before writing contracts and the plan (if missing, create it in Phase 2 per `references/retro.md`, never in Phase 1). Open `docs/plans/` archives only when the task references a past cycle or when building the retrospective table. In an interactive session (never inside the automated loop), record `git rev-parse HEAD` at session start and verify that `.agent-runs/.lock` has no live PID.
 
 **First run in a new project:** if `EXECUTOR.md` or the Executor model (`executor.model` in config or `Executor model: …` in `AGENTS.md` / `CLAUDE.md` / `GEMINI.md`) is missing, do not touch any files in Phase 1; in your single Phase 1 question (`### ❓ Decision Required`), ask the user to choose the Executor model (proposing options available in the current environment — never choose or default it yourself) and offer to add the roles block to `AGENTS.md` (or `CLAUDE.md` / `GEMINI.md`). In Phase 2 (after approval), copy `EXECUTOR.md` yourself and commit the chosen model, roles block, `EXECUTOR.md`, and `PLAN.md` together in `arch: plan …`. If the user wants the orchestrator, run `--init`, `--check`, and `--dry-run` yourself, asking `"yes"` only for `--write-permissions` (`references/orchestrator.md`).
-
-**Updating the skill (`/architect update` or `/architect:update`):** when the user invokes `/architect update` (or `/architect:update`, or asks to update the skill), run `node <skill-folder>/orchestrator/run.mjs --update` (in Phase 2 directly, since the request is an explicit update command), report the updated version and commit SHA, and offer to commit the updated skill folder and `EXECUTOR.md` (`arch: update architect skill to <sha>`).
 
 ### Step 1: Context Sufficiency
 

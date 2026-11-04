@@ -2,6 +2,9 @@
 
 All notable changes to the `architect` skill and its embedded orchestrator are documented in this file.
 
+## v3.33 / 1.8 (2026-11-05 — Cycle 23: Fast-Path `/architect update` and Dirty Skill File Guard in `--update`)
+- **Fast-path `/architect update` in `SKILL.md` (`v3.33`) and dirty skill guard in `update.mjs` / `cli.mjs` / `run.mjs` (`ADR-052`, `T-077`):** Moved `/architect update` to the top of `SKILL.md` Step 0 so the Architect skips reading `PLAN.md`, `decisions.md`, `executor-profiles.md`, and `--status` and does not re-read `SKILL.md` after updating (`29100` → `29380` bytes `<= 34 KB`, justified by eliminating 5–6 redundant tool calls on skill updates and defining clean vs dirty working-tree commit rules); added a pre-update git check in `updateSkill` (`update.mjs`) that refuses to overwrite uncommitted tracked changes in `<skill-folder>` or `EXECUTOR.md` unless `--force` (`--update --force`) is passed, while allowing updates when only project files outside the skill are dirty.
+
 ## v3.32 / 1.8 (2026-11-05 — Visual Response Format Across All Phases and Subagent Duration in Task Acceptance)
 - **Global visual response format and subagent execution duration (`ADR-051`, `SKILL.md` `v3.32`, `references/{orchestrator,auto-review,retro}.md`):** Standardized all Architect responses across every mode and phase on a 1-sentence BLUF, short paragraphs (`<= 2` sentences, no `3+` comma-chained facts), scannable `- **Label:** value` bullets (one fact per line), standalone fenced code blocks (`bash` / `text`) for runnable commands, and mandatory **Executor & duration** reporting (`Created At` → `Completed At`, run log, or git timestamps) during interactive task acceptance (`SKILL.md` `28612` → `29100` bytes `<= 34 KB`, justified by preventing wall-of-text status blocks and preserving subagent runtime visibility).
 
