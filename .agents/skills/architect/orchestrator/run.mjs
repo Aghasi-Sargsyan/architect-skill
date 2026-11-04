@@ -19,7 +19,7 @@ import { runView } from './feed.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { appendEvent, classifyStopReason, sendNotification } from './events.mjs';
 import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
-import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig, loadConfigOrDefaults, handleCheckTaskCli } from './cli.mjs';
+import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig, loadConfigOrDefaults, handleCheckTaskCli, handleUpdateCli } from './cli.mjs';
 import { checkPostReviewSelfCheck } from './selfcheck.mjs';
 import { installCommitMsgHook } from './hooks.mjs';
 
@@ -46,6 +46,7 @@ async function main() {
     console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`);
     return;
   }
+  if (opts.update) return handleUpdateCli({ workDir: process.cwd(), realGit });
   if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
   const config = safeLoadConfig(configPath);
   const layout = config.paths;

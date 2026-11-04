@@ -32,12 +32,12 @@ export function parseArgs(argv) {
   const opts = {
     configPath: null, pause: false, only: null, dryRun: false, init: false, check: false, writePermissions: false,
     background: false, answer: null, watch: null, since: null, status: false, follow: false, selfCheck: false, base: null,
-    auditPlan: false, checkTask: null, installHooks: false, team: false,
+    auditPlan: false, checkTask: null, installHooks: false, team: false, update: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks'].includes(a)) {
+    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
     } else if (a === '--team') {
       opts.team = true;
@@ -76,9 +76,9 @@ export function parseArgs(argv) {
     throw new Error('--base is allowed only with --self-check or --check-task');
   }
 
-  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks];
+  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update];
   if (modeFlags.filter(Boolean).length > 1) {
-    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, and --install-hooks: only one per invocation');
+    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, --install-hooks, and --update: only one per invocation');
   }
 
   if (opts.answer !== null && !/^[123]$/.test(opts.answer)) {
@@ -387,3 +387,5 @@ export async function handleCheckTaskCli({ opts = {}, config, configPath, workDi
   }
   return res;
 }
+
+export { handleUpdateCli } from './update.mjs';
