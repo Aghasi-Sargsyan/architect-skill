@@ -214,4 +214,16 @@ test('T-069: root README.md, skill README.en/ru, AGENTS.md, references/team.md, 
   assert.match(agentsMd, /Linux/i, 'AGENTS.md must mention Linux support for --check, --check-task, and --self-check');
 });
 
+test('T-074: root README.md, skill README.en/ru, and AGENTS.md document --update flag', () => {
+  const rootReadme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+  const readmeEn = readFileSync(path.join(skillDir, 'README.en.md'), 'utf8');
+  const readmeRu = readFileSync(path.join(skillDir, 'README.ru.md'), 'utf8');
+  const agentsMd = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
+
+  assert.match(rootReadme, /--update\b/, 'root README.md must document --update');
+  assert.match(readmeEn, /--update\b/, 'skill README.en.md must document --update');
+  assert.match(readmeRu, /--update\b/, 'skill README.ru.md must document --update');
+  assert.match(agentsMd, /--update\b/, 'AGENTS.md must document --update');
+});
+
 
