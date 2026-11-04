@@ -25,7 +25,7 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-075: Ненавязчивое уведомление о наличии обновления скилла (риск: high)
+- [x] T-075: Ненавязчивое уведомление о наличии обновления скилла (риск: high)
   - Риск: высокий
   - Менять: `.agents/skills/architect/orchestrator/update.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`, `.agents/skills/architect/orchestrator/check.mjs`
   - Не трогать: `.agents/skills/architect/orchestrator/update.test.mjs`, `EXECUTOR.md`
