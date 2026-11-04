@@ -21,6 +21,11 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
      ```bash
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
      ```
+   - **Updating an already installed skill (in 1 command):**
+     ```bash
+     node .agents/skills/architect/orchestrator/run.mjs --update
+     # or: npm run agents -- --update
+     ```
 2. **Open your agent and write `/architect`** (or *"Read `.agents/skills/architect/SKILL.md`"*):
    - **First run in a new project:** in Phase 1 (read-only), the Architect touches no files before your approval, asks in a single question for the **Executor model** (proposing options available in your current environment without picking a model itself), and offers to add the roles block to `AGENTS.md` (or `CLAUDE.md` / `GEMINI.md`). After you approve the plan in Phase 2, the Architect copies `EXECUTOR.md` itself and records the chosen model, roles block, `EXECUTOR.md`, and `PLAN.md` together in the first `arch: plan ...` commit. If you want the automated orchestrator, the Architect runs `--init`, `--check`, and `--dry-run` itself, asking `"yes"` only before `--write-permissions`.
 

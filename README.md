@@ -20,6 +20,14 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
      ```
 2. **Open your agent and write `/architect`** (or read `.agents/skills/architect/SKILL.md`). On first run in a new project, the Architect asks for the Executor model and configures the project safely before any code changes.
 
+## Updating
+
+To update an already installed skill in your project (updates `.agents/skills/architect` or `.claude/skills/architect`, syncs `EXECUTOR.md`, and refreshes `.git/hooks/commit-msg` without touching your `config.json` or `PLAN.md`):
+```bash
+node .agents/skills/architect/orchestrator/run.mjs --update
+# or: npm run agents -- --update
+```
+
 ## Manual Installation
 
 1. Copy `.agents/skills/architect/` into a subfolder of your project (never unpack directly into the repository root).

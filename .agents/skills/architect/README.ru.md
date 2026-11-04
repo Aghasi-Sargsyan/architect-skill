@@ -21,6 +21,11 @@
      ```bash
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
      ```
+   - **Обновление уже установленного скилла (одной командой):**
+     ```bash
+     node .agents/skills/architect/orchestrator/run.mjs --update
+     # или: npm run agents -- --update
+     ```
 2. **Откройте агента и напишите `/architect`** (или *«прочитай `.agents/skills/architect/SKILL.md`»*):
    - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор до утверждения не трогает файлы, одним вопросом спрашивает **модель Исполнителя** (предлагает варианты, доступные в текущем окружении, сам модель не выбирает) и предлагает добавить блок ролей в `AGENTS.md` (или `CLAUDE.md` / `GEMINI.md`). После утверждения плана в Фазе 2 Архитектор сам копирует `EXECUTOR.md` и записывает выбранную модель, блок ролей, `EXECUTOR.md` и `PLAN.md` вместе с первым коммитом плана (`arch: plan ...`). Если нужен автоматический оркестратор — Архитектор сам запускает `--init`, `--check` и `--dry-run`, а явное «да» спрашивает только для `--write-permissions`.
 
