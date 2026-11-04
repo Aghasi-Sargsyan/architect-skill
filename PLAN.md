@@ -39,7 +39,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: Замороженный тест `field-permissions-prompts.test.mjs` и существующие тесты `permissions*.test.mjs` и `prompts*.test.mjs` проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/permissions-readonly.test.mjs .agents/skills/architect/orchestrator/permissions-runners.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/prompts-en.test.mjs .agents/skills/architect/orchestrator/prompts-verify.test.mjs`
 
-- [ ] T-071: Scope .skip/.only bypass check to test-runner calls, support Frozen globs, and harden parsePlan
+- [x] T-071: Scope .skip/.only bypass check to test-runner calls, support Frozen globs, and harden parsePlan
   - Риск: высокий
   - Зависит от: T-070
   - Модель: Gemini Flash (subagent, уровень неизвестен)
