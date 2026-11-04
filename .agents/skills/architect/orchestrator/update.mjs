@@ -1,6 +1,6 @@
 // Self-update module: updates installed skill folder, syncs EXECUTOR.md, and refreshes git hooks.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,7 @@ import { installCommitMsgHook } from './hooks.mjs';
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 
 export const DEFAULT_SKILL_REPO_URL = 'https://github.com/Aghasi-Sargsyan/architect-skill.git';
+export const UPDATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Reads skill prompt version and executor policy version from a skill directory.
@@ -115,6 +116,15 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
 
     const hookResult = installCommitMsgHook({ workDir, realGit: g });
 
+    const cachePath = path.join(workDir, '.agent-runs', '.update-check.json');
+    if (existsSync(cachePath)) {
+      try {
+        rmSync(cachePath, { force: true });
+      } catch (err) {
+        // clearing cache file failed: non-fatal
+      }
+    }
+
     return {
       ok: true,
       beforeVersion,
@@ -151,4 +161,181 @@ export async function handleUpdateCli({ workDir = process.cwd(), orchestratorDir
     process.exitCode = 1;
     return { ok: false, error: msg };
   }
+}
+
+/**
+ * Checks whether an update for the installed skill is available from upstream repository.
+ * Non-blocking, fails open on network errors, caches result for 24h.
+ * @param {{
+ *   workDir?: string,
+ *   orchestratorDir?: string,
+ *   repoUrl?: string,
+ *   realGit?: string,
+ *   nowMs?: number,
+ *   ttlMs?: number,
+ *   env?: Record<string, string | undefined>,
+ *   force?: boolean,
+ * }} [param0]
+ * @returns {{
+ *   updateAvailable: boolean,
+ *   localSha?: string,
+ *   remoteSha?: string | null,
+ *   notice: string | null,
+ *   cached?: boolean,
+ * }}
+ */
+export function checkSkillUpdateAvailable({
+  workDir = process.cwd(),
+  orchestratorDir,
+  repoUrl,
+  realGit,
+  nowMs,
+  ttlMs = UPDATE_CACHE_TTL_MS,
+  env = process.env,
+  force = false,
+} = {}) {
+  const effectiveOrchDir = orchestratorDir ?? orchDir;
+  let targetSkillDir = null;
+  const candidates = [
+    path.join(workDir, '.agents', 'skills', 'architect'),
+    path.join(workDir, '.claude', 'skills', 'architect'),
+  ];
+  const resolved = resolveInstalledSkillDir(workDir, effectiveOrchDir);
+  if (resolved) candidates.push(resolved);
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      targetSkillDir = c;
+      break;
+    }
+  }
+
+  let ver = 'unknown';
+  let localSha = '';
+  if (targetSkillDir) {
+    const versionFile = path.join(targetSkillDir, '.version');
+    if (existsSync(versionFile)) {
+      try {
+        const content = readFileSync(versionFile, 'utf8').trim();
+        const match = content.match(/^(.*?)(?:\s+\(([0-9a-fA-F]+)\))?\s*$/);
+        if (match && match[1]) ver = match[1].trim();
+        if (match && match[2]) localSha = match[2].trim();
+      } catch (err) {
+        // failed reading .version file: fall back to readSkillVersion
+        ver = readSkillVersion(targetSkillDir);
+      }
+    } else {
+      ver = readSkillVersion(targetSkillDir);
+    }
+  }
+
+  const now = typeof nowMs === 'number' ? nowMs : Number(new Date());
+  const effectiveTtl = typeof ttlMs === 'number' ? ttlMs : UPDATE_CACHE_TTL_MS;
+  const cacheFile = path.join(workDir, '.agent-runs', '.update-check.json');
+
+  if (!force && existsSync(cacheFile)) {
+    try {
+      const cache = JSON.parse(readFileSync(cacheFile, 'utf8'));
+      if (
+        cache &&
+        typeof cache.checkedAt === 'number' &&
+        (now - cache.checkedAt) >= 0 &&
+        (now - cache.checkedAt) < effectiveTtl &&
+        cache.localSha === localSha
+      ) {
+        return {
+          updateAvailable: Boolean(cache.updateAvailable),
+          localSha: cache.localSha,
+          remoteSha: cache.remoteSha ?? null,
+          notice: cache.notice ?? null,
+          cached: true,
+        };
+      }
+    } catch (err) {
+      // cache corrupted or unreadable: continue with live check
+    }
+  }
+
+  const isTestOrDisabled = Boolean(
+    process.env.NODE_TEST_CONTEXT ||
+    process.env.ARCHITECT_NO_UPDATE_CHECK === '1' ||
+    (env && env.ARCHITECT_NO_UPDATE_CHECK === '1')
+  );
+  const allowNetwork = Boolean(force || repoUrl);
+  if (isTestOrDisabled && !allowNetwork) {
+    return {
+      updateAvailable: false,
+      localSha,
+      remoteSha: null,
+      notice: null,
+      cached: false,
+    };
+  }
+
+  const g = realGit ?? which('git');
+  if (!g) {
+    return { updateAvailable: false, localSha, remoteSha: null, notice: null, cached: false };
+  }
+  const targetRepo = repoUrl ?? env?.ARCHITECT_SKILL_REPO_URL ?? process.env.ARCHITECT_SKILL_REPO_URL ?? DEFAULT_SKILL_REPO_URL;
+
+  let stdout = '';
+  try {
+    const childEnv = {
+      ...(env ?? process.env),
+      GIT_TERMINAL_PROMPT: '0',
+    };
+    const res = spawnSync(g, ['ls-remote', targetRepo, 'HEAD'], {
+      timeout: 1500,
+      env: childEnv,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    if (res.status === 0 && res.stdout) {
+      stdout = res.stdout;
+    } else {
+      return { updateAvailable: false, localSha, remoteSha: null, notice: null, cached: false };
+    }
+  } catch (err) {
+    // git ls-remote failed or timed out: fail open
+    return { updateAvailable: false, localSha, remoteSha: null, notice: null, cached: false };
+  }
+
+  const remoteSha = stdout.trim().split(/\s+/)[0] || '';
+  if (!remoteSha || !/^[0-9a-fA-F]{7,40}$/.test(remoteSha)) {
+    return { updateAvailable: false, localSha, remoteSha: null, notice: null, cached: false };
+  }
+
+  const isMatch = Boolean(
+    localSha &&
+    (remoteSha.toLowerCase().startsWith(localSha.toLowerCase()) ||
+     localSha.toLowerCase().startsWith(remoteSha.toLowerCase()))
+  );
+  const updateAvailable = !isMatch;
+  const shortLocal = localSha ? localSha.slice(0, 7) : 'unknown';
+  const shortRemote = remoteSha.slice(0, 7);
+  const notice = updateAvailable
+    ? `! skill update available: ${ver} (${shortLocal} -> ${shortRemote}) — run "/architect update" or "node .agents/skills/architect/orchestrator/run.mjs --update"`
+    : null;
+
+  const cacheData = {
+    checkedAt: now,
+    localSha,
+    remoteSha,
+    ver,
+    updateAvailable,
+    notice,
+  };
+  try {
+    mkdirSync(path.dirname(cacheFile), { recursive: true });
+    writeFileSync(cacheFile, JSON.stringify(cacheData, null, 2), 'utf8');
+  } catch (err) {
+    // writing update check cache failed: non-fatal
+  }
+
+  return {
+    updateAvailable,
+    localSha,
+    remoteSha,
+    notice,
+    cached: false,
+  };
 }

@@ -14,6 +14,7 @@ import { checkParallelTasks, parsePlan } from './plan.mjs';
 import { git, resolveMergeBase } from './git.mjs';
 import { checkExecutorRun, formatMechanicsReport, runTaskVerification } from './mechanics.mjs';
 import { resolveBaseShaForTask, scanRangeCommitMessages } from './hooks.mjs';
+import { checkSkillUpdateAvailable } from './update.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -68,28 +69,17 @@ export function parseArgs(argv) {
     throw new Error('--only expects ID like T-NNN');
   }
 
-  if (opts.team && !opts.init) {
-    throw new Error('--team is allowed only with --init');
-  }
-
-  if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) {
-    throw new Error('--base is allowed only with --self-check or --check-task');
-  }
+  if (opts.team && !opts.init) throw new Error('--team is allowed only with --init');
+  if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) throw new Error('--base is allowed only with --self-check or --check-task');
 
   const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update];
   if (modeFlags.filter(Boolean).length > 1) {
     throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, --install-hooks, and --update: only one per invocation');
   }
 
-  if (opts.answer !== null && !/^[123]$/.test(opts.answer)) {
-    throw new Error('--answer expects 1, 2, or 3');
-  }
-  if (opts.since !== null && (opts.watch === null || opts.since < 0)) {
-    throw new Error('--since N requires --watch, N is milestone count from previous output');
-  }
-  if (opts.background && opts.pause) {
-    throw new Error('--background is incompatible with --pause: no interactive terminal in background');
-  }
+  if (opts.answer !== null && !/^[123]$/.test(opts.answer)) throw new Error('--answer expects 1, 2, or 3');
+  if (opts.since !== null && (opts.watch === null || opts.since < 0)) throw new Error('--since N requires --watch, N is milestone count from previous output');
+  if (opts.background && opts.pause) throw new Error('--background is incompatible with --pause: no interactive terminal in background');
 
   return opts;
 }
@@ -204,6 +194,8 @@ export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = nu
 
   const violations = [...fast.violations, ...(redCheck.violations ?? [])];
   const notVerified = [...fast.notVerified, ...(redCheck.notVerified ?? [])];
+  const updateRes = checkSkillUpdateAvailable({ workDir, orchestratorDir, realGit: g, env });
+  const updateNotice = updateRes?.updateAvailable ? updateRes.notice : null;
 
   return {
     ...fast,
@@ -212,6 +204,7 @@ export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = nu
     warnings: fast.warnings ?? [],
     notVerified,
     redCheck,
+    updateNotice,
   };
 }
 
@@ -221,6 +214,7 @@ export function formatSelfCheckReport(res) {
   const base = res.baseSha ? res.baseSha.slice(0, 7) : 'unknown';
   const head = res.headSha ? res.headSha.slice(0, 7) : 'unknown';
   lines.push(`${status} (${base}..${head})`);
+  if (res.updateNotice) lines.push(res.updateNotice.startsWith('! ') ? res.updateNotice : `! ${res.updateNotice}`);
 
   if (res.violations && res.violations.length > 0) {
     lines.push(`\nViolations (${res.violations.length}):`);
@@ -252,8 +246,9 @@ export function formatSelfCheckReport(res) {
   return lines.join('\n');
 }
 
-export function formatStartupNotices({ waivers = [], rejectedBlockers = [] } = {}) {
+export function formatStartupNotices({ waivers = [], rejectedBlockers = [], updateNotice = null } = {}) {
   const notices = [];
+  if (updateNotice) notices.push(updateNotice.startsWith('! ') ? updateNotice : `! ${updateNotice}`);
   for (const w of waivers) notices.push(`• Active WAIVER ${w.sha7}: ${w.rule} — ${w.reason}`);
   for (const b of rejectedBlockers) notices.push(`• Rejected audit blocker ${b.id}: ${b.reason || b.finding?.summary || 'rejected'}`);
   return notices;
@@ -388,4 +383,4 @@ export async function handleCheckTaskCli({ opts = {}, config, configPath, workDi
   return res;
 }
 
-export { handleUpdateCli } from './update.mjs';
+export { checkSkillUpdateAvailable, UPDATE_CACHE_TTL_MS, handleUpdateCli } from './update.mjs';

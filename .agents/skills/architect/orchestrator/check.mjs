@@ -14,6 +14,7 @@ import { findExecutable, readEvents } from './events.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { agySettingsPath } from './permissions.mjs';
 import { checkCommitMsgHook, checkExecutorModelConfig, resolveExecutorModelInfo } from './hooks.mjs';
+import { checkSkillUpdateAvailable } from './update.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MIN_NODE = 22;
@@ -351,6 +352,8 @@ export async function runCheckCommand({ config, workDir, realGit, settingsPath =
   if (config.permissions === 'allowlist') results.push(adapter.permissions.check({ config, settingsPath: resolvedSettings, workDir }));
   results.push(...runnerChecks({ config, workDir }));
   for (const r of results) print(`${r.ok ? '✓' : '✗'} ${r.name}: ${r.detail}`);
+  const updateCheck = checkSkillUpdateAvailable({ workDir, realGit });
+  if (updateCheck?.updateAvailable && updateCheck.notice) print(updateCheck.notice);
   const allOk = results.every((r) => r.ok);
   if (config.permissions !== 'allowlist') print('– permission probe: skipped (permissions is not "allowlist")');
   else if (!allOk) print('– permission probe: skipped — fix the ✗ items above first');
