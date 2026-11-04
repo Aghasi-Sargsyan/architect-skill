@@ -37,7 +37,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: Замороженный тест `update.test.mjs` и существующие тесты `cli.test.mjs` и `run.test.mjs` проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/update.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
 
-- [ ] T-074: Document --update command in root README.md, skill README.en.md, skill README.ru.md, and AGENTS.md
+- [x] T-074: Document --update command in root README.md, skill README.en.md, skill README.ru.md, and AGENTS.md
   - Риск: высокий
   - Зависит от: T-073
   - Модель: Gemini Flash (subagent, уровень неизвестен)
