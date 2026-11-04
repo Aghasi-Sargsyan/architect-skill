@@ -5,6 +5,7 @@ import { git, commitsSince, porcelain, resolveMergeBase, findSquashViolations } 
 import { alwaysFrozenFiles, isAlwaysFrozenFile } from './layout.mjs';
 import { which } from './guards.mjs';
 import { BASE_COMMANDS, commandProblem } from './permissions.mjs';
+import { matchesFrozenPath } from './plan.mjs';
 
 function matchesProtectedConfig(file, patterns) {
   if (!patterns || !patterns.length) return false;
@@ -37,6 +38,7 @@ export function isTestFile(filePath, patterns = DEFAULT_TEST_FILE_PATTERNS) {
 }
 
 const PROTO_BYPASS_RE = /(?:prototype|globalThis|__proto__)/;
+const TEST_SKIP_ONLY_RE = /\b(?:describe|it|test|suite|context|bench|t)(?:\s*\.\s*(?:concurrent|sequential|todo|shuffle|scoped|serial|each|for))*(?:\s*\([^)]*\))?\s*\.\s*(?:skip|only)\s*\(/;
 
 /**
  * Added lines of a unified diff that match any bypass pattern (config.bypassPatterns).
@@ -70,7 +72,7 @@ export function findBypasses(diffText, patterns, testFilePatterns) {
     }
     if (line.startsWith('+')) {
       const added = line.slice(1);
-      if (activePatterns.some((re) => re.test(added))) {
+      if (activePatterns.some((re) => (re.source === '\\.(skip|only)\\(' ? TEST_SKIP_ONLY_RE.test(added) : re.test(added)))) {
         result.push(added);
       }
     }
@@ -119,7 +121,7 @@ export function checkExecutorRun(opts) {
     violations.push('no new commit on HEAD (baseSha === headSha): no task commits found');
   }
 
-  const effectiveFrozen = new Set([...(frozen ?? []), ...alwaysFrozenFiles(configPath, { workDir: cwd, orchestratorDir })]);
+  const effectiveFrozen = [...(frozen ?? []), ...alwaysFrozenFiles(configPath, { workDir: cwd, orchestratorDir })];
   const isHighRisk = /^(высокий|high)$/i.test((task.risk ?? '').trim());
   const taskChange = task.change ?? task.changeFiles ?? [];
   const scanPaths = rawScanPaths ?? codePaths ?? [];
@@ -138,7 +140,7 @@ export function checkExecutorRun(opts) {
       if (nf === 'PLAN.md' || nf === '.architect/PLAN.md') {
         violations.push(`${short} modifies ${f}: task commits must not modify PLAN.md`);
       }
-      if (effectiveFrozen.has(f) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
+      if (matchesFrozenPath(f, effectiveFrozen) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
         violations.push(`${short} touches Frozen — touched Frozen: ${f}`);
       } else {
         if (!isHighRisk && matchesProtectedConfig(f, protectedConfigFiles)) {
@@ -244,13 +246,13 @@ export function inspectFailedExecutorTurn({
     issues.push(`uncommitted changes in working tree: ${dirtyFiles.join(', ')}`);
   }
 
-  const effectiveFrozen = new Set([...(frozen ?? []), ...alwaysFrozenFiles(configPath, { workDir: cwd, orchestratorDir })]);
+  const effectiveFrozen = [...(frozen ?? []), ...alwaysFrozenFiles(configPath, { workDir: cwd, orchestratorDir })];
   const taskChange = new Set(task.change ?? task.changeFiles ?? []);
 
   const touchedFrozen = [];
   const outsideChange = [];
   for (const f of dirtyFiles) {
-    if (effectiveFrozen.has(f) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
+    if (matchesFrozenPath(f, effectiveFrozen) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
       touchedFrozen.push(f);
     } else if (!taskChange.has(f)) {
       outsideChange.push(f);

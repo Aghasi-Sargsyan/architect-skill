@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { git, gitRaw, head, isIgnored, porcelain } from './git.mjs';
-import { checkParallelTasks, nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
+import { checkParallelTasks, matchesFrozenPath, nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
 import { DEFAULTS, RUNS_DIR } from './config.mjs';
 import { isAlwaysFrozenFile, isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
 import { acquireLock, defaultSandboxRoot, installGuards, lockHolder } from './guards.mjs';
@@ -86,14 +86,15 @@ export function resolveEscalationResume({ realGit, workDir, task, layout = null,
 
   const curStatus = gitRaw(realGit, workDir, ['status', '--porcelain', '--untracked-files=all']);
   const savedStatus = readFileSync(statusPath, 'utf8');
-  if (curStatus.trim() !== savedStatus.trim()) return { ok: false, reason: 'working tree status does not match stop.status.txt' };
+  const stripRuns = (s) => s.split('\n').filter((l) => !l.includes(RUNS_DIR)).join('\n');
+  if (stripRuns(curStatus).trim() !== stripRuns(savedStatus).trim()) return { ok: false, reason: 'working tree status does not match stop.status.txt' };
 
   const curRawDiff = gitRaw(realGit, workDir, ['diff', 'HEAD']);
   const savedDiff = readFileSync(diffPath, 'utf8');
   const normCurDiff = curRawDiff.endsWith('\n') || !curRawDiff ? curRawDiff : `${curRawDiff}\n`;
   if (normCurDiff !== savedDiff) return { ok: false, reason: 'working tree diff does not match stop.diff' };
 
-  const dirtyLines = curStatus.split('\n').map((l) => l.trimEnd()).filter(Boolean);
+  const dirtyLines = stripRuns(curStatus).split('\n').map((l) => l.trimEnd()).filter(Boolean);
   if (!dirtyLines.length) return { ok: false, reason: 'working tree is clean' };
   const dirtyFiles = dirtyLines.map((l) => {
     const f = l.trimStart().replace(/^[^\s]+\s+/, '').trim();
@@ -106,10 +107,9 @@ export function resolveEscalationResume({ realGit, workDir, task, layout = null,
   }
   const planPath = path.join(workDir, layout?.planPath ?? 'PLAN.md');
   const planFrozen = existsSync(planPath) ? (parsePlan(readFileSync(planPath, 'utf8')).frozen ?? []) : [];
-  const frozenSet = new Set(planFrozen.map((p) => p.replace(/^\.\//, '')));
   for (const f of dirtyFiles) {
     const norm = f.replace(/^\.\//, '');
-    if (frozenSet.has(norm) || isAlwaysFrozenFile(norm, { workDir })) return { ok: false, reason: `dirty file "${f}" is in Frozen` };
+    if (matchesFrozenPath(norm, planFrozen) || isAlwaysFrozenFile(norm, { workDir })) return { ok: false, reason: `dirty file "${f}" is in Frozen` };
   }
   return { ok: true, taskId: task.id, runDir, reportText };
 }

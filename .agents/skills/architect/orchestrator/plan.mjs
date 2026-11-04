@@ -16,6 +16,23 @@ const FIELDS = {
   parallelWith: ['параллельно с', 'parallel with', 'параллельно', 'parallel'],
 };
 const NONE_RE = /^[—–-]*\.?$/; // «—», «-» or empty: the field is not set
+const normPath = (p) => String(p ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
+
+export function matchesFrozenPath(filePath, frozenList) {
+  if (!filePath || !frozenList) return false;
+  const list = Array.isArray(frozenList) ? frozenList : [...frozenList];
+  if (!list.length) return false;
+  const norm = normPath(filePath);
+  for (const raw of list) {
+    const pat = normPath(raw);
+    if (pat === norm) return true;
+    if (pat.includes('*')) {
+      const re = new RegExp('^' + pat.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*\*|\*/g, '.*') + '$');
+      if (re.test(norm)) return true;
+    }
+  }
+  return false;
+}
 
 export function parseExecutorField(value) {
   if (!value || typeof value !== 'string') return null;
@@ -67,7 +84,7 @@ export function parsePlan(text) {
       continue;
     }
     if (!current) continue;
-    const f = line.match(/^ {2}- ([^:]+):\s*(.*)$/);
+    const f = line.match(/^ {2}-\s*([^:]+):\s*(.*)$/);
     if (f) {
       field = fieldKey(f[1]);
       const value = f[2].trim();
@@ -107,17 +124,26 @@ export function parsePlan(text) {
       rawCasesMap.set(current, list);
     }
   }
-  const normPath = (p) => String(p).replace(/\\/g, '/').replace(/^\.\//, '');
-  const frozenNormSet = new Set(frozen.map(normPath));
+  const testFileRe = /(?:^|\/)tests\/|\.(?:test|spec)\.[^/\s]+$/;
   for (const task of tasks) {
     const raw = rawCasesMap.get(task) ?? [];
     const seen = new Set();
     const refs = [];
     for (const p of raw) {
       const np = normPath(p);
-      if (frozenNormSet.has(np) && !seen.has(np)) {
+      if (matchesFrozenPath(np, frozen) && !seen.has(np)) {
         seen.add(np);
         refs.push(p);
+      }
+    }
+    for (const cmd of task.verifyCommands ?? []) {
+      for (const tok of cmd.split(/\s+/)) {
+        const cleanTok = tok.replace(/^["'`]|["'`]$/g, '');
+        const ntok = normPath(cleanTok);
+        if (testFileRe.test(ntok) && matchesFrozenPath(ntok, frozen) && !seen.has(ntok)) {
+          seen.add(ntok);
+          refs.push(cleanTok);
+        }
       }
     }
     task.referenceTests = refs;
@@ -136,8 +162,6 @@ export function checkParallelTasks(plan) {
   const problems = [];
   if (!plan?.tasks) return problems;
   const taskMap = new Map(plan.tasks.map((t) => [t.id, t]));
-  const norm = (p) => String(p).replace(/\\/g, '/').replace(/^\.\//, '');
-  const frozenSet = new Set((plan.frozen ?? []).map(norm));
 
   const pairs = new Set();
   for (const t of plan.tasks) {
@@ -164,22 +188,22 @@ export function checkParallelTasks(plan) {
 
     for (const task of [a, b]) {
       for (const ch of task.change ?? []) {
-        if (frozenSet.has(norm(ch))) {
+        if (matchesFrozenPath(ch, plan.frozen ?? [])) {
           problems.push(`parallel task ${task.id} Change contains frozen file: ${ch}`);
         }
       }
     }
 
-    const aChange = new Set((a.change ?? []).map(norm));
+    const aChange = new Set((a.change ?? []).map(normPath));
     for (const ch of b.change ?? []) {
-      if (aChange.has(norm(ch))) {
+      if (aChange.has(normPath(ch))) {
         problems.push(`parallel tasks ${idA} and ${idB} overlap in Change: ${ch}`);
       }
     }
 
-    const aRefs = new Set((a.referenceTests ?? []).map(norm));
+    const aRefs = new Set((a.referenceTests ?? []).map(normPath));
     for (const ref of b.referenceTests ?? []) {
-      if (aRefs.has(norm(ref))) {
+      if (aRefs.has(normPath(ref))) {
         problems.push(`parallel tasks ${idA} and ${idB} overlap in referenceTests: ${ref}`);
       }
     }
