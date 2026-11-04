@@ -38,9 +38,9 @@ export function readSkillVersion(skillDir) {
 
 /**
  * Updates the installed architect skill in workDir from repoUrl.
- * @param {{ workDir?: string, orchestratorDir?: string, repoUrl?: string, realGit?: string }} param0
+ * @param {{ workDir?: string, orchestratorDir?: string, repoUrl?: string, realGit?: string, force?: boolean }} param0
  */
-export async function updateSkill({ workDir = process.cwd(), orchestratorDir, repoUrl, realGit } = {}) {
+export async function updateSkill({ workDir = process.cwd(), orchestratorDir, repoUrl, realGit, force = false } = {}) {
   if (process.env.AGENT_LOOP === '1') {
     throw new Error('cannot update skill from inside the agent loop (AGENT_LOOP=1)');
   }
@@ -72,6 +72,23 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
   const beforeVersion = readSkillVersion(targetDirs[0]);
   const g = realGit ?? which('git');
   const targetRepo = repoUrl ?? process.env.ARCHITECT_SKILL_REPO_URL ?? DEFAULT_SKILL_REPO_URL;
+
+  if (!force && g && existsSync(path.join(workDir, '.git'))) {
+    const checkPaths = [
+      ...targetDirs,
+      path.join(workDir, 'EXECUTOR.md'),
+      path.join(workDir, '.architect', 'EXECUTOR.md'),
+    ].filter((p) => existsSync(p));
+    if (checkPaths.length > 0) {
+      const res = spawnSync(g, ['status', '--porcelain', '--untracked-files=no', '--', ...checkPaths], { cwd: workDir, encoding: 'utf8' });
+      if (res.status === 0 && res.stdout && res.stdout.trim()) {
+        const dirtyFiles = res.stdout.trim().split('\n').map((l) => l.slice(3).trim()).filter(Boolean);
+        if (dirtyFiles.length > 0) {
+          throw new Error('uncommitted changes in skill files (' + dirtyFiles.join(', ') + '); commit or revert them first, or re-run with --update --force');
+        }
+      }
+    }
+  }
 
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'architect-skill-update-'));
   try {
@@ -134,11 +151,11 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
 
 /**
  * CLI handler for --update.
- * @param {{ workDir?: string, orchestratorDir?: string, repoUrl?: string, realGit?: string, print?: (msg: string) => void }} param0
+ * @param {{ workDir?: string, orchestratorDir?: string, repoUrl?: string, realGit?: string, force?: boolean, print?: (msg: string) => void }} param0
  */
-export async function handleUpdateCli({ workDir = process.cwd(), orchestratorDir, repoUrl, realGit, print = console.log } = {}) {
+export async function handleUpdateCli({ workDir = process.cwd(), orchestratorDir, repoUrl, realGit, force = false, print = console.log } = {}) {
   try {
-    const res = await updateSkill({ workDir, orchestratorDir, repoUrl, realGit });
+    const res = await updateSkill({ workDir, orchestratorDir, repoUrl, realGit, force });
     print(`• Architect Skill updated: ${res.afterVersion} (${res.commitSha})`);
     for (const d of res.targetDirs) {
       print(`  updated: ${path.relative(workDir, d) || d}`);
@@ -152,7 +169,6 @@ export async function handleUpdateCli({ workDir = process.cwd(), orchestratorDir
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     print(`✗ Update failed: ${msg}`);
-    process.exitCode = 1;
     return { ok: false, error: msg };
   }
 }

@@ -46,7 +46,7 @@ async function main() {
     console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`);
     return;
   }
-  if (opts.update) return handleUpdateCli({ workDir: process.cwd(), realGit });
+  if (opts.update) { const res = await handleUpdateCli({ workDir: process.cwd(), realGit, force: opts.force }); if (!res?.ok) process.exitCode = 1; return res; }
   if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
   const config = safeLoadConfig(configPath);
   const layout = config.paths;

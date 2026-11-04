@@ -33,7 +33,7 @@ export function parseArgs(argv) {
   const opts = {
     configPath: null, pause: false, only: null, dryRun: false, init: false, check: false, writePermissions: false,
     background: false, answer: null, watch: null, since: null, status: false, follow: false, selfCheck: false, base: null,
-    auditPlan: false, checkTask: null, installHooks: false, team: false, update: false,
+    auditPlan: false, checkTask: null, installHooks: false, team: false, update: false, force: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -42,6 +42,8 @@ export function parseArgs(argv) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
     } else if (a === '--team') {
       opts.team = true;
+    } else if (a === '--force') {
+      opts.force = true;
     } else if (a === '--check-task') {
       const next = argv[++i];
       if (!next || !/^T-\d+$/.test(next)) throw new Error('--check-task requires task ID like T-NNN');
@@ -70,6 +72,7 @@ export function parseArgs(argv) {
   }
 
   if (opts.team && !opts.init) throw new Error('--team is allowed only with --init');
+  if (opts.force && !opts.update) throw new Error('--force is allowed only with --update');
   if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) throw new Error('--base is allowed only with --self-check or --check-task');
 
   const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update];
