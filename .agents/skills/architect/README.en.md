@@ -90,7 +90,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
    node .agents/skills/architect/orchestrator/run.mjs --update
    # or: npm run agents -- --update
    ```
-   This automatically clones the latest commit into a temporary directory, atomically updates installed skill folders (`.agents/skills/architect` / `.claude/skills/architect`), records the commit SHA in `.version`, synchronizes root `EXECUTOR.md`, and refreshes git hooks without touching your project configs (`config.json`, `config.local.json`) or history.
+   This automatically clones the latest commit into a temporary directory, atomically updates installed skill folders (`.agents/skills/architect` / `.claude/skills/architect`), records the commit SHA in `.version`, synchronizes root `EXECUTOR.md`, and refreshes git hooks without touching your project configs (`config.json`, `config.local.json`) or history. `--check`, `--dry-run`, `--self-check`, and loop startup check for new upstream commits once per 24h (cached in `.agent-runs/.update-check.json`) and emit an informational `! skill update available:` line when a newer commit exists.
 2. **Without Node.js / orchestrator:** re-run the same idempotent one-line install command from Section 1 (`Quickstart`) for `.agents/skills/` or `.claude/skills/` using `mktemp -d` (`rm -rf` of the old skill folder before `cp -R`), then refresh the project copy of `EXECUTOR.md`:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md

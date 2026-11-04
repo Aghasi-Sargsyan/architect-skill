@@ -89,7 +89,7 @@
    node .agents/skills/architect/orchestrator/run.mjs --update
    # или: npm run agents -- --update
    ```
-   Клонирует свежий коммит, обновляет папки скилла (`.agents/skills/architect` / `.claude/skills/architect`), пишет SHA в `.version`, синхронизирует `EXECUTOR.md` и хуки, не затрагивая конфиги (`config.json`, `config.local.json`) и историю.
+   Клонирует свежий коммит, обновляет папки скилла (`.agents/skills/architect` / `.claude/skills/architect`), пишет SHA в `.version`, синхронизирует `EXECUTOR.md` и хуки, не затрагивая конфиги (`config.json`, `config.local.json`) и историю. Команды `--check`, `--dry-run`, `--self-check` и старт цикла проверяют наличие новых коммитов раз в 24 часа (кэш в `.agent-runs/.update-check.json`) и выводят строку `! skill update available:`.
 2. **Без Node.js:** однострочник из раздела 1 с `mktemp -d` (`rm -rf` перед `cp -R`), затем:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md

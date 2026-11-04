@@ -27,6 +27,7 @@ To update an already installed skill in your project (updates `.agents/skills/ar
 node .agents/skills/architect/orchestrator/run.mjs --update
 # or: npm run agents -- --update
 ```
+`--check`, `--dry-run`, `--self-check`, and loop startup automatically check for new upstream commits once every 24 hours (cached in `.agent-runs/.update-check.json`, non-blocking offline) and print `! skill update available: ...` when an update is ready.
 
 ## Manual Installation
 
