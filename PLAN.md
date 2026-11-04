@@ -27,7 +27,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-070: Auto-refuse npx grep/ls and npm list with suggestedCommand and harden TOOLS_RULE and executorPrompt
+- [x] T-070: Auto-refuse npx grep/ls and npm list with suggestedCommand and harden TOOLS_RULE and executorPrompt
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (subagent, уровень неизвестен)
@@ -37,7 +37,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Граничные случаи: Сохранить оба модуля `permissions.mjs` и `prompts.mjs` строго `<= 400` строк (при необходимости компактно записать однострочные ветки в `permissions.mjs`) и без пустых `catch {}` (`AGENTS.md §4`).
   - Тест-кейсы: `.agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs`
   - Готово, когда: Замороженный тест `field-permissions-prompts.test.mjs` и существующие тесты `permissions*.test.mjs` и `prompts*.test.mjs` проходят с кодом 0.
-  - Проверка: `node --test .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/permissions-readonly.test.mjs .agents/skills/architect/orchestrator/permissions-runners.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/prompts-en.test.mjs .agents/skills/architect/orchestrator/prompts-verify.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
+  - Проверка: `node --test .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/permissions-readonly.test.mjs .agents/skills/architect/orchestrator/permissions-runners.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/prompts-en.test.mjs .agents/skills/architect/orchestrator/prompts-verify.test.mjs`
 
 - [ ] T-071: Scope .skip/.only bypass check to test-runner calls, support Frozen globs, and harden parsePlan
   - Риск: высокий
@@ -49,7 +49,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Граничные случаи: Каждый из модулей `plan.mjs`, `mechanics.mjs` и `check.mjs` должен оставаться строго `<= 400` строк и без пустых `catch {}` (`AGENTS.md §4`).
   - Тест-кейсы: `.agents/skills/architect/orchestrator/field-bypass-frozen.test.mjs`
   - Готово, когда: Замороженный тест `field-bypass-frozen.test.mjs` и существующие тесты `mechanics*.test.mjs`, `plan-reference-tests.test.mjs`, `check*.test.mjs` проходят с кодом 0.
-  - Проверка: `node --test .agents/skills/architect/orchestrator/field-bypass-frozen.test.mjs .agents/skills/architect/orchestrator/mechanics-bypass.test.mjs .agents/skills/architect/orchestrator/mechanics-frozen.test.mjs .agents/skills/architect/orchestrator/plan-reference-tests.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/escalation-resume.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
+  - Проверка: `node --test .agents/skills/architect/orchestrator/field-bypass-frozen.test.mjs .agents/skills/architect/orchestrator/mechanics-bypass.test.mjs .agents/skills/architect/orchestrator/mechanics-frozen.test.mjs .agents/skills/architect/orchestrator/plan-reference-tests.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/escalation-resume.test.mjs`
 
 - [ ] T-072: Enforce retrospective section on cycle closure in selfcheck.mjs and report missing referenceTests in runRedCheck
   - Риск: высокий
