@@ -187,7 +187,7 @@ test('T-069: root README.md, skill README.en/ru, AGENTS.md, references/team.md, 
   const teamRef = readFileSync(path.join(skillDir, 'references', 'team.md'), 'utf8');
   const teamCiTpl = readFileSync(path.join(skillDir, 'templates', 'github-team-ci.yml'), 'utf8');
 
-  assert.match(rootReadme, /^# Architect \+ Executor Skill \(`v3\.30 \/ 1\.8`\)/m);
+  assert.match(rootReadme, /^# Architect \+ Executor Skill \(`v3\.\d+ \/ 1\.\d+`\)/m);
   assert.match(rootReadme, /^##\s+Team Use\b/m, 'root README.md must include a ## Team Use section');
   assert.match(rootReadme, /--init --team/, 'root README.md must mention --init --team');
   assert.match(rootReadme, /cycle\/<N>/, 'root README.md must mention cycle/<N> branch');

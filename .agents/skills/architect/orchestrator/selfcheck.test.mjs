@@ -267,7 +267,7 @@ test('T-046: live repository eval-fixtures.mjs preserves all EVAL_FIXTURE_ANCHOR
 });
 
 test('T-076: runSelfCheckGit rejects changes to SKILL.md, references/*.md, or EXECUTOR.md without version bump unless .version is updated', () => {
-  const { root, g } = initTempRepo();
+  const { root, g } = initTempRepo('t076-');
   try {
     const config = {
       bypassScanPaths: ['src'],
