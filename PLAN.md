@@ -23,7 +23,7 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-077: Защита от перезаписи незакоммиченных отслеживаемых правок в папке скилла и EXECUTOR.md при --update и флаг --force
+- [x] T-077: Защита от перезаписи незакоммиченных отслеживаемых правок в папке скилла и EXECUTOR.md при --update и флаг --force
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (subagent, уровень неизвестен)
