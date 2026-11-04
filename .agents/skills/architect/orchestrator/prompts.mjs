@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export { suggestAllowedCommand };
 
-export const TOOLS_RULE = 'Do NOT call ask_user, AskUserQuestion, or attempt user dialogue (the orchestrator runs without user interaction; return final JSON with status "escalation" or verdict "needs_user" if blocked). Read, create, and modify files using built-in file tools, not terminal commands (cat, head, sed, etc.); the terminal is only for git and verification commands, one simple command at a time, without &&, ;, or |. Do not run inline scripts such as node -e or python -c in the terminal; run a single targeted test file during work and run the task\'s Verify check once before commit. If a command is rejected, do not attempt to bypass the restriction.';
+export const TOOLS_RULE = 'Do NOT call ask_user, AskUserQuestion, or attempt user dialogue (the orchestrator runs without user interaction; return final JSON with status "escalation" or verdict "needs_user" if blocked). Read, create, and modify files using built-in file tools, not terminal commands (cat, head, tail, find, sed, etc.); the terminal is only for git and verification commands, one simple command at a time, without &&, ;, or |. Do not run inline scripts such as node -e or python -c in the terminal, arbitrary runners like npx tsx, or npm run agents; use npm ls (not npm list) for inspection, run a single targeted test file during work and run the task\'s Verify check once before commit. If a command is rejected, do not attempt to bypass the restriction.';
 
 const ANSWER_HEADER = 'FINAL ANSWER FORMAT (required — the orchestrator parses the last JSON block in your response):';
 
@@ -80,6 +80,7 @@ export function executorPrompt(task, reworkOrLayout, modelOrLayout, layoutArg) {
 
 You were launched by the orchestrator without user interaction: do not ask questions. If escalation is needed according to ${executorPath}, stop and return status "escalation".
 ${TOOLS_RULE}
+Write the git commit message in the project's commit language (e.g. in English when commitLanguage is "en").
 You are running on model ${model} (selected and passed by orchestrator): specify it in the "Model / tier" field of your report.
 ${ANSWER_FORMAT.executor(executorPath)}`;
 }

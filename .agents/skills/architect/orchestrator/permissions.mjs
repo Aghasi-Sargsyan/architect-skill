@@ -121,6 +121,7 @@ export function commandProblem(command, blockedScripts = []) {
   if (unwrappedBin === 'node' && unwrappedSecond !== '--test' && !((unwrappedSecond === '--version' || unwrappedSecond === '-v') && unwrappedTokens.length === 2)) return 'node executes arbitrary code; only node --test and node --version are allowed';
   if (unwrappedBin === 'npx') {
     if (unwrappedSecond === 'tsx' || unwrappedSecond === 'ts-node') return `npx ${unwrappedSecond} executes arbitrary scripts (including release)`;
+    if (unwrappedSecond === 'grep' || unwrappedSecond === 'ls') return `npx ${unwrappedSecond} is not allowed: run ${unwrappedSecond} directly`;
     if (!STANDALONE_TOOLS.has(unwrappedSecond)) return 'arbitrary script execution via npx is not allowed for agents (use npm test / npx tsc / npx vitest)';
   }
   if (LEADING_FLAG_RUNNERS.has(unwrappedBin) && unwrappedSecond.startsWith('-')) return `rule is too broad: leading flag "${unwrappedSecond}" before ${unwrappedBin} subcommand`;
@@ -189,10 +190,14 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
     if (LEADING_FLAG_RUNNERS.has(unwrappedBin) && unwrappedSecond.startsWith('-')) {
       reason = `leading flag "${unwrappedSecond}" before ${unwrappedBin} subcommand is not allowed: the subcommand must immediately follow ${unwrappedBin}`;
       suggestedCommand = suggestAllowedCommand(full, blockedScripts, optsOrWorkDir);
+    } else if (unwrappedBin === 'npx' && (unwrappedSecond === 'grep' || unwrappedSecond === 'ls')) {
+      suggestedCommand = unwrapped.slice(1).join(' ');
     }
-    const res = { auto: true, reason, fileTool: FILE_BINARIES.has(unwrappedBin) };
-    if (suggestedCommand !== null) res.suggestedCommand = suggestedCommand;
-    return res;
+    return { auto: true, reason, fileTool: FILE_BINARIES.has(unwrappedBin), ...(suggestedCommand !== null ? { suggestedCommand } : {}) };
+  }
+
+  if (w[0] === 'npm' && w[1] === 'list') {
+    return { auto: true, reason: 'use "npm ls" instead of "npm list"', fileTool: false, suggestedCommand: ['npm', 'ls', ...w.slice(2)].join(' ') };
   }
 
   let p = null;
