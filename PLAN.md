@@ -51,7 +51,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: Замороженный тест `field-bypass-frozen.test.mjs` и существующие тесты `mechanics*.test.mjs`, `plan-reference-tests.test.mjs`, `check*.test.mjs` проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/field-bypass-frozen.test.mjs .agents/skills/architect/orchestrator/mechanics-bypass.test.mjs .agents/skills/architect/orchestrator/mechanics-frozen.test.mjs .agents/skills/architect/orchestrator/plan-reference-tests.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/escalation-resume.test.mjs`
 
-- [ ] T-072: Enforce retrospective section on cycle closure in selfcheck.mjs and report missing referenceTests in runRedCheck
+- [x] T-072: Enforce retrospective section on cycle closure in selfcheck.mjs and report missing referenceTests in runRedCheck
   - Риск: высокий
   - Зависит от: T-071
   - Модель: Gemini Flash (subagent, уровень неизвестен)
