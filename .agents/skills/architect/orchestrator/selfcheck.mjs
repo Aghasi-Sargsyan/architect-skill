@@ -23,15 +23,11 @@ function resolveProtectedConfigFiles({ cwd, orchestratorDir = here, baseFiles = 
   const set = new Set(CONFIG_FILES);
   if (orchestratorDir && cwd) {
     const rel = path.relative(path.resolve(cwd), path.resolve(orchestratorDir, 'config.example.json')).replace(/\\/g, '/');
-    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
-      set.add(rel);
-    }
+    if (rel && !rel.startsWith('..') && !path.isAbsolute(rel)) set.add(rel);
   }
   for (const f of [...baseFiles, ...headFiles]) {
     const nf = f.replace(/\\/g, '/').replace(/^\.\//, '');
-    if (nf === 'config.example.json' || nf.endsWith('/orchestrator/config.example.json')) {
-      set.add(nf);
-    }
+    if (nf === 'config.example.json' || nf.endsWith('/orchestrator/config.example.json')) set.add(nf);
   }
   return set;
 }
@@ -153,12 +149,18 @@ function countByPatterns(content, patterns, fallback) {
   return total;
 }
 
-function countTests(content, config) {
-  return countByPatterns(content, config?.testPatterns, DEFAULT_TEST_PATTERNS);
-}
+const countTests = (content, config) => countByPatterns(content, config?.testPatterns, DEFAULT_TEST_PATTERNS);
+const countAsserts = (content, config) => countByPatterns(content, config?.assertPatterns, DEFAULT_ASSERT_PATTERNS);
 
-function countAsserts(content, config) {
-  return countByPatterns(content, config?.assertPatterns, DEFAULT_ASSERT_PATTERNS);
+function isVersionGreater(vHead, vBase) {
+  if (!vHead) return false;
+  if (!vBase) return true;
+  const [h, b] = [vHead, vBase].map((v) => String(v).split('.').map((n) => parseInt(n, 10) || 0));
+  for (let i = 0; i < Math.max(h.length, b.length); i++) {
+    const diff = (h[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
 }
 
 function isNamedTestFile(filePath, patterns = DEFAULT_TEST_FILE_PATTERNS) {
@@ -205,13 +207,10 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, warnings: [], waivers, notVerified };
 
   const warnings = scanRangeCommitMessages({ realGit, cwd, baseSha, headSha, commitLanguage: config?.commitLanguage });
-  if (config?.team === true && warnings.length > 0) {
-    violations.push(...warnings);
-  }
+  if (config?.team === true && warnings.length > 0) violations.push(...warnings);
   const allCommits = commitsSince(realGit, cwd, baseSha);
   const nonExecCommits = allCommits.filter((c) => !c.isMerge && !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
-  const squashViolations = findSquashViolations({ realGit, cwd, baseSha, headSha, commits: allCommits });
-  violations.push(...squashViolations);
+  violations.push(...findSquashViolations({ realGit, cwd, baseSha, headSha, commits: allCommits }));
   const bypassPatterns = config?.bypassRegexps ?? (config?.bypassPatterns ?? []).map((p) => new RegExp(p));
   const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean);
   const headFileSet = new Set(headFiles);
@@ -237,24 +236,16 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   }
   const planIdx = allCommits.findIndex((c) => /^arch:\s*(?:plan|план)\b/i.test(c.subject));
   const frozenTests = new Set();
-  if (planIdx !== -1) {
+  const collectFrozen = (txt) => {
     try {
-      const planAtCommit = parsePlan(git(realGit, cwd, ['show', `${allCommits[planIdx].sha}:PLAN.md`]));
-      for (const f of planAtCommit.frozen ?? []) {
+      for (const f of parsePlan(txt).frozen ?? []) {
         const nf = norm(f);
         if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
       }
-    } catch { /* cleanup: abort plan parsing for commit */ }
-  }
-  if (effectivePlanText) {
-    try {
-      const planAtHead = parsePlan(effectivePlanText);
-      for (const f of planAtHead.frozen ?? []) {
-        const nf = norm(f);
-        if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
-      }
-    } catch { /* cleanup: abort plan parsing for head */ }
-  }
+    } catch { /* cleanup: abort plan parsing */ }
+  };
+  if (planIdx !== -1) collectFrozen(git(realGit, cwd, ['show', `${allCommits[planIdx].sha}:PLAN.md`]));
+  if (effectivePlanText) collectFrozen(effectivePlanText);
 
   // 1. Content scans over non-executor commits (remediability check on HEAD)
   for (const c of nonExecCommits) {
@@ -270,9 +261,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       ].join('\n');
 
       for (const added of findBypasses(fileDiffText, bypassPatterns, config?.testFilePatterns)) {
-        if (headContent.includes(added)) {
-          violations.push(`bypass in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${added.slice(0, 100)}`);
-        }
+        if (headContent.includes(added)) violations.push(`bypass in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${added.slice(0, 100)}`);
       }
       for (const catchItem of findEmptyCatches(fileDiffText)) {
         if (catchItem.lines.length > 0 && catchItem.lines.every((l) => headContent.includes(l))) {
@@ -280,9 +269,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
         }
       }
       for (const timer of findTestTimers(fileDiffText, config?.testFilePatterns)) {
-        if (headContent.includes(timer.line)) {
-          violations.push(`test timer in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${timer.line}`);
-        }
+        if (headContent.includes(timer.line)) violations.push(`test timer in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${timer.line}`);
       }
     }
   }
@@ -361,9 +348,28 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       if (waivers.some((w) => c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))) continue;
       const mdFiles = getModifiedOrDeletedFiles(realGit, cwd, c.sha);
       const hit = mdFiles.find(isProtected);
-      if (hit) {
-        violations.push(`commit ${c.sha.slice(0, 7)} touches frozen test / config / fixtures without arch: fix-frozen: "${c.subject}" (${hit})`);
-      }
+      if (hit) violations.push(`commit ${c.sha.slice(0, 7)} touches frozen test / config / fixtures without arch: fix-frozen: "${c.subject}" (${hit})`);
+    }
+  }
+
+  // 4. Rule version bump gate on SKILL.md, references/*.md, and EXECUTOR.md
+  const changedFiles = [...new Set(allCommits.flatMap((c) => c.files.map(norm)))];
+  if (!changedFiles.some((f) => f === '.version' || f.endsWith('/.version'))) {
+    const base7 = baseSha.slice(0, 7);
+    const readBlob = (ref, f) => {
+      try { return git(realGit, cwd, ['show', `${ref}:${f}`]); } catch { /* cleanup: abort reading blob */ return ''; }
+    };
+    if (changedFiles.some((f) => f === 'SKILL.md' || f.endsWith('/SKILL.md') || /(?:^|\/)references\/[^/]+\.md$/.test(f))) {
+      const skillFile = changedFiles.find((f) => f === 'SKILL.md' || f.endsWith('/SKILL.md')) ?? headFiles.find((f) => f.endsWith('/SKILL.md') || f === 'SKILL.md') ?? 'SKILL.md';
+      const headVer = readBlob('HEAD', skillFile).match(/^#\s+Architect Prompt v([0-9.]+)/m)?.[1] ?? null;
+      const baseVer = readBlob(baseSha, skillFile).match(/^#\s+Architect Prompt v([0-9.]+)/m)?.[1] ?? null;
+      if (!isVersionGreater(headVer, baseVer)) violations.push(`skill rule files changed since ${base7} without bumping version in ${skillFile} (still v${headVer ?? 'unknown'})`);
+    }
+    if (changedFiles.some((f) => f === 'EXECUTOR.md' || f.endsWith('/EXECUTOR.md'))) {
+      const execFile = changedFiles.find((f) => f.endsWith('/EXECUTOR.md')) ?? changedFiles.find((f) => f === 'EXECUTOR.md') ?? headFiles.find((f) => f.endsWith('/EXECUTOR.md') || f === 'EXECUTOR.md') ?? 'EXECUTOR.md';
+      const headVer = readBlob('HEAD', execFile).match(/<!--\s*executor-policy-version:\s*([0-9.]+)\s*-->/)?.[1] ?? null;
+      const baseVer = readBlob(baseSha, execFile).match(/<!--\s*executor-policy-version:\s*([0-9.]+)\s*-->/)?.[1] ?? null;
+      if (!isVersionGreater(headVer, baseVer)) violations.push(`EXECUTOR.md changed since ${base7} without bumping version in ${execFile} (still ${headVer ?? 'unknown'})`);
     }
   }
 
