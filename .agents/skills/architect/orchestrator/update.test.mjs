@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from './cli.mjs';
 import * as cliMod from './cli.mjs';
+import { DEFAULTS } from './config.mjs';
+import { runCheckCommand } from './check.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 const skillDir = path.dirname(orchDir);
@@ -99,6 +101,153 @@ test('T-073 (b): handleUpdateCli updates installed skill folder, syncs root EXEC
     assert.equal(readFileSync(cfgPath, 'utf8'), customCfg, 'project config.json must not be modified by --update');
     assert.equal(existsSync(path.join(projectDir, '.git', 'hooks', 'commit-msg')), true, 'commit-msg hook must be installed/refreshed');
     assert.ok(lines.some((l) => l.includes('v3.99 / 1.9') && l.includes(upstreamSha)), 'output must report updated version and commit SHA');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('T-075 (a): checkSkillUpdateAvailable detects newer upstream commit, caches result for 24h in .agent-runs/.update-check.json, and clears after updateSkill', async () => {
+  assert.equal(typeof cliMod.checkSkillUpdateAvailable, 'function', 'cli.mjs must export checkSkillUpdateAvailable');
+
+  const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'update-check-test-')));
+  try {
+    const upstreamDir = path.join(tmp, 'upstream');
+    const projectDir = path.join(tmp, 'project');
+    mkdirSync(upstreamDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+
+    const initialSha = initUpstreamRepo(upstreamDir, 'v3.30', '1.8');
+
+    execFileSync('git', ['init', '-b', 'master'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'dev@example.com'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.name', 'Dev'], { cwd: projectDir, stdio: 'ignore' });
+
+    const projSkillDir = path.join(projectDir, '.agents', 'skills', 'architect');
+    mkdirSync(path.dirname(projSkillDir), { recursive: true });
+    cpSync(skillDir, projSkillDir, { recursive: true });
+    writeFileSync(path.join(projSkillDir, '.version'), `v3.30 / 1.8 (${initialSha})\n`);
+    writeFileSync(path.join(projectDir, 'EXECUTOR.md'), readFileSync(path.join(skillDir, 'EXECUTOR.md'), 'utf8'));
+
+    const fixedNow = 1_700_000_000_000;
+    const sameCheck = cliMod.checkSkillUpdateAvailable({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      nowMs: fixedNow,
+    });
+    assert.equal(sameCheck.updateAvailable, false, 'no update when local .version SHA matches upstream HEAD');
+    assert.equal(sameCheck.notice, null);
+
+    // Advance upstream with a new commit
+    writeFileSync(path.join(upstreamDir, 'CHANGELOG.md'), '# New release\n');
+    execFileSync('git', ['add', 'CHANGELOG.md'], { cwd: upstreamDir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'arch: new upstream commit'], { cwd: upstreamDir, stdio: 'ignore' });
+    const newerSha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: upstreamDir, encoding: 'utf8' }).trim();
+
+    // Within 24h TTL, cached result should still be returned without hitting upstream
+    const cachedSame = cliMod.checkSkillUpdateAvailable({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      nowMs: fixedNow + 1000,
+    });
+    assert.equal(cachedSame.cached, true, 'must use 24h cache within TTL');
+    assert.equal(cachedSame.updateAvailable, false);
+
+    // After 24h TTL expires, check hits upstream and detects newerSha
+    const afterTtl = cliMod.checkSkillUpdateAvailable({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      nowMs: fixedNow + 25 * 60 * 60 * 1000,
+    });
+    assert.equal(afterTtl.updateAvailable, true, 'must detect newer upstream SHA after cache TTL expires');
+    assert.equal(afterTtl.localSha, initialSha);
+    assert.ok(afterTtl.remoteSha.startsWith(newerSha.slice(0, 7)));
+    assert.match(afterTtl.notice, /skill update available/i);
+    assert.match(afterTtl.notice, /--update/);
+
+    // Running handleUpdateCli updates .version and clears/refreshes update cache
+    await cliMod.handleUpdateCli({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      print: () => {},
+    });
+    const postUpdate = cliMod.checkSkillUpdateAvailable({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      nowMs: fixedNow + 25 * 60 * 60 * 1000 + 5000,
+    });
+    assert.equal(postUpdate.updateAvailable, false, 'updateAvailable must be false immediately after updating');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('T-075 (b): checkSkillUpdateAvailable fails open on unreachable repo and surfaces ! notice in runCheckCommand and startup notices', async () => {
+  assert.equal(typeof cliMod.checkSkillUpdateAvailable, 'function', 'cli.mjs must export checkSkillUpdateAvailable');
+
+  const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'update-check-failopen-')));
+  try {
+    const upstreamDir = path.join(tmp, 'upstream');
+    const projectDir = path.join(tmp, 'project');
+    mkdirSync(upstreamDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+
+    const upstreamSha = initUpstreamRepo(upstreamDir, 'v3.99', '1.9');
+
+    execFileSync('git', ['init', '-b', 'master'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'dev@example.com'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.name', 'Dev'], { cwd: projectDir, stdio: 'ignore' });
+
+    const projSkillDir = path.join(projectDir, '.agents', 'skills', 'architect');
+    mkdirSync(path.dirname(projSkillDir), { recursive: true });
+    cpSync(skillDir, projSkillDir, { recursive: true });
+    writeFileSync(path.join(projSkillDir, '.version'), 'v3.30 / 1.8 (0000000)\n');
+
+    // Unreachable repo must fail open without throwing
+    const unreachable = cliMod.checkSkillUpdateAvailable({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: path.join(tmp, 'does-not-exist-repo'),
+      realGit: 'git',
+    });
+    assert.equal(unreachable.updateAvailable, false, 'unreachable repo must fail open with updateAvailable: false');
+    assert.equal(unreachable.notice, null);
+
+    // Populate cache from reachable upstream with newer commit
+    const detected = cliMod.checkSkillUpdateAvailable({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      force: true,
+    });
+    assert.equal(detected.updateAvailable, true);
+    assert.ok(detected.notice.includes(upstreamSha.slice(0, 7)));
+
+    // Startup notices and self-check report include update notice
+    const notices = cliMod.formatStartupNotices({ updateNotice: detected.notice });
+    assert.ok(notices.some((n) => n.startsWith('! ') && n.includes('skill update available')));
+
+    const printed = [];
+    await runCheckCommand({
+      config: { ...DEFAULTS, permissions: 'skip', executor: { model: 'gemini-3-flash' }, architect: { model: 'gemini-4-argon-high' } },
+      workDir: projectDir,
+      realGit: 'git',
+      print: (line) => printed.push(line),
+    });
+    assert.ok(
+      printed.some((line) => line.startsWith('! ') && line.includes('skill update available')),
+      'runCheckCommand must print "! skill update available: ..." notice when update is available',
+    );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
