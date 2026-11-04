@@ -265,3 +265,61 @@ test('T-046: live repository eval-fixtures.mjs preserves all EVAL_FIXTURE_ANCHOR
     raw: '- WAIVER abc1234: fix-frozen — test reason',
   });
 });
+
+test('T-076: runSelfCheckGit rejects changes to SKILL.md, references/*.md, or EXECUTOR.md without version bump unless .version is updated', () => {
+  const { root, g } = initTempRepo();
+  try {
+    const config = {
+      bypassScanPaths: ['src'],
+      bypassPatterns: ['\\bany\\b'],
+      protectedConfigFiles: ['package.json'],
+    };
+    const skillSub = path.join(root, '.agents', 'skills', 'architect');
+    mkdirSync(path.join(skillSub, 'references'), { recursive: true });
+    writeFileSync(path.join(skillSub, 'SKILL.md'), '# Architect Prompt v3.30\n\nInitial rules.\n');
+    writeFileSync(path.join(skillSub, 'EXECUTOR.md'), '<!-- executor-policy-version: 1.8 -->\n# Executor Rules\n');
+    writeFileSync(path.join(skillSub, 'references', 'retro.md'), '# Retro\nInitial ref.\n');
+    writeFileSync(path.join(root, 'PLAN.md'), '# PLAN\n\n## Decisions (ADR)\n- ADR-001: Base\n\n## Задачи\n');
+    g('add', '.agents/skills/architect/SKILL.md', '.agents/skills/architect/EXECUTOR.md', '.agents/skills/architect/references/retro.md', 'PLAN.md');
+    g('commit', '-q', '-m', 'arch: close cycle 1');
+
+    // 1. Editing SKILL.md without bumping v3.30 fails self-check
+    writeFileSync(path.join(skillSub, 'SKILL.md'), '# Architect Prompt v3.30\n\nUpdated rules without version bump.\n');
+    g('add', '.agents/skills/architect/SKILL.md');
+    g('commit', '-q', '-m', 'arch: update SKILL.md rules');
+
+    const resNoSkillBump = runSelfCheckGit({ realGit, cwd: root, config });
+    assert.equal(resNoSkillBump.ok, false, 'SKILL.md edit without version bump must fail self-check');
+    assert.match(resNoSkillBump.violations.join('\n'), /without bumping version.*SKILL\.md/i);
+
+    // 2. Bumping SKILL.md to v3.31 passes, then editing EXECUTOR.md without bumping 1.8 fails
+    writeFileSync(path.join(skillSub, 'SKILL.md'), '# Architect Prompt v3.31\n\nUpdated rules with version bump.\n');
+    writeFileSync(path.join(skillSub, 'EXECUTOR.md'), '<!-- executor-policy-version: 1.8 -->\n# Executor Rules\nUpdated executor rule.\n');
+    g('add', '.agents/skills/architect/SKILL.md', '.agents/skills/architect/EXECUTOR.md');
+    g('commit', '-q', '-m', 'arch: bump SKILL.md and edit EXECUTOR.md');
+
+    const resNoExecBump = runSelfCheckGit({ realGit, cwd: root, config });
+    assert.equal(resNoExecBump.ok, false, 'EXECUTOR.md edit without version bump must fail self-check');
+    assert.match(resNoExecBump.violations.join('\n'), /without bumping.*EXECUTOR\.md/i);
+
+    // 3. Bumping EXECUTOR.md to 1.9 passes self-check
+    writeFileSync(path.join(skillSub, 'EXECUTOR.md'), '<!-- executor-policy-version: 1.9 -->\n# Executor Rules\nUpdated executor rule.\n');
+    g('add', '.agents/skills/architect/EXECUTOR.md');
+    g('commit', '-q', '-m', 'arch: bump EXECUTOR.md version to 1.9');
+
+    const resBothBumped = runSelfCheckGit({ realGit, cwd: root, config });
+    assert.equal(resBothBumped.ok, true, `after bumping both versions, self-check must pass: ${resBothBumped.violations.join('; ')}`);
+
+    // 4. Consumer --update (touching .version alongside skill files) does not require version increase
+    g('commit', '--allow-empty', '-q', '-m', 'arch: close cycle 2');
+    writeFileSync(path.join(skillSub, 'references', 'retro.md'), '# Retro\nSynced from upstream.\n');
+    writeFileSync(path.join(skillSub, '.version'), 'v3.31 / 1.9 (abc1234)\n');
+    g('add', '.agents/skills/architect/references/retro.md', '.agents/skills/architect/.version');
+    g('commit', '-q', '-m', 'arch: update architect skill to abc1234');
+
+    const resConsumerUpdate = runSelfCheckGit({ realGit, cwd: root, config });
+    assert.equal(resConsumerUpdate.ok, true, `consumer --update with .version must pass: ${resConsumerUpdate.violations.join('; ')}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

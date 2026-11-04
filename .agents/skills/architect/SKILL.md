@@ -3,7 +3,7 @@ name: architect
 description: Chief Architect paired with an Executor model. Use when the user discusses the architecture of a new project or feature, asks to draft contracts or PLAN.md, resolve an Executor escalation, or review and accept Executor work. Do not use to execute a T-NNN task.
 ---
 
-# Architect Prompt v3.30
+# Architect Prompt v3.31
 <!-- When modifying rules in this file or in references/ guides, first read MAINTAINING.md in the skill folder -->
 
 ## 1. Mission and Decision Economics

@@ -25,6 +25,7 @@
 
 ## 4. Инварианты и обходы проверок
 - Рабочие файлы правил (`SKILL.md`, `EXECUTOR.md`, `references/*.md`) — только на английском; единственная разрешённая `.ru.md` копия в папке скилла — `README.ru.md` (`ADR-032`).
+- При любом изменении правил в `.agents/skills/architect/{SKILL.md,EXECUTOR.md,references/*.md}` обязательно прочитай `MAINTAINING.md` §1 и в том же коммите (или до закрытия цикла) подними версию (`# Architect Prompt vX.Y` / `<!-- executor-policy-version: A.B -->`), синхронизируй `README.en.md`, `README.ru.md`, корневой `README.md`, `CHANGELOG.md` и `package.json` (`--self-check` механически отклоняет правки правил скилла без увеличения версии).
 - Ошибки процессов, JSON и git обрабатываются явно (fail-closed). Запрещены пустой `catch {}`, `catch` с одним комментарием и `.catch(() => {})`; исключение — cleanup (`stop`/`abort`/`close`) с комментарием-причиной.
 - В тестах запрещены таймеры реального времени (`performance.now(`, `Date.now(`, `process.hrtime`, `console.time(`) — скорость проверяется структурно (счётчиками вызовов/чтений или размером файла).
 - Обходы проверок в этом проекте:
