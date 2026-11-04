@@ -25,7 +25,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-073: Add --update CLI flag and updateSkill module to refresh installed skill, EXECUTOR.md, and git hooks
+- [x] T-073: Add --update CLI flag and updateSkill module to refresh installed skill, EXECUTOR.md, and git hooks
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (subagent, уровень неизвестен)
