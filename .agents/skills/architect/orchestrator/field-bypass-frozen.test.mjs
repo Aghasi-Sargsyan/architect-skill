@@ -36,7 +36,7 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
-test('T-071 (a): findBypasses catches test-runner .skip/.only calls but does NOT false-positive on domain methods like this.skip(), adapter.skip(), or presenter.skip()', () => {
+test('T-071 (a): findBypasses catches test-runner .skip/.only calls but does NOT false-positive on domain methods like this.skip, adapter.skip, or presenter.skip', () => {
   const compiled = DEFAULTS.bypassPatterns.map((p) => new RegExp(p));
 
   const domainDiff = [
@@ -54,7 +54,7 @@ test('T-071 (a): findBypasses catches test-runner .skip/.only calls but does NOT
   assert.deepEqual(
     mechanicsMod.findBypasses(domainDiff, compiled),
     [],
-    'domain method .skip() calls in src/ or tests/ must not be flagged as test-skip bypasses',
+    'domain method skip calls in src/ or tests/ must not be flagged as test-skip bypasses',
   );
 
   const testBypassesDiff = [
