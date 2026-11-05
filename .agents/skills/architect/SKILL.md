@@ -3,7 +3,7 @@ name: architect
 description: Chief Architect paired with an Executor model. Use when the user discusses the architecture of a new project or feature, asks to draft contracts or PLAN.md, resolve an Executor escalation, or review and accept Executor work. Do not use to execute a T-NNN task.
 ---
 
-# Architect Prompt v3.34
+# Architect Prompt v3.35
 <!-- When modifying rules in this file or in references/ guides, first read MAINTAINING.md in the skill folder -->
 
 ## 1. Mission and Decision Economics
@@ -89,6 +89,8 @@ Reading files is allowed in any phase; creating or modifying files is allowed on
 ### Step 0: Session Start
 
 **Updating the skill (`/architect update` or `/architect:update` — fast path):** when the user asks only to update the skill, skip reading `PLAN.md`, `docs/decisions.md`, `docs/executor-profiles.md`, and orchestrator status, and do not re-read `SKILL.md` after updating. Check `.agent-runs/.lock` and `git status --porcelain` first (in Phase 2 directly): (1) if `.agent-runs/.lock` holds a live orchestrator PID, or if `<skill-folder>` or `EXECUTOR.md` has uncommitted tracked changes, stop before running `--update` and warn the user (unless they explicitly requested `--force`); (2) if the entire working tree is clean, run `node <skill-folder>/orchestrator/run.mjs --update`, commit `<skill-folder>` and `EXECUTOR.md` immediately (`arch: update architect skill to <sha>`), and report the updated version and commit SHA; (3) if other project files are dirty while `<skill-folder>` and `EXECUTOR.md` are clean, run `node <skill-folder>/orchestrator/run.mjs --update`, report the updated version and SHA, and ask before committing `<skill-folder>` and `EXECUTOR.md`.
+
+**Selecting or changing role models (`/architect model` or `/architect:model` — fast path):** when the user asks to view or change models, skip reading `PLAN.md`, `docs/decisions.md`, `docs/executor-profiles.md`, and orchestrator status. Run `node <skill-folder>/orchestrator/run.mjs --models` first to inspect current `executor` and `architect` models and all available environment models with their effort tiers: (1) **Step 1 (Role choice):** unless the user already named the target role (e.g. `/architect model executor` or `/architect model architect`), show current models for both roles and ask in `### ❓ Decision Required` which role to configure (`1 — Executor`, `2 — Architect` for headless orchestrator review, noting that the active interactive chat tab model is set in the IDE/CLI UI, or `3 — Both`); (2) **Step 2 (Model + effort choice):** show the numbered list of available environment models with effort tiers for the chosen role(s) and ask the user to pick one; (3) **Apply:** after the user replies, run `node <skill-folder>/orchestrator/run.mjs --set-model <executor|architect> <model-id>` (add `--local` if the user requested personal gitignored config or `.local.json` is already the active source) and report the updated files.
 
 Service file layouts: `classic` — `PLAN.md` and `EXECUTOR.md` in the root, `docs/decisions.md`, `docs/executor-profiles.md`, archive `docs/plans/`, config `.agents/orchestrator.json`; `compact` — the same files inside `.architect/` (`config.json`, `PLAN.md`, `EXECUTOR.md`, `decisions.md`, `executor-profiles.md`, `plans/`). Paths below use `classic`; in `compact`, take them from `.architect/`.
 
