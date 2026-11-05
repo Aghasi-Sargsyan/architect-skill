@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { which } from './guards.mjs';
+import { lockHolder, which } from './guards.mjs';
 import { resolveInstalledSkillDir } from './layout.mjs';
 import { installCommitMsgHook } from './hooks.mjs';
 
@@ -72,6 +72,13 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
   const beforeVersion = readSkillVersion(targetDirs[0]);
   const g = realGit ?? which('git');
   const targetRepo = repoUrl ?? process.env.ARCHITECT_SKILL_REPO_URL ?? DEFAULT_SKILL_REPO_URL;
+
+  if (!force) {
+    const activePid = lockHolder(path.join(workDir, '.agent-runs'));
+    if (activePid !== null) {
+      throw new Error(`cannot update skill while orchestrator loop is running (PID ${activePid} in .agent-runs/.lock); wait for the loop to finish or re-run with --update --force`);
+    }
+  }
 
   if (!force && g && existsSync(path.join(workDir, '.git'))) {
     const checkPaths = [
@@ -330,7 +337,7 @@ export function checkSkillUpdateAvailable({
   const shortLocal = localSha ? localSha.slice(0, 7) : 'unknown';
   const shortRemote = remoteSha.slice(0, 7);
   const notice = updateAvailable
-    ? `! skill update available: ${ver} (${shortLocal} -> ${shortRemote}) — run "/architect update" or "node .agents/skills/architect/orchestrator/run.mjs --update"`
+    ? `! skill update available: ${ver} (${shortLocal} -> ${shortRemote}) — run "/architect update" or "node .agents/skills/architect/orchestrator/run.mjs --update" (when no loop is running)`
     : null;
 
   const cacheData = {
