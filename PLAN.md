@@ -35,9 +35,10 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-078: Защита --update от запуска во время активного цикла оркестратора (.agent-runs/.lock) и уточнение подсказки обновления
+- [x] T-078: Защита --update от запуска во время активного цикла оркестратора (.agent-runs/.lock) и уточнение подсказки обновления
   - Риск: высокий
   - Зависит от: —
+  - Модель: Gemini Flash (subagent, уровень неизвестен)
   - Читать: `.agents/skills/architect/orchestrator/update.mjs` (строки 1–105, 320–358), `.agents/skills/architect/orchestrator/guards.mjs` (строки 255–285), `.agents/skills/architect/orchestrator/update.test.mjs` (строки 330–425)
   - Менять: `.agents/skills/architect/orchestrator/update.mjs`
   - Задача и инварианты: (1) импортировать `lockHolder` из `./guards.mjs` в `update.mjs`; (2) в `updateSkill` перед проверкой `git status` и клонированием, если `!force`, проверить `const activePid = lockHolder(path.join(workDir, '.agent-runs'))`; если `activePid !== null`, выбросить `new Error(\`cannot update skill while orchestrator loop is running (PID \${activePid} in .agent-runs/.lock); wait for the loop to finish or re-run with --update --force\`)`; (3) в `checkSkillUpdateAvailable` (`update.mjs`) дополнить текст `notice`, чтобы он заканчивался на `(when no loop is running)`: `architect skill update available (${installedShort} -> ${remoteShort}) — run "/architect update" or "node .agents/skills/architect/orchestrator/run.mjs --update" (when no loop is running)`; (4) файл `update.mjs` обязан оставаться `<= 400` строк и без пустых `catch {}`.
