@@ -402,7 +402,7 @@ test('T-078: --update refuses to run when .agent-runs/.lock holds a live PID unl
 
     // 4. Update notice clarifies to update when no loop is running / after stopping the loop
     writeFileSync(path.join(projSkillDir, '.version'), 'v3.30 / 1.8 (0000000)\n');
-    const noticeRes = updateMod.checkSkillUpdateAvailable({
+    const noticeRes = cliMod.checkSkillUpdateAvailable({
       workDir: projectDir,
       orchestratorDir: path.join(projSkillDir, 'orchestrator'),
       repoUrl: upstreamDir,
