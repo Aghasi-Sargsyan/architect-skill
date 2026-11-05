@@ -58,9 +58,10 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: `agy.test.mjs` (включая `T-079`) и `agy-parse.test.mjs` полностью проходят, `adapters/agy.mjs <= 400` строк.
   - Проверка: `node --test .agents/skills/architect/orchestrator/adapters/agy.test.mjs .agents/skills/architect/orchestrator/adapters/agy-parse.test.mjs`
 
-- [ ] T-080: Запрет read_file на бинарных ассетах в TOOLS_RULE и подсказки ls / git commit --only в autoRefusalPrompt (prompts.mjs)
+- [x] T-080: Запрет read_file на бинарных ассетах в TOOLS_RULE и подсказки ls / git commit --only в autoRefusalPrompt (prompts.mjs)
   - Риск: средний
   - Зависит от: —
+  - Модель: Gemini Flash (subagent, уровень неизвестен)
   - Читать: `.agents/skills/architect/orchestrator/prompts.mjs` (строки 1–65), `.agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs` (строки 50–105), `.agents/skills/architect/orchestrator/prompts.test.mjs` (строки 1–120)
   - Менять: `.agents/skills/architect/orchestrator/prompts.mjs`
   - Задача и инварианты: (1) в `TOOLS_RULE` (`prompts.mjs`) добавить правило не вызывать `read_file` на бинарных/нетекстовых файлах (например `.ico`, изображениях, аудио, шрифтах, архивах) и использовать `ls` (или `git ls-files`) в терминале для просмотра списков файлов вместо `find`; (2) в `autoRefusalPrompt` (`prompts.mjs`) добавить подсказку использовать `ls` при отказе на `find` и напоминание коммитить файлы задачи через `git commit --only <paths>`; (3) сохранить все существующие инварианты `prompts.test.mjs`, `prompts-en.test.mjs`, `prompts-verify.test.mjs` и удержать `prompts.mjs <= 400` строк.
