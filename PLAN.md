@@ -47,9 +47,10 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: `update.test.mjs` (включая `T-078`) полностью проходит, `update.mjs <= 400` строк.
   - Проверка: `node --test .agents/skills/architect/orchestrator/update.test.mjs`
 
-- [ ] T-079: Восстановление завершённого ответа finish из transcript.jsonl в adapters/agy.mjs при пост-ошибке суммаризации
+- [x] T-079: Восстановление завершённого ответа finish из transcript.jsonl в adapters/agy.mjs при пост-ошибке суммаризации
   - Риск: высокий
   - Зависит от: —
+  - Модель: Gemini Flash (subagent, уровень неизвестен)
   - Читать: `.agents/skills/architect/orchestrator/adapters/agy.mjs` (строки 15–55, 190–245), `.agents/skills/architect/orchestrator/adapters/agy.test.mjs` (строки 1–136)
   - Менять: `.agents/skills/architect/orchestrator/adapters/agy.mjs`
   - Задача и инварианты: (1) экспортировать функцию `finishFromTranscript(conversationId, home = os.homedir())` в `adapters/agy.mjs`, которая читает `transcriptPath(conversationId, home)` и ищет с конца к началу запись со статусом `row.status === 'DONE'` и элементом `tc` в `row.tool_calls`, у которого `tc.name === 'finish'` и `tc.args` (объект или JSON-строка) содержит непустое строковое поле `status` (или `verdict`); возвращает распарсенный объект `args` или `null`, если файл отсутствует или подходящий вызов не найден; (2) в `runAgent` (`adapters/agy.mjs`), после проверки `deniedFromTranscript`, когда `raw && raw.status !== 'SUCCESS'`, если `r.status === 0`, вызвать `const finishArgs = finishFromTranscript(conv, home)`; если `finishArgs` найден, попытаться распарсить `parseAgentResponse(raw.response)` (а если `raw.response` пуст или не парсится в JSON — использовать `finishArgs` как `json`), вывести в `log` строку `agy: recovered completed finish response after status ${raw.status}` и вернуть `{ ok: true, json, raw, recoveredAfterFinish: true, conversationId: conv, transcript, attempts: attempt, seconds: elapsed() }`; (3) если `finishArgs === null` (или были `denied_actions` / `deniedFromTranscript`), сохранять прежнее fail-closed поведение с ретраями; (4) `adapters/agy.mjs` обязан оставаться `<= 400` строк и без пустых `catch {}`.
