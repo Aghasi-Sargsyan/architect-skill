@@ -23,7 +23,7 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-082: Реализовать модуль orchestrator/models.mjs и CLI-флаги --models и --set-model <executor|architect> <model> [--local] в cli.mjs и run.mjs
+- [x] T-082: Реализовать модуль orchestrator/models.mjs и CLI-флаги --models и --set-model <executor|architect> <model> [--local] в cli.mjs и run.mjs
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (`flash`)
