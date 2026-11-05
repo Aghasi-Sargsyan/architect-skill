@@ -44,6 +44,26 @@ export function deniedFromTranscript(conversationId, home = os.homedir()) {
   return null;
 }
 
+/** Scans newest-to-oldest rows for a completed `finish` tool call and returns its args, or null. */
+export function finishFromTranscript(conversationId, home = os.homedir()) {
+  const file = conversationId ? transcriptPath(conversationId, home) : '';
+  if (!file || !existsSync(file)) return null;
+  let lines = null;
+  try { lines = readFileSync(file, 'utf8').split('\n').filter((l) => l.trim()); } catch (err) { return null; /* unreadable or locked */ }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    let row = null;
+    try { row = JSON.parse(lines[i]); } catch (err) { continue; /* skip partial line */ }
+    if (row?.status !== 'DONE' || !Array.isArray(row.tool_calls)) continue;
+    for (const tc of row.tool_calls) {
+      if (tc?.name !== 'finish') continue;
+      let a = tc.args;
+      if (typeof a === 'string') try { a = JSON.parse(a); } catch (err) { a = null; /* invalid args */ }
+      if (a && typeof a === 'object' && typeof (a.status ?? a.verdict) === 'string') return a;
+    }
+  }
+  return null;
+}
+
 /** spawn() as a promise with collected output and a timeout (SIGTERM -> SIGKILL). */
 function spawnCollect(bin, args, { cwd, env, timeoutMs, killGraceMs = 5000 }) {
   return new Promise((resolve) => {
@@ -221,6 +241,16 @@ export async function runAgent({ bin, model, prompt, cwd, schemaPath, env, skipP
         lastError = `response does not match JSON schema (${errText(err)}): ${String(raw.response).slice(0, 400)}`;
       }
     } else if (raw) {
+      if (r.status === 0) {
+        const finishArgs = finishFromTranscript(conv, home);
+        if (finishArgs) {
+          let json = finishArgs;
+          try { const p = parseAgentResponse(raw.response ?? ''); if (p?.json && typeof p.json === 'object') json = p.json; }
+          catch (err) { json = finishArgs; /* fallback */ }
+          log?.(`  agy: recovered completed finish response after status ${raw.status}`);
+          return { ok: true, json, raw, recoveredAfterFinish: true, conversationId: conv, transcript, attempts: attempt, seconds: elapsed() };
+        }
+      }
       const resp = (raw.response != null ? String(raw.response) : '').trim();
       const err = (r.stderr != null ? String(r.stderr) : '').trim();
       const detail = resp || err || JSON.stringify(raw);
