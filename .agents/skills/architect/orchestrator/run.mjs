@@ -22,6 +22,7 @@ import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
 import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig, loadConfigOrDefaults, handleCheckTaskCli, handleUpdateCli } from './cli.mjs';
 import { checkPostReviewSelfCheck } from './selfcheck.mjs';
 import { installCommitMsgHook } from './hooks.mjs';
+import { handleModelsCli } from './models.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,12 +42,9 @@ async function main() {
     console.log(`\nAllowlist for ${adapter.displayName}: ${adapter.permissions.settingsShown}, keys permissions.allow and permissions.deny.\nRules for command(...) are configured once per computer, with subcommand only: Antigravity matches by prefix, "command(git)" would allow git push too.\nwrite_file(<project>) and denying writes to its .git are configured once per project.\n\n${adapter.permissions.allowlistBlock(adapter.permissions.rulesFor(ready, realOrResolved(ready.workDir ?? process.cwd())))}\n\nInsert the block manually or add it with backup: run with --write-permissions. Then run with --check.`);
     return;
   }
-  if (opts.installHooks) {
-    const res = installCommitMsgHook({ workDir: process.cwd(), realGit });
-    console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`);
-    return;
-  }
+  if (opts.installHooks) { const res = installCommitMsgHook({ workDir: process.cwd(), realGit }); console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`); return; }
   if (opts.update) { const res = await handleUpdateCli({ workDir: process.cwd(), realGit, force: opts.force }); if (!res?.ok) process.exitCode = 1; return res; }
+  if (opts.models || opts.setModel) return handleModelsCli({ workDir: process.cwd(), opts });
   if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
   const config = safeLoadConfig(configPath);
   const layout = config.paths;

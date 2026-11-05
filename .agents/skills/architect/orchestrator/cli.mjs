@@ -34,16 +34,26 @@ export function parseArgs(argv) {
     configPath: null, pause: false, only: null, dryRun: false, init: false, check: false, writePermissions: false,
     background: false, answer: null, watch: null, since: null, status: false, follow: false, selfCheck: false, base: null,
     auditPlan: false, checkTask: null, installHooks: false, team: false, update: false, force: false,
+    models: false, setModel: null, local: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update'].includes(a)) {
+    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update', '--models'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
-    } else if (a === '--team') {
-      opts.team = true;
-    } else if (a === '--force') {
-      opts.force = true;
+    } else if (a === '--team') { opts.team = true;
+    } else if (a === '--force') { opts.force = true;
+    } else if (a === '--local') { opts.local = true;
+    } else if (a === '--set-model') {
+      const role = argv[++i];
+      const model = argv[++i];
+      if (!role || role.startsWith('--') || !model || model.startsWith('--')) {
+        throw new Error('--set-model requires <executor|architect> <model>');
+      }
+      if (role !== 'executor' && role !== 'architect') {
+        throw new Error('--set-model role must be executor or architect');
+      }
+      opts.setModel = { role, model };
     } else if (a === '--check-task') {
       const next = argv[++i];
       if (!next || !/^T-\d+$/.test(next)) throw new Error('--check-task requires task ID like T-NNN');
@@ -67,17 +77,15 @@ export function parseArgs(argv) {
     }
   }
 
-  if (opts.only !== null && !/^T-\d+$/.test(opts.only ?? '')) {
-    throw new Error('--only expects ID like T-NNN');
-  }
-
+  if (opts.only !== null && !/^T-\d+$/.test(opts.only ?? '')) throw new Error('--only expects ID like T-NNN');
   if (opts.team && !opts.init) throw new Error('--team is allowed only with --init');
   if (opts.force && !opts.update) throw new Error('--force is allowed only with --update');
+  if (opts.local && !opts.setModel) throw new Error('--local is allowed only with --set-model');
   if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) throw new Error('--base is allowed only with --self-check or --check-task');
 
-  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update];
+  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update, opts.models, opts.setModel !== null];
   if (modeFlags.filter(Boolean).length > 1) {
-    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, --install-hooks, and --update: only one per invocation');
+    throw new Error('--init, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, --install-hooks, --update, --models, and --set-model: only one per invocation');
   }
 
   if (opts.answer !== null && !/^[123]$/.test(opts.answer)) throw new Error('--answer expects 1, 2, or 3');
@@ -380,10 +388,9 @@ export async function handleCheckTaskCli({ opts = {}, config, configPath, workDi
     orchestratorDir,
   });
   console.log(formatMechanicsReport(res));
-  if (!res.ok) {
-    process.exitCode = 1;
-  }
+  if (!res.ok) process.exitCode = 1;
   return res;
 }
 
 export { checkSkillUpdateAvailable, UPDATE_CACHE_TTL_MS, handleUpdateCli } from './update.mjs';
+export { handleModelsCli } from './models.mjs';
