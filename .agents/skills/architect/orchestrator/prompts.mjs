@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export { suggestAllowedCommand };
 
-export const TOOLS_RULE = 'Do NOT call ask_user, AskUserQuestion, or attempt user dialogue (the orchestrator runs without user interaction; return final JSON with status "escalation" or verdict "needs_user" if blocked). Read, create, and modify files using built-in file tools, not terminal commands (cat, head, tail, find, sed, etc.); the terminal is only for git and verification commands, one simple command at a time, without &&, ;, or |. Do not run inline scripts such as node -e or python -c in the terminal, arbitrary runners like npx tsx, or npm run agents; use npm ls (not npm list) for inspection, run a single targeted test file during work and run the task\'s Verify check once before commit. If a command is rejected, do not attempt to bypass the restriction.';
+export const TOOLS_RULE = 'Do NOT call ask_user, AskUserQuestion, or attempt user dialogue (the orchestrator runs without user interaction; return final JSON with status "escalation" or verdict "needs_user" if blocked). Read, create, and modify files using built-in file tools, not terminal commands (cat, head, tail, find, sed, etc.); never call read_file on binary/non-text assets (e.g. .ico, images, audio, fonts, archives); to list directory contents, use ls (or git ls-files) in the terminal instead of find. The terminal is only for git and verification commands, one simple command at a time, without &&, ;, or |. Do not run inline scripts such as node -e or python -c in the terminal, arbitrary runners like npx tsx, or npm run agents; use npm ls (not npm list) for inspection, run a single targeted test file during work and run the task\'s Verify check once before commit. If a command is rejected, do not attempt to bypass the restriction.';
 
 const ANSWER_HEADER = 'FINAL ANSWER FORMAT (required — the orchestrator parses the last JSON block in your response):';
 
@@ -24,13 +24,22 @@ export function autoRefusalPrompt(role, { command, reason = null, suggestedComma
   let extra = '';
   let cont = '';
 
+  const isFind = /\bfind\b/.test(command) || /\bfind\b/.test(reason ?? '');
+
   if (suggestedCommand) {
     hint = ` In the project working directory, run the allowed form without the leading flag: ${suggestedCommand} ("${suggestedCommand}").`;
     extra = ' The restriction applies only to the command form, not to git itself: run other allowed commands (`git status`, `git add`, `git commit`, etc.) without a leading flag as well, from the project working directory. The restriction applies only to the form of the command, not git itself: other allowed commands also work without the leading path flag.';
     cont = ` Do not bypass the restriction: continue from where you stopped or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
+  } else if (isFind) {
+    hint = ' Use built-in file tools to read, create, and edit files, rather than the terminal. To list directory contents, use the allowed `ls` (or `git ls-files`) command instead of find.';
+    cont = ` Do not bypass the restriction: continue from where you stopped without this command or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
   } else {
     hint = ' Use built-in file tools to read, create, and edit files, rather than the terminal. For other operations, use allowed verification commands and git, one simple command at a time.';
     cont = ` Do not bypass the restriction: continue from where you stopped without this command or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
+  }
+
+  if (role === 'executor') {
+    cont += ' When committing task changes, always use `git commit --only <paths>` with explicit file paths.';
   }
 
   const head = `Command "${command}" was automatically rejected (${why}): Terminal command "${command}" is denied.${hint}${extra}${cont}`;
