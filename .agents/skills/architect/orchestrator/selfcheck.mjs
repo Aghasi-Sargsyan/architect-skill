@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { git, commitsSince, findSquashViolations } from './git.mjs';
 import { DEFAULT_TEST_FILE_PATTERNS, isTestFile, findBypasses } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
-import { scanRangeCommitMessages } from './hooks.mjs';
+import { scanRangeCommitMessages, scanRangeProcessWarnings } from './hooks.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -41,9 +41,7 @@ const CLEANUP_RE = /\b(?:stop|abort|close)\b/i;
 
 export function resolveSelfCheckBase({ realGit, cwd, baseRef = null }) {
   if (baseRef) {
-    try {
-      return { sha: git(realGit, cwd, ['rev-parse', `${baseRef}^{commit}`]), source: 'explicit' };
-    } catch {
+    try { return { sha: git(realGit, cwd, ['rev-parse', `${baseRef}^{commit}`]), source: 'explicit' }; } catch {
       // cleanup: abort base resolution with fail-closed hint
       throw new Error(`Cannot resolve --base "${baseRef}" to a commit — ensure the branch/ref is fetched (e.g. fetch-depth: 0)`);
     }
@@ -199,7 +197,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   let effectivePlanText = planText;
   if (effectivePlanText === null) {
     try { effectivePlanText = readFileSync(path.join(cwd, 'PLAN.md'), 'utf8'); } catch {
-      try { effectivePlanText = git(realGit, cwd, ['show', 'HEAD:PLAN.md']); } catch { effectivePlanText = ''; }
+      try { effectivePlanText = git(realGit, cwd, ['show', 'HEAD:PLAN.md']); } catch { /* cleanup: abort plan fallback */ effectivePlanText = ''; }
     }
   }
   const waivers = parseWaivers(effectivePlanText);
@@ -215,6 +213,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean);
   const headFileSet = new Set(headFiles);
   const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '');
+  warnings.push(...scanRangeProcessWarnings(allCommits, { isTestFile, isUnderScanPaths, config, norm }));
 
   const CLOSE_CYCLE_RE = /^arch:\s*(?:close cycle|закрытие цикла)\b/i;
   const ARCHIVE_PLAN_RE = /(?:^|\/)(?:docs|\.architect)\/plans\/[^/]+\.md$/;
@@ -244,7 +243,11 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       }
     } catch { /* cleanup: abort plan parsing */ }
   };
-  if (planIdx !== -1) collectFrozen(git(realGit, cwd, ['show', `${allCommits[planIdx].sha}:PLAN.md`]));
+  for (const c of allCommits) {
+    if (/^arch:\s*(?:plan|план)\b/i.test(c.subject)) {
+      try { collectFrozen(git(realGit, cwd, ['show', `${c.sha}:PLAN.md`])); } catch { /* cleanup: abort plan reading */ }
+    }
+  }
   if (effectivePlanText) collectFrozen(effectivePlanText);
 
   // 1. Content scans over non-executor commits (remediability check on HEAD)
@@ -280,7 +283,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   for (const testFile of baseTestFiles) {
     if (!headFileSet.has(testFile)) {
-      if (!allCommits.some((c) => /\bADR-\d+\b/.test(c.subject))) {
+      if (!allCommits.some((c) => c.files.map(norm).includes(norm(testFile)) && /\bADR-\d+\b/.test(c.subject))) {
         violations.push(`test file deleted without ADR in commit message: ${testFile}`);
       }
     } else {
@@ -315,8 +318,8 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       continue;
     }
     let baseJson = {}, headJson = {};
-    try { baseJson = JSON.parse(git(realGit, cwd, ['show', `${baseSha}:${cfgFile}`])); } catch { baseJson = {}; }
-    try { headJson = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch { headJson = {}; }
+    try { baseJson = JSON.parse(git(realGit, cwd, ['show', `${baseSha}:${cfgFile}`])); } catch { /* cleanup: abort parse base config */ baseJson = {}; }
+    try { headJson = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch { /* cleanup: abort parse head config */ headJson = {}; }
     for (const key of CONFIG_ARRAY_KEYS) {
       const baseArr = Array.isArray(baseJson[key]) ? baseJson[key] : [];
       const headArr = Array.isArray(headJson[key]) ? headJson[key] : [];
@@ -344,7 +347,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     };
 
     for (const c of commitsToCheck) {
-      if (/^arch:\s*fix-frozen\s+(?:T-\d+|audit):\s+\S/.test(c.subject)) continue;
+      if (/^arch:\s*(?:fix-frozen\s+(?:T-\d+|audit):\s+\S|(?:plan|план)\b)/i.test(c.subject)) continue;
       if (waivers.some((w) => c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))) continue;
       const mdFiles = getModifiedOrDeletedFiles(realGit, cwd, c.sha);
       const hit = mdFiles.find(isProtected);
@@ -360,16 +363,16 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       try { return git(realGit, cwd, ['show', `${ref}:${f}`]); } catch { /* cleanup: abort reading blob */ return ''; }
     };
     if (changedFiles.some((f) => f === 'SKILL.md' || f.endsWith('/SKILL.md') || /(?:^|\/)references\/[^/]+\.md$/.test(f))) {
-      const skillFile = changedFiles.find((f) => f === 'SKILL.md' || f.endsWith('/SKILL.md')) ?? headFiles.find((f) => f.endsWith('/SKILL.md') || f === 'SKILL.md') ?? 'SKILL.md';
-      const headVer = readBlob('HEAD', skillFile).match(/^#\s+Architect Prompt v([0-9.]+)/m)?.[1] ?? null;
-      const baseVer = readBlob(baseSha, skillFile).match(/^#\s+Architect Prompt v([0-9.]+)/m)?.[1] ?? null;
-      if (!isVersionGreater(headVer, baseVer)) violations.push(`skill rule files changed since ${base7} without bumping version in ${skillFile} (still v${headVer ?? 'unknown'})`);
+      const sf = changedFiles.find((f) => f === 'SKILL.md' || f.endsWith('/SKILL.md')) ?? headFiles.find((f) => f.endsWith('/SKILL.md') || f === 'SKILL.md') ?? 'SKILL.md';
+      const hVer = readBlob('HEAD', sf).match(/^#\s+Architect Prompt v([0-9.]+)/m)?.[1] ?? null;
+      const bVer = readBlob(baseSha, sf).match(/^#\s+Architect Prompt v([0-9.]+)/m)?.[1] ?? null;
+      if (!isVersionGreater(hVer, bVer)) violations.push(`skill rule files changed since ${base7} without bumping version in ${sf} (still v${hVer ?? 'unknown'})`);
     }
     if (changedFiles.some((f) => f === 'EXECUTOR.md' || f.endsWith('/EXECUTOR.md'))) {
-      const execFile = changedFiles.find((f) => f.endsWith('/EXECUTOR.md')) ?? changedFiles.find((f) => f === 'EXECUTOR.md') ?? headFiles.find((f) => f.endsWith('/EXECUTOR.md') || f === 'EXECUTOR.md') ?? 'EXECUTOR.md';
-      const headVer = readBlob('HEAD', execFile).match(/<!--\s*executor-policy-version:\s*([0-9.]+)\s*-->/)?.[1] ?? null;
-      const baseVer = readBlob(baseSha, execFile).match(/<!--\s*executor-policy-version:\s*([0-9.]+)\s*-->/)?.[1] ?? null;
-      if (!isVersionGreater(headVer, baseVer)) violations.push(`EXECUTOR.md changed since ${base7} without bumping version in ${execFile} (still ${headVer ?? 'unknown'})`);
+      const ef = changedFiles.find((f) => f.endsWith('/EXECUTOR.md') || f === 'EXECUTOR.md') ?? headFiles.find((f) => f.endsWith('/EXECUTOR.md') || f === 'EXECUTOR.md') ?? 'EXECUTOR.md';
+      const hVer = readBlob('HEAD', ef).match(/<!--\s*executor-policy-version:\s*([0-9.]+)\s*-->/)?.[1] ?? null;
+      const bVer = readBlob(baseSha, ef).match(/<!--\s*executor-policy-version:\s*([0-9.]+)\s*-->/)?.[1] ?? null;
+      if (!isVersionGreater(hVer, bVer)) violations.push(`EXECUTOR.md changed since ${base7} without bumping version in ${ef} (still ${hVer ?? 'unknown'})`);
     }
   }
 

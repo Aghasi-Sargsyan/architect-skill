@@ -108,22 +108,11 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
     const text = readFileSync(claudeAgentPath, 'utf8');
     const m = text.match(/^model:[ \t]*(\S.*)$/im);
     if (!m || !isValidModel(m[1])) {
-      return [{
-        ok: false,
-        name: 'Executor model (.claude/agents/executor.md)',
-        detail: '.claude/agents/executor.md must set an explicit "model:" (found inherit or missing)',
-      }];
+      return [{ ok: false, name: 'Executor model (.claude/agents/executor.md)', detail: '.claude/agents/executor.md must set an explicit "model:" (found inherit or missing)' }];
     }
   }
   const info = resolveExecutorModelInfo({ workDir, config });
-  if (!info.ok) {
-    return [{
-      ok: false,
-      name: 'Executor model',
-      detail: info.detail,
-    }];
-  }
-  return [];
+  return info.ok ? [] : [{ ok: false, name: 'Executor model', detail: info.detail }];
 }
 
 /**
@@ -261,15 +250,10 @@ function getCoreHooksPath({ realGit, workDir }) {
 
 export function installCommitMsgHook({ workDir = process.cwd(), realGit }) {
   const hooksPath = getCoreHooksPath({ realGit, workDir });
-  if (hooksPath) {
-    return { installed: false, skipped: true, reason: `core.hooksPath is configured (${hooksPath})` };
-  }
+  if (hooksPath) return { installed: false, skipped: true, reason: `core.hooksPath is configured (${hooksPath})` };
   const hookFile = path.join(workDir, '.git', 'hooks', 'commit-msg');
-  if (existsSync(hookFile)) {
-    const content = readFileSync(hookFile, 'utf8');
-    if (!content.includes(COMMIT_HOOK_MARKER)) {
-      return { installed: false, skipped: true, reason: 'existing custom .git/hooks/commit-msg' };
-    }
+  if (existsSync(hookFile) && !readFileSync(hookFile, 'utf8').includes(COMMIT_HOOK_MARKER)) {
+    return { installed: false, skipped: true, reason: 'existing custom .git/hooks/commit-msg' };
   }
   mkdirSync(path.dirname(hookFile), { recursive: true });
   writeFileSync(hookFile, generateCommitMsgHookScript(), { mode: 0o755 });
@@ -278,15 +262,10 @@ export function installCommitMsgHook({ workDir = process.cwd(), realGit }) {
 
 export function checkCommitMsgHook({ workDir = process.cwd(), realGit }) {
   const hooksPath = getCoreHooksPath({ realGit, workDir });
-  if (hooksPath) {
-    return { ok: false, name: 'commit-msg hook', detail: `core.hooksPath is configured (${hooksPath})` };
-  }
+  if (hooksPath) return { ok: false, name: 'commit-msg hook', detail: `core.hooksPath is configured (${hooksPath})` };
   const hookFile = path.join(workDir, '.git', 'hooks', 'commit-msg');
-  if (!existsSync(hookFile)) {
-    return { ok: false, name: 'commit-msg hook', detail: 'commit-msg hook is not installed (run with --install-hooks)' };
-  }
-  const content = readFileSync(hookFile, 'utf8');
-  if (!content.includes(COMMIT_HOOK_MARKER)) {
+  if (!existsSync(hookFile)) return { ok: false, name: 'commit-msg hook', detail: 'commit-msg hook is not installed (run with --install-hooks)' };
+  if (!readFileSync(hookFile, 'utf8').includes(COMMIT_HOOK_MARKER)) {
     return { ok: false, name: 'commit-msg hook', detail: 'existing custom .git/hooks/commit-msg without agent-loop marker' };
   }
   return { ok: true, name: 'commit-msg hook', detail: 'installed (.git/hooks/commit-msg)' };
@@ -294,11 +273,7 @@ export function checkCommitMsgHook({ workDir = process.cwd(), realGit }) {
 
 export function validateCommitMessage({ subject, commitLanguage = null, stagedFiles = [], planDiff = '', isMerge = false } = {}) {
   const s = String(subject ?? '').split('\n').map((l) => l.trim()).find(Boolean) ?? '';
-  if (!s) return { ok: true, error: null };
-
-  if (isMerge || /^Merge\b/.test(s)) {
-    return { ok: true, error: null };
-  }
+  if (!s || isMerge || /^Merge\b/.test(s)) return { ok: true, error: null };
 
   if (commitLanguage === 'en' && /[^\P{L}\p{Script=Latin}]/u.test(s)) {
     return { ok: false, error: `commit subject contains non-Latin characters (commitLanguage is "${commitLanguage}")` };
@@ -307,14 +282,9 @@ export function validateCommitMessage({ subject, commitLanguage = null, stagedFi
   const isTask = /^T-\d+(?: \(fix \d+\))?: \S/.test(s);
   const isArch = /^arch: \S/.test(s);
 
-  if (/^t-\d+/i.test(s) && !isTask) {
-    return { ok: false, error: 'malformed T-NNN commit subject: must match /^T-\\d+(?: \\(fix \\d+\\))?: \\S/' };
-  }
-
+  if (/^t-\d+/i.test(s) && !isTask) return { ok: false, error: 'malformed T-NNN commit subject: must match /^T-\\d+(?: \\(fix \\d+\\))?: \\S/' };
   if (/^(?:arch:|arch\s|arch$)/i.test(s)) {
-    if (!isArch) {
-      return { ok: false, error: 'malformed arch commit subject: must match /^arch: \\S/' };
-    }
+    if (!isArch) return { ok: false, error: 'malformed arch commit subject: must match /^arch: \\S/' };
     if (/^arch:\s*fix-frozen\b/i.test(s) && !/^arch:\s*fix-frozen\s+(?:T-\d+|audit):\s+\S/.test(s)) {
       return { ok: false, error: 'malformed arch: fix-frozen commit subject' };
     }
@@ -323,9 +293,7 @@ export function validateCommitMessage({ subject, commitLanguage = null, stagedFi
     }
   }
 
-  if (!isTask && !isArch) {
-    return { ok: false, error: 'commit subject must start with T-NNN: or arch:' };
-  }
+  if (!isTask && !isArch) return { ok: false, error: 'commit subject must start with T-NNN: or arch:' };
 
   const files = Array.isArray(stagedFiles) ? stagedFiles : [];
   if (files.length === 1) {
@@ -354,32 +322,68 @@ export function scanRangeCommitMessages({ realGit, workDir = process.cwd(), cwd 
   try {
     logOut = git(realGit, dir, ['rev-list', '--reverse', `${baseSha}..${headSha}`]);
   } catch {
+    /* cleanup: abort reading revisions */
     return warnings;
   }
   const shas = logOut.split('\n').map((s) => s.trim()).filter(Boolean);
   for (const sha of shas) {
-    let subject = '';
-    let files = [];
-    let isMerge = false;
+    let subject = '', files = [], isMerge = false;
     try {
       subject = git(realGit, dir, ['show', '-s', '--format=%s', sha]);
       const parents = git(realGit, dir, ['show', '-s', '--format=%P', sha]).trim().split(/\s+/).filter(Boolean);
       isMerge = parents.length > 1;
       files = git(realGit, dir, ['show', '--name-only', '--no-renames', '--format=', sha]).split('\n').map((f) => f.trim()).filter(Boolean);
     } catch {
+      /* cleanup: abort inspecting commit */
       continue;
     }
     let planDiff = '';
     if (files.length === 1) {
       const f = files[0].replace(/\\/g, '/').replace(/^\.\//, '');
       if (f === 'PLAN.md' || f === '.architect/PLAN.md' || f.endsWith('/PLAN.md')) {
-        try { planDiff = git(realGit, dir, ['show', '-U0', sha, '--', files[0]]); } catch { planDiff = ''; }
+        try { planDiff = git(realGit, dir, ['show', '-U0', sha, '--', files[0]]); } catch { /* cleanup: abort plan diff */ planDiff = ''; }
       }
     }
     const res = validateCommitMessage({ subject, commitLanguage, stagedFiles: files, planDiff, isMerge });
-    if (!res.ok) {
-      warnings.push(`commit ${sha.slice(0, 7)}: ${res.error} ("${subject}")`);
+    if (!res.ok) warnings.push(`commit ${sha.slice(0, 7)}: ${res.error} ("${subject}")`);
+  }
+  return warnings;
+}
+
+export function scanRangeProcessWarnings(allCommits, { isTestFile, isUnderScanPaths, config, norm } = {}) {
+  const warnings = [];
+  if (!Array.isArray(allCommits) || allCommits.length === 0) return warnings;
+  const n = norm ?? ((p) => p.replace(/\\/g, '/').replace(/^\.\//, ''));
+  const isTest = isTestFile ?? (() => false);
+  const isUnder = isUnderScanPaths ?? (() => true);
+  const warnedTasks = new Set();
+  const TASK_RE = /^(T-\d+)(?:\s*\(fix\s+\d+\))?:/;
+  const CLOSE_RE = /^arch:\s*(?:close cycle|закрытие цикла)\b/i;
+  const ARCH_IGNORED_RE = /^arch:\s*(?:plan|план|accept|приёмка|close cycle|закрытие цикла|fix-frozen|init|update)\b/i;
+
+  for (let i = 0; i < allCommits.length; i++) {
+    const m = allCommits[i].subject.match(TASK_RE);
+    if (!m) continue;
+    const taskId = m[1];
+    if (warnedTasks.has(taskId)) continue;
+    if (!allCommits.slice(i + 1).some((c) => CLOSE_RE.test(c.subject))) continue;
+    const acceptRe = new RegExp(`^arch:\\s*(?:accept|приёмка)\\s+${taskId}\\b`, 'i');
+    if (!allCommits.some((c) => acceptRe.test(c.subject))) {
+      warnedTasks.add(taskId);
+      warnings.push(`task ${taskId} has no "arch: accept ${taskId}" / "arch: приёмка ${taskId}" commit before cycle close`);
     }
   }
+
+  for (const c of allCommits) {
+    if (!/^arch:/i.test(c.subject) || ARCH_IGNORED_RE.test(c.subject)) continue;
+    if (c.files.some((tf) => isTest(n(tf), config?.testFilePatterns))) continue;
+    for (const rawFile of c.files) {
+      const f = n(rawFile);
+      if (isUnder(f, config?.bypassScanPaths) && !isTest(f, config?.testFilePatterns) && !f.endsWith('.md') && !f.endsWith('.json')) {
+        warnings.push(`commit ${c.sha.slice(0, 7)} ("${c.subject}") modifies ${f} in bypassScanPaths without test changes or NOT VERIFIED`);
+      }
+    }
+  }
+
   return warnings;
 }
