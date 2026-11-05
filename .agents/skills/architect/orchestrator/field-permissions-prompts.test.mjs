@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BASE_COMMANDS, commandProblem, proposeRules } from './permissions.mjs';
-import { TOOLS_RULE, executorPrompt } from './prompts.mjs';
+import { TOOLS_RULE, autoRefusalPrompt, executorPrompt } from './prompts.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +64,39 @@ test('T-070 (c): TOOLS_RULE and executorPrompt warn against find, tail, npx tsx,
     promptText,
     /commit language|English/i,
     'executorPrompt must remind Executor to write commit messages in the project commit language (e.g. English when commitLanguage is "en")',
+  );
+
+  for (const modName of ['permissions.mjs', 'prompts.mjs']) {
+    const lines = readFileSync(path.join(orchDir, modName), 'utf8').split('\n').length;
+    assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
+  }
+});
+
+test('T-080: TOOLS_RULE forbids read_file on binary/non-text assets and recommends ls, and autoRefusalPrompt suggests ls on find refusal and reminds about git commit --only', () => {
+  assert.match(
+    TOOLS_RULE,
+    /binary|non-text|\.ico/i,
+    'TOOLS_RULE must explicitly forbid calling read_file on binary/non-text assets (e.g. .ico, images, audio, archives)',
+  );
+  assert.match(
+    TOOLS_RULE,
+    /\bls\b/,
+    'TOOLS_RULE must mention ls as an allowed directory listing command instead of find',
+  );
+
+  const findRefusal = autoRefusalPrompt('executor', {
+    command: 'find reference/shining-crown-native -maxdepth 3 -not -path "*/831*"',
+    reason: '"find" is forbidden in the terminal: use built-in file tools for reading and modifying files',
+  });
+  assert.match(
+    findRefusal,
+    /\bls\b/,
+    'autoRefusalPrompt for find must suggest using allowed "ls" command to list directories',
+  );
+  assert.match(
+    findRefusal,
+    /--only/,
+    'autoRefusalPrompt for executor must remind to use "git commit --only" when committing task changes',
   );
 
   for (const modName of ['permissions.mjs', 'prompts.mjs']) {

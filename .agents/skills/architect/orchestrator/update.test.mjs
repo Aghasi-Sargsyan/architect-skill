@@ -330,3 +330,95 @@ test('T-077: --update refuses to overwrite uncommitted tracked changes in skill 
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('T-078: --update refuses to run when .agent-runs/.lock holds a live PID unless --force is passed, ignores stale locks, and update notice warns to run when no loop is active', async () => {
+  const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'update-lock-guard-test-')));
+  try {
+    const upstreamDir = path.join(tmp, 'upstream');
+    const projectDir = path.join(tmp, 'project');
+    mkdirSync(upstreamDir, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+
+    const upstreamSha = initUpstreamRepo(upstreamDir, 'v3.99', '1.9');
+
+    execFileSync('git', ['init', '-b', 'master'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.email', 'dev@example.com'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['config', 'user.name', 'Dev'], { cwd: projectDir, stdio: 'ignore' });
+
+    const projSkillDir = path.join(projectDir, '.agents', 'skills', 'architect');
+    mkdirSync(path.dirname(projSkillDir), { recursive: true });
+    cpSync(skillDir, projSkillDir, { recursive: true });
+    writeFileSync(path.join(projectDir, 'EXECUTOR.md'), readFileSync(path.join(skillDir, 'EXECUTOR.md'), 'utf8'));
+    execFileSync('git', ['add', '.'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'initial commit'], { cwd: projectDir, stdio: 'ignore' });
+
+    const runsDir = path.join(projectDir, '.agent-runs');
+    mkdirSync(runsDir, { recursive: true });
+    const lockFile = path.join(runsDir, '.lock');
+
+    // 1. Live PID in .agent-runs/.lock blocks --update without --force
+    writeFileSync(lockFile, `${process.pid}\n`);
+    const blockedRes = await cliMod.handleUpdateCli({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      print: () => {},
+    });
+    assert.equal(blockedRes.ok, false, '--update must fail closed when .agent-runs/.lock holds a live PID');
+    assert.match(blockedRes.error, new RegExp(`(?:loop|orchestrator).*running.*${process.pid}|PID\\s*${process.pid}`, 'i'));
+    assert.doesNotMatch(
+      readFileSync(path.join(projSkillDir, 'SKILL.md'), 'utf8'),
+      /^# Architect Prompt v3\.99/m,
+      'SKILL.md must not be modified while loop lock is active',
+    );
+
+    // 2. Stale/dead PID in .agent-runs/.lock does NOT block --update
+    writeFileSync(lockFile, '999999\n');
+    const staleRes = await cliMod.handleUpdateCli({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      print: () => {},
+    });
+    assert.equal(staleRes.ok, true, 'stale PID in .agent-runs/.lock must not block --update');
+    execFileSync('git', ['add', '.'], { cwd: projectDir, stdio: 'ignore' });
+    execFileSync('git', ['commit', '-m', 'commit after stale lock update'], { cwd: projectDir, stdio: 'ignore' });
+
+    // 3. Live PID with force: true (--update --force) succeeds
+    const upstreamSha2 = initUpstreamRepo(upstreamDir, 'v3.100', '1.9');
+    writeFileSync(lockFile, `${process.pid}\n`);
+    const forcedRes = await cliMod.handleUpdateCli({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      force: true,
+      print: () => {},
+    });
+    assert.equal(forcedRes.ok, true, '--update --force must succeed even with a live lock PID');
+    assert.equal(forcedRes.commitSha, upstreamSha2);
+
+    // 4. Update notice clarifies to update when no loop is running / after stopping the loop
+    writeFileSync(path.join(projSkillDir, '.version'), 'v3.30 / 1.8 (0000000)\n');
+    const noticeRes = updateMod.checkSkillUpdateAvailable({
+      workDir: projectDir,
+      orchestratorDir: path.join(projSkillDir, 'orchestrator'),
+      repoUrl: upstreamDir,
+      realGit: 'git',
+      force: true,
+    });
+    assert.equal(noticeRes.updateAvailable, true);
+    assert.match(
+      noticeRes.notice,
+      /when no loop is running|after.*loop/i,
+      `update notice must warn not to update mid-loop, got: ${noticeRes.notice}`,
+    );
+
+    const updateLines = readFileSync(path.join(orchDir, 'update.mjs'), 'utf8').split('\n').length;
+    assert.ok(updateLines <= 400, `update.mjs must stay <= 400 lines (got ${updateLines})`);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});

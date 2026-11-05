@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import * as agyMod from './agy.mjs';
 import { deniedFromTranscript, maskHome, runAgent, transcriptPath } from './agy.mjs';
 
 let home;
@@ -57,4 +58,81 @@ printf '%s' '${JSON.stringify({ status: 'SUCCESS', conversation_id: 'c1', respon
   const next = await runAgent({ ...base, conversationId: first.conversationId });
   assert.equal(next.ok, true);
   assert.match(readFileSync(argsLog, 'utf8').split('\n')[1], /--conversation c1/);
+});
+
+test('T-079: finishFromTranscript and runAgent recover a completed finish tool call when agy exits 0 with raw.status ERROR, while failing closed without finish', async () => {
+  const finishArgs = {
+    task_id: 'T-037',
+    status: 'done',
+    commits: ['5e3d20b655d366ab46eda2f351b3ac7874c20b91'],
+    report_markdown: '# Report T-037\nAll checks passed.',
+  };
+  const { finishFromTranscript } = agyMod;
+  assert.equal(typeof finishFromTranscript, 'function', 'finishFromTranscript must be exported from adapters/agy.mjs');
+  assert.equal(finishFromTranscript('c-missing', home), null);
+
+  const finishRow = JSON.stringify({
+    step_index: 184,
+    type: 'PLANNER_RESPONSE',
+    status: 'DONE',
+    tool_calls: [{ name: 'finish', args: finishArgs }],
+  });
+  const postFinishRow = JSON.stringify({
+    step_index: 185,
+    type: 'GENERIC',
+    status: 'DONE',
+    content: 'Task is complete. Summarize what you did and do not call any more tools.',
+  });
+  write(path.relative(home, transcriptPath('c-t037', home)), `${finishRow}\n${postFinishRow}\n`);
+  assert.deepEqual(finishFromTranscript('c-t037', home), finishArgs);
+
+  // 1. agy exits 0 with raw.status === 'ERROR' after finish tool call -> recovered with ok: true
+  const agyRecover = path.join(home, 'fake-agy-recover');
+  writeFileSync(
+    agyRecover,
+    `#!/bin/sh\nprintf '%s' '${JSON.stringify({ status: 'ERROR', conversation_id: 'c-t037', response: JSON.stringify(finishArgs) })}'\nexit 0\n`,
+  );
+  chmodSync(agyRecover, 0o755);
+  const logs = [];
+  const rec = await runAgent({
+    bin: agyRecover,
+    model: 'gemini-3.8-flash-high',
+    prompt: 'p',
+    cwd: home,
+    schemaPath: 's.json',
+    env: process.env,
+    skipPermissions: false,
+    timeoutMs: 10_000,
+    home,
+    log: (m) => logs.push(m),
+  });
+  assert.equal(rec.ok, true, 'runAgent must recover completed finish response when exit=0, no denial, and finish is in transcript');
+  assert.equal(rec.recoveredAfterFinish, true);
+  assert.deepEqual(rec.json, finishArgs);
+  assert.ok(logs.some((l) => /recovered.*finish/i.test(l)), `expected recovery log message, got: ${logs.join('; ')}`);
+
+  // 2. agy exits with raw.status === 'ERROR' and NO finish tool call in transcript -> fails closed
+  write(path.relative(home, transcriptPath('c-nofinish', home)), `${step('DONE', 'reading favicon.ico')}\n`);
+  const agyFail = path.join(home, 'fake-agy-fail');
+  writeFileSync(
+    agyFail,
+    `#!/bin/sh\nprintf '%s' '${JSON.stringify({ status: 'ERROR', conversation_id: 'c-nofinish', response: 'Unsupported mime type: image/x-icon' })}'\nexit 0\n`,
+  );
+  chmodSync(agyFail, 0o755);
+  const failed = await runAgent({
+    bin: agyFail,
+    model: 'gemini-3.8-flash-high',
+    prompt: 'p',
+    cwd: home,
+    schemaPath: 's.json',
+    env: process.env,
+    skipPermissions: false,
+    timeoutMs: 10_000,
+    home,
+  });
+  assert.equal(failed.ok, false, 'runAgent must fail closed when raw.status is ERROR and no finish call exists in transcript');
+  assert.match(failed.error, /status ERROR.*image\/x-icon/);
+
+  const agyLines = readFileSync(new URL('./agy.mjs', import.meta.url), 'utf8').split('\n').length;
+  assert.ok(agyLines <= 400, `adapters/agy.mjs must stay <= 400 lines (got ${agyLines})`);
 });

@@ -120,3 +120,117 @@ test('T-072 (b): runRedCheck reports NOT VERIFIED when an open high-risk code ta
     assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
   }
 });
+
+test('T-081 (a): runSelfCheckGit supports multi-cycle arch: plan commits without false fix-frozen violations and checks ADR-NNN on the specific commit that deleted a test file', () => {
+  const g = (...args) => execFileSync(realGit, args, { cwd: tmp, encoding: 'utf8', env: GIT_ENV }).trim();
+  g('init', '-q', '-b', 'master');
+  mkdirSync(path.join(tmp, 'tests'), { recursive: true });
+  mkdirSync(path.join(tmp, 'docs', 'plans'), { recursive: true });
+
+  writeFileSync(path.join(tmp, 'tests', 'audio.frozen.test.ts'), 'test("c7", () => { expect(1).toBe(1); });\n');
+  writeFileSync(path.join(tmp, 'tests', 'legacy.frozen.test.ts'), 'test("old", () => { expect(1).toBe(1); });\n');
+  writeFileSync(path.join(tmp, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `tests/audio.frozen.test.ts`\n- `tests/legacy.frozen.test.ts`\n');
+  g('add', 'tests/audio.frozen.test.ts', 'tests/legacy.frozen.test.ts', 'PLAN.md');
+  g('commit', '-q', '-m', 'arch: close cycle 6');
+  const baseSha = g('rev-parse', 'HEAD');
+
+  // Cycle 7 plan + close
+  writeFileSync(path.join(tmp, 'PLAN.md'), '# PLAN C7\n\n## Frozen\n- `tests/audio.frozen.test.ts`\n');
+  g('add', 'PLAN.md');
+  g('commit', '-q', '-m', 'arch: plan cycle 7 (ADR-007)');
+  writeFileSync(
+    path.join(tmp, 'docs', 'plans', '2026-11-04-cycle-7.md'),
+    '# C7\n\n## Retrospective\n\nRules: added 0 / removed 0\n',
+  );
+  g('add', 'docs/plans/2026-11-04-cycle-7.md');
+  g('commit', '-q', '-m', 'arch: close cycle 7');
+
+  // Cycle 8 plan extends frozen test tests/audio.frozen.test.ts
+  writeFileSync(
+    path.join(tmp, 'tests', 'audio.frozen.test.ts'),
+    'test("c7", () => { expect(1).toBe(1); });\ntest("c8", () => { expect(2).toBe(2); });\n',
+  );
+  writeFileSync(path.join(tmp, 'PLAN.md'), '# PLAN C8\n\n## Frozen\n- `tests/audio.frozen.test.ts`\n');
+  g('add', 'tests/audio.frozen.test.ts', 'PLAN.md');
+  g('commit', '-q', '-m', 'arch: plan cycle 8 audio preloader');
+
+  const multiCycleRes = runSelfCheckGit({
+    realGit,
+    cwd: tmp,
+    baseRef: baseSha,
+    config: { bypassScanPaths: ['src', 'tests'], bypassPatterns: [] },
+  });
+  assert.equal(
+    multiCycleRes.ok,
+    true,
+    `subsequent arch: plan commit must not trigger false fix-frozen violation, got: ${multiCycleRes.violations.join('; ')}`,
+  );
+
+  // Now delete tests/legacy.frozen.test.ts in a commit WITHOUT ADR-NNN in its own subject (even though ADR-007 was in an earlier commit)
+  g('rm', '-q', 'tests/legacy.frozen.test.ts');
+  g('commit', '-q', '-m', 'arch: remove legacy test without adr');
+  const delNoAdrRes = runSelfCheckGit({
+    realGit,
+    cwd: tmp,
+    baseRef: baseSha,
+    config: { bypassScanPaths: ['src', 'tests'], bypassPatterns: [] },
+  });
+  assert.equal(delNoAdrRes.ok, false, 'deleting a test file in a commit without ADR-NNN in that commit subject must fail');
+  assert.ok(
+    delNoAdrRes.violations.some((v) => v.includes('tests/legacy.frozen.test.ts') && /deleted without ADR/i.test(v)),
+    `expected deleted without ADR violation for legacy.frozen.test.ts, got: ${delNoAdrRes.violations.join('; ')}`,
+  );
+});
+
+test('T-081 (b): runSelfCheckGit warns when a task commit T-NNN lacks an arch: accept T-NNN commit before cycle close or when an arch: code commit in bypassScanPaths has no test changes', () => {
+  const g = (...args) => execFileSync(realGit, args, { cwd: tmp, encoding: 'utf8', env: GIT_ENV }).trim();
+  g('init', '-q', '-b', 'master');
+  mkdirSync(path.join(tmp, 'src'), { recursive: true });
+  mkdirSync(path.join(tmp, 'tests'), { recursive: true });
+  mkdirSync(path.join(tmp, 'docs', 'plans'), { recursive: true });
+
+  writeFileSync(path.join(tmp, 'src', 'server.ts'), 'export const port = 8080;\n');
+  writeFileSync(path.join(tmp, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Задачи\n- [ ] T-038: Add gate\n');
+  g('add', 'src/server.ts', 'PLAN.md');
+  g('commit', '-q', '-m', 'arch: plan cycle 10');
+  const baseSha = g('rev-parse', 'HEAD');
+
+  // 1. Executor commits T-038
+  writeFileSync(path.join(tmp, 'src', 'server.ts'), 'export const port = 8081;\n');
+  g('add', 'src/server.ts');
+  g('commit', '-q', '-m', 'T-038: Add gate');
+
+  // 2. Architect closes cycle 10 without a dedicated "arch: accept T-038" commit
+  writeFileSync(
+    path.join(tmp, 'docs', 'plans', '2026-11-05-cycle-10.md'),
+    '# Archive\n\n## Задачи\n- [x] T-038: Add gate\n\n## Ретроспектива\n\nRules: added 0 / removed 0\n',
+  );
+  writeFileSync(path.join(tmp, 'PLAN.md'), '# PLAN\n\n## Задачи\n_Открытых задач нет._\n');
+  g('add', 'docs/plans/2026-11-05-cycle-10.md', 'PLAN.md');
+  g('commit', '-q', '-m', 'arch: close cycle 10');
+
+  // 3. Architect commits runtime code directly in src/server.ts without touching tests
+  writeFileSync(path.join(tmp, 'src', 'server.ts'), 'export const port = 8082;\n');
+  g('add', 'src/server.ts');
+  g('commit', '-q', '-m', 'arch: fix playerIdToken claims in server');
+
+  const res = runSelfCheckGit({
+    realGit,
+    cwd: tmp,
+    baseRef: baseSha,
+    config: { bypassScanPaths: ['src', 'tests'], bypassPatterns: [] },
+  });
+  assert.ok(
+    res.warnings.some((w) => /T-038/i.test(w) && /accept|приёмка/i.test(w)),
+    `expected warning for T-038 missing arch: accept commit, got warnings: ${res.warnings.join('; ')}`,
+  );
+  assert.ok(
+    res.warnings.some((w) => /src\/server\.ts|fix playerIdToken/i.test(w) && /test|NOT VERIFIED/i.test(w)),
+    `expected warning for untested arch: code commit in bypassScanPaths, got warnings: ${res.warnings.join('; ')}`,
+  );
+
+  for (const modName of ['selfcheck.mjs', 'hooks.mjs']) {
+    const lines = readFileSync(path.join(orchDir, modName), 'utf8').split('\n').length;
+    assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
+  }
+});
