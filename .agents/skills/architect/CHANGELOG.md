@@ -2,6 +2,9 @@
 
 All notable changes to the `architect` skill and its embedded orchestrator are documented in this file.
 
+## v3.36 / 1.8 (2026-11-09 — Plain-Language Cycle Summary in Chat on Cycle Closure and Loop Stop)
+- **Plain-language cycle summary in chat (`ADR-055`, `SKILL.md` `v3.36`, `references/{retro,orchestrator}.md`):** Before printing the technical retrospective table at cycle closure (`references/retro.md` §1) or reporting an orchestrator loop stop on `--watch` exit code 3 (`references/orchestrator.md` §2), the Architect outputs 2–4 plain-language `- **Label:** value` bullets in chat explaining what changed for the user, what problem it solves, and how to verify it (or why the loop stopped) without file paths, function names, or commit SHAs, while keeping `docs/plans/` cycle archives strictly technical (`SKILL.md` core unchanged at `31992` bytes `<= 34 KB`).
+
 ## v3.35 / 1.8 (2026-11-05 — Cycle 25: Two-Step `/architect model` Role & Model Selector and `--models` / `--set-model` CLI)
 - **Two-step `/architect model` fast path in `SKILL.md` (`v3.35`) and `models.mjs` (`--models` / `--set-model <executor|architect> <id> [--local]`) in the orchestrator (`ADR-054`, `T-082`):** Added `/architect model` in `SKILL.md` Step 0 (`30730` → `31760` bytes `<= 34 KB`, justified by providing a zero-context two-step interactive flow: Step 1 chooses the role `Executor` / `Architect` / `Both` while displaying current models, Step 2 lists all environment models with effort tiers and saves the selection) backed by `orchestrator/models.mjs` (`extractEffort`, `resolveArchitectModelInfo`, `listAvailableModels`, `setRoleModel`, `handleModelsCli`) and `--models` / `--set-model <executor|architect> <model> [--local]` in `cli.mjs` and `run.mjs`.
 

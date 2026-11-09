@@ -24,7 +24,7 @@ This lets the user control the loop from chat, including from a phone. Before th
 - 0 (window elapsed, loop still running) → silently launch `--watch --since N` again;
 - 2 (permission question for a command) → the `### 🔐 Command Permission` block from the output is already formatted as "Questions for the user": paste it verbatim at the end of your message after `---`, omitting the "pass the user's answer: …" line (that line is for you). Before the `---` separator, accompany `### 🔐 Command Permission` with one plain-language line (what the command does, its risk, and the recommended answer), and for an unfamiliar command explicitly state: "the orchestrator does not recognize this command". Pass the user's answer via `run.mjs --answer <1|2|3>`, then run `--watch --since N` again. Never answer on the user's behalf and never propose rules broader than those offered in the question;
 - 4 (task milestone: "T-012 accepted (9 min); next T-013" or "T-013: rework 1") → output one line in chat verbatim from the output, then run `--watch --since N` again;
-- 3 (loop stopped) → report the summary from the output and what comes next.
+- 3 (loop stopped) → in chat, start with a 2–4 bullet plain-language explanation of what was accomplished during the run (without file paths, function names, or commit SHAs) and why the loop stopped, then report the technical summary from the output and what comes next.
 
 When the user asks "how is it going?", run `run.mjs --status` (one short summary) — the background `--watch` continues waiting.
 
