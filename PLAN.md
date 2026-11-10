@@ -42,7 +42,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Готово, когда: `field-permissions-prompts.test.mjs`, `permissions.test.mjs`, `prompts.test.mjs` и `run.test.mjs` проходят с кодом 0.
   - Проверка: `node --test .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
 
-- [ ] T-085: Support .architect/PLAN.md in runRedCheck and skip red-check when resuming a task after escalation on a dirty working tree (evidence.mjs)
+- [x] T-085: Support .architect/PLAN.md in runRedCheck and skip red-check when resuming a task after escalation on a dirty working tree (evidence.mjs)
   - Риск: высокий
   - Зависит от: T-084
   - Модель: Gemini Flash (`flash`)
