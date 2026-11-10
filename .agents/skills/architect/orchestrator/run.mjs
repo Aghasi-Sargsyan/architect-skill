@@ -13,7 +13,8 @@ import { acquireLock, installGuards, which } from './guards.mjs';
 import { initProject, loadConfig, RUNS_DIR } from './config.mjs';
 import { resolveConfigPath, reviewFilePath, skillFilePath } from './layout.mjs';
 import { EMPTY_CHANGE, modelResolver, readiness, resolveEscalationResume, runCheckCommand } from './check.mjs';
-import { commandProblem, maskPaths, proposeRules, readAgyRules, realOrResolved } from './permissions.mjs';
+import { commandProblem, proposeRules, readAgyRules, realOrResolved } from './permissions.mjs';
+import { handleWritePermissionsCli } from './permissions-cli.mjs';
 import { askPermission, clearQuestion, writeAnswer } from './ask.mjs';
 import { runView } from './feed.mjs';
 import { getAdapter } from './adapters/index.mjs';
@@ -51,19 +52,7 @@ async function main() {
   const layout = config.paths;
   const workDir = path.resolve(config.workDir ?? process.cwd());
   if (opts.writePermissions) {
-    const adapter = getAdapter(config);
-    const settingsPath = adapter.permissions.settingsPath(os.homedir(), workDir);
-    const ctx = { workDir: realOrResolved(workDir), home: realOrResolved(os.homedir()) };
-    const { addedAllow, addedDeny, backup } = adapter.permissions.writeAllowlist({ settingsPath, ...adapter.permissions.rulesFor(config, ctx.workDir) });
-    const added = [...addedAllow, ...addedDeny.map((r) => `deny ${r}`)];
-    if (!added.length) console.log(`• ${adapter.permissions.settingsShown}: all rules already present, file unchanged`);
-    else {
-      console.log(`• ${adapter.permissions.settingsShown}: added ${added.length} rules${backup ? ', previous version saved to settings.json.bak' : ''}`);
-      for (const rule of added) console.log(`    ${maskPaths(rule, ctx)}`);
-    }
-    const perm = adapter.permissions.check({ config, settingsPath, workDir });
-    if (!perm.ok) console.log(`✗ ${perm.detail}\n  --check and loop will not start until this is resolved`);
-    console.log('next: run with --check');
+    handleWritePermissionsCli({ config, workDir });
     return;
   }
   // Read-only views (--status, --watch for a chat; --follow for a terminal): no lock, nothing written.

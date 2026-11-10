@@ -47,7 +47,7 @@ export function claudeRulesFor(config, workDir, home = os.homedir(), { skillDir 
   return { allow, deny, additionalDirectories, sandbox: { enabled: true, autoAllowBashIfSandboxed: false, allowUnsandboxedCommands: false } };
 }
 
-export function writeClaudeAllowlist({ settingsPath = null, workDir = null, home = os.homedir(), allow = [], deny = [], additionalDirectories = [] }) {
+export function writeClaudeAllowlist({ settingsPath = null, workDir = null, home = os.homedir(), allow = [], deny = [], additionalDirectories = [], pruneCtx = null }) {
   const actualSettings = settingsPath ?? (workDir ? claudeSettingsPath(home, workDir) : claudeSettingsPath(home));
   const existed = existsSync(actualSettings);
   let json = {}, prevText = null;
@@ -60,9 +60,7 @@ export function writeClaudeAllowlist({ settingsPath = null, workDir = null, home
   if (!isObject(json.permissions)) json.permissions = {};
   json.permissions.blockReadsOutsideWorkingDirectories = true;
   for (const k of ['allow', 'deny', 'additionalDirectories']) {
-    if (json.permissions[k] !== undefined && !Array.isArray(json.permissions[k])) {
-      throw new Error(`${CLAUDE_SETTINGS_SHOWN}: permissions.${k} is not an array, file not modified`);
-    }
+    if (json.permissions[k] !== undefined && !Array.isArray(json.permissions[k])) throw new Error(`${CLAUDE_SETTINGS_SHOWN}: permissions.${k} is not an array, file not modified`);
   }
   const realWork = workDir ? realOrResolved(workDir) : null;
   const inferredWork = realWork ?? allow.map((r) => typeof r === 'string' && r.match(/^(?:Edit|Write)\(\/\/(.+?)\/\*\*?\)$/)?.[1]).filter(Boolean).map((p) => realOrResolved('/' + p.replace(/^\/+/, '')))[0] ?? null;
@@ -83,7 +81,18 @@ export function writeClaudeAllowlist({ settingsPath = null, workDir = null, home
     if (added.length) json.permissions[key] = [...current, ...added];
     return added;
   };
-  const addedAllow = merge('allow', allow), addedDeny = merge('deny', effectiveDeny);
+  const addedDeny = merge('deny', effectiveDeny);
+  let removedAllow;
+  if (pruneCtx !== null) {
+    const curAllow = json.permissions.allow ?? [];
+    const pCfg = pruneCtx.config ?? { blockedScripts: pruneCtx.blockedScripts ?? pruneCtx.blockedNpmScripts ?? [] };
+    const pWork = pruneCtx.workDir ?? inferredWork;
+    const pHome = pruneCtx.home ?? home;
+    const pDeny = json.permissions.deny ?? [];
+    removedAllow = curAllow.filter((r) => claudeRuleProblem(r, { config: pCfg, workDir: pWork, home: pHome, deny: pDeny, skillDir: pruneCtx.skillDir, skillFilePath: pruneCtx.skillFilePath }) !== null);
+    if (removedAllow.length) json.permissions.allow = curAllow.filter((r) => !removedAllow.includes(r));
+  }
+  const addedAllow = merge('allow', allow);
   if (extraDirs.length > 0) {
     const currentDirs = json.permissions.additionalDirectories ?? [];
     const addedDirs = extraDirs.filter((d) => !currentDirs.some((cd) => realOrResolved(cd) === realOrResolved(d)));
@@ -98,7 +107,7 @@ export function writeClaudeAllowlist({ settingsPath = null, workDir = null, home
     writeFileSync(tmp, newText, { mode });
     renameSync(tmp, actualSettings);
   }
-  return { addedAllow, addedDeny, backup: existed && newText !== prevText };
+  return pruneCtx !== null ? { addedAllow, addedDeny, removedAllow, backup: existed && newText !== prevText } : { addedAllow, addedDeny, backup: existed && newText !== prevText };
 }
 
 function checkClaudePathTarget(kind, targetPath, { workDir, home, deny, skillDir, skillFilePath }) {
@@ -152,12 +161,8 @@ export function claudePermissionsCheck({ config, settingsPath = null, workDir, h
   try { json = JSON.parse(readFileSync(actualSettings, 'utf8')); }
   catch (err) { return { ok: false, name, detail: `invalid JSON in ${actualSettings}: ${errText(err)}` }; }
   if (!isObject(json)) return { ok: false, name, detail: `invalid JSON in ${actualSettings}: not a JSON object` };
-  if (json.sandbox?.enabled !== true || json.sandbox?.autoAllowBashIfSandboxed !== false || json.sandbox?.allowUnsandboxedCommands !== false) {
-    return { ok: false, name, detail: 'OS sandbox is disabled, autoAllowBashIfSandboxed is not false or allowUnsandboxedCommands is not false' };
-  }
-  if (json.permissions?.blockReadsOutsideWorkingDirectories !== true) {
-    return { ok: false, name, detail: 'reading outside project is not blocked (permissions.blockReadsOutsideWorkingDirectories is not true)' };
-  }
+  if (json.sandbox?.enabled !== true || json.sandbox?.autoAllowBashIfSandboxed !== false || json.sandbox?.allowUnsandboxedCommands !== false) return { ok: false, name, detail: 'OS sandbox is disabled, autoAllowBashIfSandboxed is not false or allowUnsandboxedCommands is not false' };
+  if (json.permissions?.blockReadsOutsideWorkingDirectories !== true) return { ok: false, name, detail: 'reading outside project is not blocked (permissions.blockReadsOutsideWorkingDirectories is not true)' };
   const perms = isObject(json.permissions) ? json.permissions : {};
   for (const k of ['allow', 'deny', 'additionalDirectories']) {
     if (perms[k] !== undefined && !Array.isArray(perms[k])) return { ok: false, name, detail: `${actualSettings}: permissions.${k} is not an array` };
@@ -189,11 +194,7 @@ export function claudePermissionsCheck({ config, settingsPath = null, workDir, h
   const missing = [...wanted.allow.filter((r) => !allow.includes(r)), ...wanted.deny.filter((r) => !deny.includes(r)).map((r) => `deny ${r}`), ...missingDirs];
   if (missing.length) return { ok: false, name, detail: `missing required rules in ${actualSettings} (${missing.length}): ${missing.join(', ')} — execute: npm run agents -- --write-permissions` };
   const bashCount = allow.filter((r) => r.startsWith('Bash(')).length;
-  return {
-    ok: true,
-    name,
-    detail: `Bash(…) rules: ${bashCount}, OS sandbox enabled, reading outside project blocked, writing to project without .git and .claude, no unsafe rules`,
-  };
+  return { ok: true, name, detail: `Bash(…) rules: ${bashCount}, OS sandbox enabled, reading outside project blocked, writing to project without .git and .claude, no unsafe rules` };
 }
 
 export function extractClaudeDeniedStep(denials = []) {
@@ -232,9 +233,7 @@ export function createClaudeFormatter({ workDir, home = os.homedir() }) {
   });
 }
 
-export const listClaudeModels = () => [
-  { id: 'sonnet', name: 'Claude Sonnet' }, { id: 'opus', name: 'Claude Opus' }, { id: 'haiku', name: 'Claude Haiku' },
-];
+export const listClaudeModels = () => [{ id: 'sonnet', name: 'Claude Sonnet' }, { id: 'opus', name: 'Claude Opus' }, { id: 'haiku', name: 'Claude Haiku' }];
 
 export function findClaudeTranscript(sessionId, home = os.homedir()) {
   if (!sessionId) return null;

@@ -200,7 +200,6 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
 
   let p = null;
   const [b0 = '', b1 = '', b2 = ''] = w;
-
   if (SUBCOMMAND_TOOLS.has(b0)) {
     if (b1 && !b1.startsWith('-')) {
       const isRun = b1 === 'run' || b1 === 'run-script';
@@ -220,12 +219,11 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
     if (existing) return { auto: true, reason: `rule "command(${existing})" is already in allowlist, but runner rejected this command form (avoid unquoted globs like *.css or pass a directory path)`, fileTool: false };
   }
 
-  const options = [], choices = [];
+  const options = [{ answer: '2', rule: full }], choices = [];
   if (p && p !== full && !commandProblem(p, blockedScripts)) {
-    options.push({ answer: '1', rule: p });
+    options.unshift({ answer: '1', rule: p });
     choices.push({ key: '1', rule: p, label: `Allow prefix for command family: command(${p})` });
   }
-  options.push({ answer: '2', rule: full });
   choices.push({ key: '2', rule: full, label: `Allow this exact command: command(${full})` }, { key: '3', rule: null, label: 'Do not allow (stop / escalate)' });
   return Object.defineProperty({ auto: false, options }, 'choices', { value: choices, enumerable: false, writable: true, configurable: true });
 }
@@ -309,7 +307,7 @@ export const unsafeRules = (allow, ctx) => allow.flatMap((rule) => {
 });
 
 /** Merges rules into settings.json keeping existing entries; backs up existing file. */
-export function writeAgyAllowlist({ settingsPath, allow, deny = [] }) {
+export function writeAgyAllowlist({ settingsPath, allow, deny = [], pruneCtx = null }) {
   const existed = existsSync(settingsPath);
   let json = {};
   if (existed) {
@@ -319,25 +317,30 @@ export function writeAgyAllowlist({ settingsPath, allow, deny = [] }) {
   }
   if (json.permissions === undefined) json.permissions = {};
   if (!isObject(json.permissions)) throw new Error(`${AGY_SETTINGS_SHOWN}: permissions is not an object, file unchanged`);
-  for (const key of ['allow', 'deny']) {
-    if (json.permissions[key] !== undefined && !Array.isArray(json.permissions[key])) throw new Error(`${AGY_SETTINGS_SHOWN}: permissions.${key} is not an array, file unchanged`);
-  }
+  for (const key of ['allow', 'deny']) if (json.permissions[key] !== undefined && !Array.isArray(json.permissions[key])) throw new Error(`${AGY_SETTINGS_SHOWN}: permissions.${key} is not an array, file unchanged`);
   const merge = (key, rules) => {
-    const current = json.permissions[key] ?? [];
-    const added = rules.filter((r) => !current.includes(r));
+    const current = json.permissions[key] ?? [], added = rules.filter((r) => !current.includes(r));
     if (added.length) json.permissions[key] = [...current, ...added];
     return added;
   };
-  const addedAllow = merge('allow', allow);
   const addedDeny = merge('deny', deny);
-  if (!addedAllow.length && !addedDeny.length) return { addedAllow, addedDeny, backup: false };
+  let removedAllow;
+  if (pruneCtx !== null) {
+    const curAllow = json.permissions.allow ?? [];
+    removedAllow = curAllow.filter((r) => ruleProblem(r, { ...pruneCtx, deny: json.permissions.deny ?? [] }) !== null);
+    if (removedAllow.length) json.permissions.allow = curAllow.filter((r) => !removedAllow.includes(r));
+  }
+  const addedAllow = merge('allow', allow);
+  if (pruneCtx !== null) {
+    if (!addedAllow.length && !addedDeny.length && !removedAllow.length) return { addedAllow, addedDeny, removedAllow: [], backup: false };
+  } else if (!addedAllow.length && !addedDeny.length) return { addedAllow, addedDeny, backup: false };
   mkdirSync(path.dirname(settingsPath), { recursive: true });
   const mode = existed ? statSync(settingsPath).mode & 0o777 : 0o600;
   if (existed) copyFileSync(settingsPath, `${settingsPath}.bak`);
   const tmp = `${settingsPath}.agent-loop-tmp`;
   writeFileSync(tmp, `${JSON.stringify(json, null, 2)}\n`, { mode });
   renameSync(tmp, settingsPath);
-  return { addedAllow, addedDeny, backup: existed };
+  return pruneCtx !== null ? { addedAllow, addedDeny, removedAllow, backup: existed } : { addedAllow, addedDeny, backup: existed };
 }
 
 /** Checks that write_file rule exists for project and deny exists for .git. */
@@ -347,11 +350,9 @@ export function checkProjectWriteRule(workDir, settingsPath = agySettingsPath())
   try { json = JSON.parse(readFileSync(settingsPath, 'utf8')); }
   catch (err) { return { ok: false, issue: `invalid JSON in settings.json: ${errText(err)}` }; }
   const perms = isObject(json) && isObject(json.permissions) ? json.permissions : {};
-  const allow = Array.isArray(perms.allow) ? perms.allow : [];
-  const deny = Array.isArray(perms.deny) ? perms.deny : [];
+  const allow = Array.isArray(perms.allow) ? perms.allow : [], deny = Array.isArray(perms.deny) ? perms.deny : [];
   const realWork = realOrResolved(workDir);
-  const writeRule = `write_file(${realWork})`;
-  if (!allow.includes(writeRule)) return { ok: false, issue: `missing write_file rule for project (${realWork}) — execute: npm run agents -- --write-permissions` };
+  if (!allow.includes(`write_file(${realWork})`)) return { ok: false, issue: `missing write_file rule for project (${realWork}) — execute: npm run agents -- --write-permissions` };
   const gitPath = path.join(realWork, '.git');
   if (!deny.includes(`write_file(${gitPath})`) && !deny.includes(`write_file(${gitPath}/**)`)) {
     return { ok: false, issue: `missing deny rule write_file(${gitPath}/**) — execute: npm run agents -- --write-permissions` };
@@ -393,6 +394,5 @@ export function permissionsCheck({ config, settingsPath, workDir, home = os.home
   const wanted = rulesFor(config, ctx.workDir);
   const missing = [...wanted.allow.filter((r) => !allow.includes(r)), ...wanted.deny.filter((r) => !deny.includes(r)).map((r) => `deny ${r}`)];
   if (missing.length) return { ok: false, name, detail: mask(`missing rules: ${missing.join(', ')} — run with --write-permissions`) };
-  const commandRules = allow.filter((r) => r.startsWith('command(')).length;
-  return { ok: true, name, detail: `command(…) rules: ${commandRules}, project write without .git, no unsafe rules` };
+  return { ok: true, name, detail: `command(…) rules: ${allow.filter((r) => r.startsWith('command(')).length}, project write without .git, no unsafe rules` };
 }
