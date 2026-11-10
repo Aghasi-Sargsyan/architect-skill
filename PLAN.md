@@ -23,7 +23,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-086: Авто-блокировка `git checkout`, `git restore` и `git switch` и подсказка об откате через `edit_file`
+- [x] T-086: Авто-блокировка `git checkout`, `git restore` и `git switch` и подсказка об откате через `edit_file`
   - Риск: high.
   - Зависит от: —.
   - Модель: Gemini Flash (`flash`).
