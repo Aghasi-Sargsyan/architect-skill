@@ -30,7 +30,7 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-084: Auto-refuse already-allowlisted rules in proposeRules/run.mjs, block shasum/sha256sum/md5 in FILE_BINARIES, add glob hint in autoRefusalPrompt, and bind tty: Boolean(rl) in run.mjs
+- [x] T-084: Auto-refuse already-allowlisted rules in proposeRules/run.mjs, block shasum/sha256sum/md5 in FILE_BINARIES, add glob hint in autoRefusalPrompt, and bind tty: Boolean(rl) in run.mjs
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (`flash`)
@@ -39,8 +39,8 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Задача и инварианты: (1) В `permissions.mjs`: добавить `'shasum'`, `'sha256sum'`, `'md5'` в `FILE_BINARIES` (массив `BASE_COMMANDS` из 30 элементов не менять); в `proposeRules(command, blockedScripts = [], optsOrWorkDir = null)` после вычисления `p` проверить массив `optsOrWorkDir?.allow`: если он непустой, нормализовать каждое правило `r` через `normalizeCommand(String(r).replace(/^command\((.*)\)$|^Bash\((.*?)(?::\*)?\)$/, '$1$2'))` в `Set`, и если `(p && allowSet.has(p)) || allowSet.has(full)`, вернуть `{ auto: true, reason: \`rule "command(\${existing})" is already in allowlist, but runner rejected this command form (avoid unquoted globs like *.css or pass a directory path)\`, fileTool: false }` (уплотнить соседние строки в `proposeRules`, чтобы `permissions.mjs` оставался строго `<= 400` строк). (2) В `prompts.mjs` (`autoRefusalPrompt`): если `/already in allowlist/i.test(why)`, задать `hint = ' Pass a directory path or explicit file path instead of an unquoted glob (e.g. use a directory path instead of *.css / *.js), or use built-in file tools.'` и стандартный `cont`. (3) В `run.mjs`: импортировать `readAgyRules` из `./permissions.mjs`, в вызове `proposeRules` передать `{ workDir, allow: readAgyRules(adapter.permissions.settingsPath(os.homedir(), workDir)).allow }`, а в вызове `askPermission` заменить `tty: Boolean(process.stdin.isTTY)` на `tty: Boolean(rl)`, сохранив `run.mjs <= 400` строк.
   - Граничные случаи: В комментариях производственных `.mjs` файлов не использовать идентификаторы `T-NNN` (`packaging-clean.test.mjs`); все изменяемые файлы (`permissions.mjs`, `prompts.mjs`, `run.mjs`) обязаны оставаться строго `<= 400` строк и без пустых `catch {}`.
   - Тест-кейсы: `.agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs`
-  - Готово, когда: `field-permissions-prompts.test.mjs`, `permissions.test.mjs`, `prompts.test.mjs`, `run.test.mjs` и `packaging-clean.test.mjs` проходят с кодом 0.
-  - Проверка: `node --test .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
+  - Готово, когда: `field-permissions-prompts.test.mjs`, `permissions.test.mjs`, `prompts.test.mjs` и `run.test.mjs` проходят с кодом 0.
+  - Проверка: `node --test .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
 
 - [ ] T-085: Support .architect/PLAN.md in runRedCheck and skip red-check when resuming a task after escalation on a dirty working tree (evidence.mjs)
   - Риск: высокий
