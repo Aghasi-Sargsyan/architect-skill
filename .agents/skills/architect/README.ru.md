@@ -27,7 +27,7 @@
      # или: npm run agents -- --update
      ```
 2. **Откройте агента и напишите `/architect`** (или *«прочитай `.agents/skills/architect/SKILL.md`»*):
-   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор не трогает файлы, спрашивает **модель Исполнителя** (из вариантов окружения) и предлагает добавить блок ролей в `AGENTS.md`. В Фазе 2 по умолчанию создаёт рабочие файлы в `.architect/` (`compact`: `.architect/EXECUTOR.md`, `.architect/PLAN.md`, `.architect/decisions.md`, `.architect/executor-profiles.md`, `.architect/plans/`) и коммитит их в `arch: plan ...`. Для миграции старого `classic`-проекта в `.architect/` одной командой напишите **`/architect compact`** (или `node .agents/skills/architect/orchestrator/run.mjs --compact`).
+   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор не трогает файлы, спрашивает **модель Исполнителя** и предлагает блок ролей в `AGENTS.md`. В Фазе 2 по умолчанию создаёт файлы в `.architect/` (`.architect/EXECUTOR.md`, `.architect/PLAN.md`) в коммите `arch: plan ...`, сам запускает `--init`, `--check` и `--dry-run`, спрашивая «да» только для `--write-permissions` (для миграции `classic`-проекта в `.architect/` напишите **`/architect compact`** или `--compact`).
 
 ---
 
