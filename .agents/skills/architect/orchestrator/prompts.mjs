@@ -25,6 +25,7 @@ export function autoRefusalPrompt(role, { command, reason = null, suggestedComma
   let cont = '';
 
   const isFind = /\bfind\b/.test(command) || /\bfind\b/.test(reason ?? '');
+  const isGitRevert = /git\s+(?:checkout|restore|switch)\b/i.test(command) || /git\s+(?:checkout|restore|switch)\b/i.test(reason ?? '');
 
   if (suggestedCommand) {
     hint = ` In the project working directory, run the allowed form without the leading flag: ${suggestedCommand} ("${suggestedCommand}").`;
@@ -32,6 +33,9 @@ export function autoRefusalPrompt(role, { command, reason = null, suggestedComma
     cont = ` Do not bypass the restriction: continue from where you stopped or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
   } else if (/already in allowlist/i.test(why)) {
     hint = ' Pass a directory path or explicit file path instead of an unquoted glob (e.g. use a directory path instead of *.css / *.js), or use built-in file tools.';
+    cont = ` Do not bypass the restriction: continue from where you stopped without this command or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
+  } else if (isGitRevert) {
+    hint = ' Use built-in file tools (`edit_file` / `write_file`) to undo your edits in files from `Change`, and leave unrelated files outside `Change` untouched (`git commit --only <paths>` ignores them).';
     cont = ` Do not bypass the restriction: continue from where you stopped without this command or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
   } else if (isFind) {
     hint = ' Use built-in file tools to read, create, and edit files, rather than the terminal. To list directory contents, use the allowed `ls` (or `git ls-files`) command instead of find.';

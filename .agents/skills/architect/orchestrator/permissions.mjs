@@ -83,7 +83,7 @@ export function realOrResolved(p) {
 export const isInside = (p, dir) => dir === path.parse(dir).root || p === dir || p.startsWith(dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`);
 
 export function forbiddenCommands(blockedScripts = []) {
-  return ['git push', 'git reset', 'git clean', 'git config', 'git remote', ...blockedRunnerCommands(blockedScripts)];
+  return ['git push', 'git reset', 'git clean', 'git config', 'git remote', 'git checkout', 'git restore', 'git switch', ...blockedRunnerCommands(blockedScripts)];
 }
 
 const LEADING_FLAG_RUNNERS = new Set(['git', 'npm', 'pnpm', 'yarn', 'bun', 'make', 'just']);

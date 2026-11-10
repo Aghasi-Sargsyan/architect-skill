@@ -133,6 +133,9 @@ if [ "$AGENT_LOOP" = "1" ]; then
       esac
     fi
   done
+  if [ "$sub" = "checkout" ] || [ "$sub" = "restore" ] || [ "$sub" = "switch" ]; then
+    echo "agent-loop guard: git $sub is blocked for agents" >&2; exit 97
+  fi
   if [ "$sub" = "branch" ] && { [ -z "$branch_args" ] || [ "$branch_args" = "bad" ]; }; then
     echo "agent-loop guard: git branch is blocked for agents" >&2; exit 97
   fi
