@@ -30,6 +30,9 @@ export function autoRefusalPrompt(role, { command, reason = null, suggestedComma
     hint = ` In the project working directory, run the allowed form without the leading flag: ${suggestedCommand} ("${suggestedCommand}").`;
     extra = ' The restriction applies only to the command form, not to git itself: run other allowed commands (`git status`, `git add`, `git commit`, etc.) without a leading flag as well, from the project working directory. The restriction applies only to the form of the command, not git itself: other allowed commands also work without the leading path flag.';
     cont = ` Do not bypass the restriction: continue from where you stopped or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
+  } else if (/already in allowlist/i.test(why)) {
+    hint = ' Pass a directory path or explicit file path instead of an unquoted glob (e.g. use a directory path instead of *.css / *.js), or use built-in file tools.';
+    cont = ` Do not bypass the restriction: continue from where you stopped without this command or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
   } else if (isFind) {
     hint = ' Use built-in file tools to read, create, and edit files, rather than the terminal. To list directory contents, use the allowed `ls` (or `git ls-files`) command instead of find.';
     cont = ` Do not bypass the restriction: continue from where you stopped without this command or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;

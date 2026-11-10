@@ -13,7 +13,7 @@ import { acquireLock, installGuards, which } from './guards.mjs';
 import { initProject, loadConfig, RUNS_DIR } from './config.mjs';
 import { resolveConfigPath, reviewFilePath, skillFilePath } from './layout.mjs';
 import { EMPTY_CHANGE, modelResolver, readiness, resolveEscalationResume, runCheckCommand } from './check.mjs';
-import { commandProblem, maskPaths, proposeRules, realOrResolved } from './permissions.mjs';
+import { commandProblem, maskPaths, proposeRules, readAgyRules, realOrResolved } from './permissions.mjs';
 import { askPermission, clearQuestion, writeAnswer } from './ask.mjs';
 import { runView } from './feed.mjs';
 import { getAdapter } from './adapters/index.mjs';
@@ -194,7 +194,7 @@ async function main() {
         current = resumePrompt(role, { command: step.text.slice(0, 120), reason: 'action is outside project permissions' });
         continue;
       }
-      const proposal = proposeRules(step.command, config.blockedNpmScripts, { workDir });
+      const proposal = proposeRules(step.command, config.blockedNpmScripts, { workDir, allow: readAgyRules(adapter.permissions.settingsPath(os.homedir(), workDir)).allow });
       if (proposal.auto) {
         log(`${turnLabel}: auto-refused "${step.command}" — ${proposal.reason}; agent continues`);
         current = resumePrompt(role, { command: step.command, reason: proposal.reason, suggestedCommand: proposal.suggestedCommand });
@@ -202,7 +202,7 @@ async function main() {
       }
       const answer = await askPermission({
         question: { id: `${turnLabel}-q`, who, taskId, command: step.command, options: proposal.options },
-        workDir, runDir, rl, tty: Boolean(process.stdin.isTTY), timeoutMs: config.answerTimeoutMinutes * 60_000, log,
+        workDir, runDir, rl, tty: Boolean(rl), timeoutMs: config.answerTimeoutMinutes * 60_000, log,
         notify: (t) => { void sendNotification({ config, text: t, eventType: 'question', taskId, role, log }); },
       });
       if (answer === null) return { ...res, error: `no answer to permission question for "${step.command}" within ${config.answerTimeoutMinutes} min` };

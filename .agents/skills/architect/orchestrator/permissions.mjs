@@ -19,7 +19,7 @@ const TOO_BROAD = new Set([
   'git', 'npm', 'npm run', 'npm run-script', 'npx', 'node', 'sh', 'bash', 'zsh', 'env', 'xargs', 'pnpm', 'pnpm run', 'yarn', 'yarn run', 'bun', 'bun run', 'make', 'just',
 ]);
 export const WRAPPERS = new Set(['time', 'timeout', 'nice', 'nohup', 'caffeinate', 'stdbuf', 'command', 'builtin', 'arch']);
-export const FILE_BINARIES = new Set(['cat', 'head', 'tail', 'less', 'more', 'sed', 'awk', 'perl', 'python', 'python3', 'tee', 'find', 'touch', 'mkdir', 'cp', 'mv']);
+export const FILE_BINARIES = new Set(['cat', 'head', 'tail', 'less', 'more', 'sed', 'awk', 'perl', 'python', 'python3', 'tee', 'find', 'touch', 'mkdir', 'cp', 'mv', 'shasum', 'sha256sum', 'md5']);
 const DENIED_BINARIES = new Set([
   'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec', 'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript',
   ...WRAPPERS, ...FILE_BINARIES,
@@ -196,14 +196,10 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
     return { auto: true, reason, fileTool: FILE_BINARIES.has(unwrappedBin), ...(suggestedCommand !== null ? { suggestedCommand } : {}) };
   }
 
-  if (w[0] === 'npm' && w[1] === 'list') {
-    return { auto: true, reason: 'use "npm ls" instead of "npm list"', fileTool: false, suggestedCommand: ['npm', 'ls', ...w.slice(2)].join(' ') };
-  }
+  if (w[0] === 'npm' && w[1] === 'list') return { auto: true, reason: 'use "npm ls" instead of "npm list"', fileTool: false, suggestedCommand: ['npm', 'ls', ...w.slice(2)].join(' ') };
 
   let p = null;
-  const b0 = w[0] ?? '';
-  const b1 = w[1] ?? '';
-  const b2 = w[2] ?? '';
+  const [b0 = '', b1 = '', b2 = ''] = w;
 
   if (SUBCOMMAND_TOOLS.has(b0)) {
     if (b1 && !b1.startsWith('-')) {
@@ -217,6 +213,13 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
   else if (b0 === 'wc' && b1 === '-l') p = 'wc -l';
   else if (STANDALONE_TOOLS.has(b0)) p = b0;
 
+  const allowList = optsOrWorkDir?.allow;
+  if (Array.isArray(allowList) && allowList.length > 0) {
+    const allowSet = new Set(allowList.map((r) => normalizeCommand(String(r).replace(/^command\((.*)\)$|^Bash\((.*?)(?::\*)?\)$/, '$1$2'))));
+    const existing = (p && allowSet.has(p)) ? p : (allowSet.has(full) ? full : null);
+    if (existing) return { auto: true, reason: `rule "command(${existing})" is already in allowlist, but runner rejected this command form (avoid unquoted globs like *.css or pass a directory path)`, fileTool: false };
+  }
+
   const options = [], choices = [];
   if (p && p !== full && !commandProblem(p, blockedScripts)) {
     options.push({ answer: '1', rule: p });
@@ -224,9 +227,7 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
   }
   options.push({ answer: '2', rule: full });
   choices.push({ key: '2', rule: full, label: `Allow this exact command: command(${full})` }, { key: '3', rule: null, label: 'Do not allow (stop / escalate)' });
-  const prop = { auto: false, options };
-  Object.defineProperty(prop, 'choices', { value: choices, enumerable: false, writable: true, configurable: true });
-  return prop;
+  return Object.defineProperty({ auto: false, options }, 'choices', { value: choices, enumerable: false, writable: true, configurable: true });
 }
 
 /** Validates allow rules against project boundaries and sensitive directories. */
