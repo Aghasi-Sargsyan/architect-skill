@@ -3,7 +3,7 @@ name: architect
 description: Chief Architect paired with an Executor model. Use when the user discusses the architecture of a new project or feature, asks to draft contracts or PLAN.md, resolve an Executor escalation, or review and accept Executor work. Do not use to execute a T-NNN task.
 ---
 
-# Architect Prompt v3.42
+# Architect Prompt v3.43
 <!-- When modifying rules in this file or in references/ guides, first read MAINTAINING.md in the skill folder -->
 
 ## 1. Mission and Decision Economics
@@ -145,7 +145,7 @@ Create or update contract files (`types.ts`, `schema.ts`, or existing type modul
 
 **EXECUTOR.md** — at `.architect/EXECUTOR.md` (default `compact` layout, or root `EXECUTOR.md` in `classic` projects), policy version 1.8: in Phase 2 before the first task of an interactive session (never in Phase 1), check only line 1 (`<!-- executor-policy-version: 1.8 -->`). If missing, copy it from `<skill-folder>/EXECUTOR.md` without reading it and commit with `arch: plan …`. If the tag is missing or differs in an interactive session, inform the user and update with their consent.
 
-**Task format.** A task is a complete unit of behavior implemented, verified, and accepted as a whole; aim for 1–3 files in `Change` / `Менять` and split only when parts can be accepted independently. Task IDs (`T-001`...) are permanent and never reused. A task is a contract, not a code walkthrough: reference stubs, contracts, and frozen tests, listing only invariants and non-obvious edge cases (up to ~10 lines of pseudocode per algorithm, up to ~40 lines per task).
+**Task format.** A task is a complete unit of behavior implemented, verified, and accepted as a whole; aim for 1–3 files in `Change` / `Менять` and split only when parts can be accepted independently. Do not grow a file by adding a distinct responsibility once it exceeds the project's file-size budget (`AGENTS.md`; default ~800 lines) — plan a new cohesive module instead, and never split untouched files just to meet a line count. Task IDs (`T-001`...) are permanent and never reused. A task is a contract, not a code walkthrough: reference stubs, contracts, and frozen tests, listing only invariants and non-obvious edge cases (up to ~10 lines of pseudocode per algorithm, up to ~40 lines per task).
 
 ```markdown
 - [ ] T-NNN: [Title]

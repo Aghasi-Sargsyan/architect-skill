@@ -1,4 +1,4 @@
-# Architect + Executor Skill (`v3.42 / 1.8`)
+# Architect + Executor Skill (`v3.43 / 1.8`)
 
 A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator.
 
