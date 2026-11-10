@@ -1,7 +1,8 @@
 // Project layout ('classic' vs 'compact'), config autodiscovery, dynamic skill path, and always-frozen files.
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { lockHolder } from './guards.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -170,4 +171,121 @@ export function alwaysFrozenFiles(configPath = '', opts = {}) {
     }
   }
   return list;
+}
+
+export function migrateToCompact({ workDir = process.cwd() } = {}) {
+  if (process.env.AGENT_LOOP === '1') {
+    throw new Error('cannot run --compact from inside the agent loop (AGENT_LOOP=1)');
+  }
+  const pid = lockHolder(path.join(workDir, '.agent-runs'));
+  if (pid !== null) {
+    throw new Error('cannot migrate layout while orchestrator loop is running (PID ' + pid + ' in .agent-runs/.lock)');
+  }
+
+  const pairs = [
+    ['EXECUTOR.md', '.architect/EXECUTOR.md'],
+    ['PLAN.md', '.architect/PLAN.md'],
+    ['docs/decisions.md', '.architect/decisions.md'],
+    ['docs/executor-profiles.md', '.architect/executor-profiles.md'],
+    ['.agents/orchestrator.json', '.architect/config.json'],
+    ['.agents/orchestrator.local.json', '.architect/config.local.json'],
+  ];
+
+  const docsPlansDir = path.join(workDir, 'docs', 'plans');
+  if (existsSync(docsPlansDir)) {
+    try {
+      for (const entry of readdirSync(docsPlansDir, { withFileTypes: true })) {
+        if (entry.isFile() && entry.name.endsWith('.md')) {
+          pairs.push([`docs/plans/${entry.name}`, `.architect/plans/${entry.name}`]);
+        }
+      }
+    } catch { /* cleanup: abort reading docs/plans */ }
+  }
+
+  for (const [from, to] of pairs) {
+    const fromPath = path.join(workDir, from);
+    const toPath = path.join(workDir, to);
+    if (existsSync(fromPath) && existsSync(toPath)) {
+      const fromBuf = readFileSync(fromPath);
+      const toBuf = readFileSync(toPath);
+      if (!fromBuf.equals(toBuf)) {
+        throw new Error(`conflicting classic and compact files: ${from} vs ${to}`);
+      }
+    }
+  }
+
+  const moved = [];
+  for (const [from, to] of pairs) {
+    const fromPath = path.join(workDir, from);
+    if (!existsSync(fromPath)) continue;
+    const toPath = path.join(workDir, to);
+    mkdirSync(path.dirname(toPath), { recursive: true });
+
+    if (from === 'PLAN.md') {
+      let content = readFileSync(fromPath, 'utf8');
+      content = content
+        .replaceAll('- `EXECUTOR.md`', '- `.architect/EXECUTOR.md`')
+        .replaceAll('read EXECUTOR.md', 'read .architect/EXECUTOR.md')
+        .replaceAll('docs/decisions.md', '.architect/decisions.md')
+        .replaceAll('docs/executor-profiles.md', '.architect/executor-profiles.md')
+        .replaceAll('docs/plans/', '.architect/plans/');
+      writeFileSync(toPath, content, 'utf8');
+    } else if (from === '.agents/orchestrator.json') {
+      const raw = JSON.parse(readFileSync(fromPath, 'utf8'));
+      writeFileSync(toPath, JSON.stringify({ layout: 'compact', ...raw }, null, 2) + '\n', 'utf8');
+    } else {
+      writeFileSync(toPath, readFileSync(fromPath));
+    }
+    rmSync(fromPath, { force: true });
+    moved.push({ from, to });
+  }
+
+  for (const dirRel of ['docs/plans', 'docs']) {
+    const dirFull = path.join(workDir, dirRel);
+    if (existsSync(dirFull)) {
+      try {
+        if (readdirSync(dirFull).length === 0) rmSync(dirFull, { recursive: true, force: true });
+      } catch { /* cleanup: abort directory cleanup */ }
+    }
+  }
+
+  const updated = [];
+  for (const rel of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
+    const p = path.join(workDir, rel);
+    if (!existsSync(p)) continue;
+    try {
+      const original = readFileSync(p, 'utf8');
+      const transformed = original
+        .replace(/\.agents\/orchestrator\.local\.json/g, '.architect/config.local.json')
+        .replace(/\.agents\/orchestrator\.json/g, '.architect/config.json')
+        .replace(/(?<!\/)EXECUTOR\.md/g, '.architect/EXECUTOR.md')
+        .replace(/(?<!\/)PLAN\.md/g, '.architect/PLAN.md');
+      if (transformed !== original) {
+        writeFileSync(p, transformed, 'utf8');
+        updated.push(rel);
+      }
+    } catch { /* cleanup: abort updating reference file */ }
+  }
+
+  const notes = [];
+  if (moved.length === 0 && updated.length === 0) {
+    notes.push('project is already using compact layout (.architect/)');
+  } else {
+    for (const m of moved) notes.push(`moved ${m.from} -> ${m.to}`);
+    for (const u of updated) notes.push(`updated references in ${u}`);
+  }
+
+  return {
+    ok: true,
+    alreadyCompact: moved.length === 0 && updated.length === 0,
+    moved,
+    updated,
+    notes,
+  };
+}
+
+export function handleCompactCli({ workDir = process.cwd(), print = console.log } = {}) {
+  const res = migrateToCompact({ workDir });
+  for (const n of res.notes) print(n.startsWith('• ') ? n : `• ${n}`);
+  return res;
 }

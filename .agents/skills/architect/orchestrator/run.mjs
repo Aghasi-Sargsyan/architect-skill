@@ -19,7 +19,7 @@ import { runView } from './feed.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { appendEvent, classifyStopReason, sendNotification } from './events.mjs';
 import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
-import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig, loadConfigOrDefaults, handleCheckTaskCli, handleUpdateCli } from './cli.mjs';
+import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig, loadConfigOrDefaults, handleCheckTaskCli, handleUpdateCli, handleCompactCli } from './cli.mjs';
 import { checkPostReviewSelfCheck } from './selfcheck.mjs';
 import { installCommitMsgHook } from './hooks.mjs';
 import { handleModelsCli } from './models.mjs';
@@ -44,6 +44,7 @@ async function main() {
   }
   if (opts.installHooks) { const res = installCommitMsgHook({ workDir: process.cwd(), realGit }); console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`); return; }
   if (opts.update) { const res = await handleUpdateCli({ workDir: process.cwd(), realGit, force: opts.force }); if (!res?.ok) process.exitCode = 1; return res; }
+  if (opts.compact) return handleCompactCli({ workDir: process.cwd() });
   if (opts.models || opts.setModel) return handleModelsCli({ workDir: process.cwd(), opts });
   if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
   const config = safeLoadConfig(configPath);

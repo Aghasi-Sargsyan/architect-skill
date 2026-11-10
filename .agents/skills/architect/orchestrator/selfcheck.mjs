@@ -196,12 +196,14 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   let effectivePlanText = planText;
   if (effectivePlanText === null) {
-    try { effectivePlanText = readFileSync(path.join(cwd, 'PLAN.md'), 'utf8'); } catch {
-      try { effectivePlanText = git(realGit, cwd, ['show', 'HEAD:PLAN.md']); } catch { /* cleanup: abort plan fallback */ effectivePlanText = ''; }
+    for (const rel of [config?.paths?.planPath, '.architect/PLAN.md', 'PLAN.md'].filter(Boolean)) {
+      try { effectivePlanText = readFileSync(path.join(cwd, rel), 'utf8'); break; } catch {
+        try { effectivePlanText = git(realGit, cwd, ['show', `HEAD:${rel}`]); break; } catch { /* cleanup: abort plan candidate */ }
+      }
     }
+    if (effectivePlanText === null) effectivePlanText = '';
   }
-  const waivers = parseWaivers(effectivePlanText);
-  const notVerified = [];
+  const waivers = parseWaivers(effectivePlanText), notVerified = [];
   if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, warnings: [], waivers, notVerified };
 
   const warnings = scanRangeCommitMessages({ realGit, cwd, baseSha, headSha, commitLanguage: config?.commitLanguage });
@@ -210,15 +212,12 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   const nonExecCommits = allCommits.filter((c) => !c.isMerge && !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
   violations.push(...findSquashViolations({ realGit, cwd, baseSha, headSha, commits: allCommits }));
   const bypassPatterns = config?.bypassRegexps ?? (config?.bypassPatterns ?? []).map((p) => new RegExp(p));
-  const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean);
-  const headFileSet = new Set(headFiles);
+  const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean), headFileSet = new Set(headFiles);
   const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '');
   warnings.push(...scanRangeProcessWarnings(allCommits, { isTestFile, isUnderScanPaths, config, norm }));
 
-  const CLOSE_CYCLE_RE = /^arch:\s*(?:close cycle|закрытие цикла)\b/i;
-  const ARCHIVE_PLAN_RE = /(?:^|\/)(?:docs|\.architect)\/plans\/[^/]+\.md$/;
-  const RETRO_HEADER_RE = /^##\s+.*(?:Ретроспектива(?![а-яёА-ЯЁ])|Retrospective\b)/im;
-  const RULES_ADDED_RE = /\bRules:\s*added\s+\d+\s*\/\s*removed\s+\d+/i;
+  const CLOSE_CYCLE_RE = /^arch:\s*(?:close cycle|закрытие цикла)\b/i, ARCHIVE_PLAN_RE = /(?:^|\/)(?:docs|\.architect)\/plans\/[^/]+\.md$/;
+  const RETRO_HEADER_RE = /^##\s+.*(?:Ретроспектива(?![а-яёА-ЯЁ])|Retrospective\b)/im, RULES_ADDED_RE = /\bRules:\s*added\s+\d+\s*\/\s*removed\s+\d+/i;
   const checkedArchives = new Set();
   for (const c of nonExecCommits) {
     if (!CLOSE_CYCLE_RE.test(c.subject)) continue;
@@ -245,7 +244,9 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   };
   for (const c of allCommits) {
     if (/^arch:\s*(?:plan|план)\b/i.test(c.subject)) {
-      try { collectFrozen(git(realGit, cwd, ['show', `${c.sha}:PLAN.md`])); } catch { /* cleanup: abort plan reading */ }
+      for (const p of ['PLAN.md', '.architect/PLAN.md']) {
+        try { collectFrozen(git(realGit, cwd, ['show', `${c.sha}:${p}`])); } catch { /* cleanup: abort plan reading */ }
+      }
     }
   }
   if (effectivePlanText) collectFrozen(effectivePlanText);
@@ -382,7 +383,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 export function checkPostReviewSelfCheck({ realGit, cwd, baseSha, config }) {
   const violations = [];
   try {
-    const diff = git(realGit, cwd, ['diff', '-U0', baseSha, 'HEAD', '--', 'PLAN.md']);
+    const diff = git(realGit, cwd, ['diff', '-U0', baseSha, 'HEAD', '--', 'PLAN.md', '.architect/PLAN.md']);
     for (const line of diff.split('\n')) {
       if (line.startsWith('+') && !line.startsWith('+++') && /^\+\s*-\s*WAIVER\b/.test(line)) {
         violations.push(`new WAIVER line added during automated cycle is forbidden: ${line.slice(1).trim()}`);
