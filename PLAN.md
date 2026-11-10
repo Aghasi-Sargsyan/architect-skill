@@ -17,6 +17,7 @@
 - `.agents/skills/architect/SKILL.md`
 - `.agents/skills/architect/references/orchestrator.md`
 - `.agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs`
+- `.agents/skills/architect/orchestrator/adapters/claude.test.mjs`
 
 ## Rules
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.

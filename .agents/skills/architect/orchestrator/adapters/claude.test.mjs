@@ -137,7 +137,7 @@ if (!isResume) {
       {
         tool_name: 'Bash',
         tool_use_id: 'toolu_1',
-        tool_input: { command: 'npm run lint', description: 'Run linter' }
+        tool_input: { command: 'npm run lint' }
       }
     ],
     structured_output: { task_id: 'T-026', status: 'done' },
