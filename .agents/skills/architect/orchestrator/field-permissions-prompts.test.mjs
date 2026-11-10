@@ -104,3 +104,65 @@ test('T-080: TOOLS_RULE forbids read_file on binary/non-text assets and recommen
     assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
   }
 });
+
+test('T-084: proposeRules auto-refuses commands whose rule is already in allow, FILE_BINARIES blocks shasum/sha256sum/md5, autoRefusalPrompt advises avoiding globs, and run.mjs passes allow and tty: Boolean(rl)', () => {
+  // 1. shasum, sha256sum, md5 are blocked as terminal file binaries (use built-in tools / precomputed manifest values)
+  for (const hashCmd of [
+    'shasum -a 256 vendor/amusnet/classic-5x3-lines/shining-crown/paytable/sprite.jpg',
+    'sha256sum vendor/amusnet/classic-5x3-lines/shining-crown/paytable/sprite.jpg',
+    'md5 vendor/amusnet/classic-5x3-lines/shining-crown/paytable/sprite.jpg',
+  ]) {
+    const prob = commandProblem(hashCmd, []);
+    assert.ok(prob, `commandProblem must reject ${hashCmd}`);
+    assert.match(prob, /built-in file tools/i);
+    const prop = proposeRules(hashCmd, []);
+    assert.equal(prop.auto, true, `proposeRules must auto-refuse ${hashCmd}`);
+    assert.equal(prop.fileTool, true);
+  }
+  assert.equal(BASE_COMMANDS.length, 30, 'BASE_COMMANDS 30-item invariant must remain intact');
+
+  // 2. When command(git grep) or Bash(git grep:*) is already in allow, proposeRules auto-refuses instead of re-asking
+  const cssGrep = "git grep -oE 'url\\([^)]+\\)' vendor/amusnet/_platform/game-ui/assets/*.css";
+  const jsGrep = "git grep -a -oE 'import\\([^)]+\\)' vendor/amusnet/_platform/game-ui/assets/*.js";
+
+  const withoutAllow = proposeRules(cssGrep, []);
+  assert.equal(withoutAllow.auto, false, 'without existing allow list, proposeRules still proposes options');
+
+  const withAgyAllow = proposeRules(cssGrep, [], { allow: ['command(git status)', 'command(git grep)'] });
+  assert.equal(withAgyAllow.auto, true, 'when command(git grep) is already in allow, proposeRules must auto-refuse');
+  assert.match(withAgyAllow.reason, /already in allowlist/i);
+  assert.match(withAgyAllow.reason, /command\(git grep\)/);
+
+  const withClaudeAllow = proposeRules(jsGrep, [], { allow: ['Bash(git grep:*)'] });
+  assert.equal(withClaudeAllow.auto, true, 'when Bash(git grep:*) is already in allow, proposeRules must auto-refuse');
+  assert.match(withClaudeAllow.reason, /already in allowlist/i);
+
+  // Exact full-command match in allow is also auto-refused
+  const exactAllow = proposeRules('pnpm test', [], { allow: ['command(pnpm test)'] });
+  assert.equal(exactAllow.auto, true);
+  assert.match(exactAllow.reason, /already in allowlist/i);
+
+  // Command not in allow still prompts the user normally
+  const notInAllow = proposeRules('npm run lint -- --fix', [], { allow: ['command(git grep)'] });
+  assert.equal(notInAllow.auto, false);
+  assert.equal(notInAllow.options[0].rule, 'npm run lint');
+
+  // 3. autoRefusalPrompt for already-allowlisted command advises passing directory/file path without unquoted globs
+  const refusalText = autoRefusalPrompt('executor', {
+    command: cssGrep,
+    reason: withAgyAllow.reason,
+  });
+  assert.match(refusalText, /directory|glob|\*\.css/i);
+  assert.match(refusalText, /--only/);
+
+  // 4. run.mjs passes allow from settings and tty: Boolean(rl) (not process.stdin.isTTY) to askPermission
+  const runSrc = readFileSync(path.join(orchDir, 'run.mjs'), 'utf8');
+  assert.match(runSrc, /proposeRules\([^)]*allow:/, 'run.mjs must pass existing allow rules to proposeRules');
+  assert.match(runSrc, /tty:\s*Boolean\(rl\)/, 'run.mjs must pass tty: Boolean(rl) so non-pause PTY runs write question.json');
+  assert.ok(!runSrc.includes('tty: Boolean(process.stdin.isTTY)'), 'run.mjs must not use process.stdin.isTTY for askPermission tty');
+
+  for (const modName of ['permissions.mjs', 'prompts.mjs', 'run.mjs']) {
+    const lines = readFileSync(path.join(orchDir, modName), 'utf8').split('\n').length;
+    assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
+  }
+});

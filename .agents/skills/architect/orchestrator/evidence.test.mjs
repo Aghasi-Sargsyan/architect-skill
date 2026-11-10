@@ -225,3 +225,82 @@ test('T-047: runRedCheck strips NODE_TEST_CONTEXT via runTaskVerification, confi
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('T-085: runRedCheck reads .architect/PLAN.md in compact layout when plan is omitted and skips when resuming after escalation on a dirty working tree', () => {
+  const { root, g } = initTempRepo('c27-t085-redcheck-compact-');
+  try {
+    mkdirSync(path.join(root, '.architect'), { recursive: true });
+    mkdirSync(path.join(root, 'src'), { recursive: true });
+    mkdirSync(path.join(root, 'tests'), { recursive: true });
+    writeFileSync(path.join(root, 'src', 'feature.mjs'), 'export const val = 0;\n');
+    g('add', 'src/feature.mjs');
+    g('commit', '-q', '-m', 'arch: close cycle 25');
+    const baseSha = g('rev-parse', 'HEAD');
+
+    // Reference test that fails when val !== 42 and passes when val === 42
+    writeFileSync(
+      path.join(root, 'tests', 'feature.frozen.test.mjs'),
+      [
+        'import { test } from "node:test";',
+        'import assert from "node:assert/strict";',
+        'import { val } from "../src/feature.mjs";',
+        'test("val is 42", () => { assert.equal(val, 42); });',
+      ].join('\n') + '\n',
+    );
+    writeFileSync(path.join(root, '.architect', 'EXECUTOR.md'), '<!-- executor-policy-version: 1.8 -->\n');
+    const compactPlan = `# PLAN
+
+## Frozen
+- \`.architect/EXECUTOR.md\`
+- \`tests/feature.frozen.test.mjs\`
+
+## Tasks
+- [ ] T-074: Set val to 42
+  - Risk: high
+  - Depends on: —
+  - Change: \`src/feature.mjs\`
+  - Test cases: \`tests/feature.frozen.test.mjs\`
+  - Verify: \`node --test tests/feature.frozen.test.mjs\`
+`;
+    writeFileSync(path.join(root, '.architect', 'PLAN.md'), compactPlan);
+    g('add', '.architect/EXECUTOR.md', '.architect/PLAN.md', 'tests/feature.frozen.test.mjs');
+    g('commit', '-q', '-m', 'arch: plan cycle 26');
+
+    // 1. Without passing plan explicitly, runRedCheck finds .architect/PLAN.md and verifies red state
+    const redCompact = runRedCheck({ realGit, cwd: root, baseSha, config: {} });
+    assert.equal(redCompact.ok, true, `expected red check ok in compact layout: ${redCompact.violations.join('; ')}`);
+    assert.equal(redCompact.skipped, false);
+    assert.equal(redCompact.checked.length, 1);
+    assert.equal(redCompact.checked[0].file, 'tests/feature.frozen.test.mjs');
+
+    // 2. Simulate Executor implementing src/feature.mjs (val = 42) and stopping on escalation with stop snapshot
+    writeFileSync(path.join(root, 'src', 'feature.mjs'), 'export const val = 42;\n');
+    const runDir = path.join(root, '.agent-runs', '2026-11-10T04-28-05-614Z');
+    mkdirSync(runDir, { recursive: true });
+    const statusOut = execFileSync(realGit, ['status', '--porcelain', '--untracked-files=all'], { cwd: root, encoding: 'utf8' });
+    const diffOut = execFileSync(realGit, ['diff', 'HEAD'], { cwd: root, encoding: 'utf8' });
+    writeFileSync(path.join(runDir, 'stop.status.txt'), statusOut);
+    writeFileSync(path.join(runDir, 'stop.diff'), diffOut.endsWith('\n') ? diffOut : `${diffOut}\n`);
+    writeFileSync(path.join(runDir, 'T-074-exec.report.md'), '### Escalation\nFrozen test needs adjustment.\n');
+    writeFileSync(
+      path.join(runDir, 'events.jsonl'),
+      `${JSON.stringify({ type: 'run_stopped', category: 'stop_escalation', status: 'escalation', taskId: 'T-074', stopReason: 'T-074: Executor escalation' })}\n`,
+    );
+
+    // Resuming after escalation on matching dirty tree must skip red-check instead of failing with "passed with exit 0"
+    const resumeRes = runRedCheck({
+      realGit,
+      cwd: root,
+      baseSha,
+      config: { paths: { planPath: '.architect/PLAN.md', executorPath: '.architect/EXECUTOR.md' } },
+    });
+    assert.equal(resumeRes.ok, true, `escalation resume must pass red-check: ${resumeRes.violations.join('; ')}`);
+    assert.equal(resumeRes.skipped, true, 'red-check must be skipped when resuming after escalation on dirty working tree');
+    assert.match(resumeRes.reason, /escalation|T-074/i);
+
+    const evidenceLines = readFileSync(path.join(orchDir, 'evidence.mjs'), 'utf8').split('\n').length;
+    assert.ok(evidenceLines <= 400, `evidence.mjs must stay <= 400 lines (got ${evidenceLines})`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
