@@ -2,6 +2,9 @@
 
 All notable changes to the `architect` skill and its embedded orchestrator are documented in this file.
 
+## v3.40 / 1.8 (2026-11-10 — Explicit Cycle-Complete Status Bullet on Clean Cycle Closure)
+- **Explicit cycle-complete **Status** bullet on clean cycle closure (`SKILL.md` `v3.40`, `references/retro.md`):** Added a mandatory **Status** bullet to the cycle closure technical summary in `references/retro.md` §1 and `SKILL.md` (`33692` → `33796` bytes `<= 34 KB`, justified by giving operators an explicit confirmation that the cycle is 100% complete with zero open `[ ]` tasks or pending work instead of a continuation handoff prompt).
+
 ## v3.39 / 1.8 (2026-11-10 — Omit Continuation Handoff Prompt on Clean Cycle Closure)
 - **Omit fresh-chat continuation prompt after clean cycle closure (`SKILL.md` `v3.39`, `references/retro.md`):** Removed `cycle closure` from the `Context hygiene` continuation-prompt trigger in `SKILL.md` (`33561` → `33692` bytes `<= 34 KB`, replacing the `cycle closure` trigger in-place and justified by preventing redundant `/architect Continuing after Cycle N closure...` handoff blocks when a cycle is fully closed and no open `[ ]` tasks or unresolved `NOT VERIFIED` items remain in `PLAN.md`) and clarified in `references/retro.md` §1 that cycle closure does not emit a continuation prompt when no open tasks remain; also includes Cycle 27 field hardening (`ADR-058`, `T-084`..`T-085`: `allow` deduplication in `proposeRules`, `shasum`/`sha256sum`/`md5` in `FILE_BINARIES`, PTY question file write in `run.mjs`, and `.architect/PLAN.md` + escalation-resume handling in `runRedCheck`).
 
