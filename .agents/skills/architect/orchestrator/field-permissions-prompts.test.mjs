@@ -1,10 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_COMMANDS, commandProblem, proposeRules } from './permissions.mjs';
+import { BASE_COMMANDS, commandProblem, forbiddenCommands, proposeRules } from './permissions.mjs';
 import { TOOLS_RULE, autoRefusalPrompt, executorPrompt } from './prompts.mjs';
+import { writeGitShim } from './guards.mjs';
+import { deniedFromTranscript, transcriptPath } from './adapters/agy.mjs';
+import { extractClaudeDeniedStep } from './adapters/claude.mjs';
+import { questionText } from './ask.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -162,6 +168,219 @@ test('T-084: proposeRules auto-refuses commands whose rule is already in allow, 
   assert.ok(!runSrc.includes('tty: Boolean(process.stdin.isTTY)'), 'run.mjs must not use process.stdin.isTTY for askPermission tty');
 
   for (const modName of ['permissions.mjs', 'prompts.mjs', 'run.mjs']) {
+    const lines = readFileSync(path.join(orchDir, modName), 'utf8').split('\n').length;
+    assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
+  }
+});
+
+test('T-086: forbiddenCommands, commandProblem, proposeRules, and writeGitShim block git checkout/restore/switch, and autoRefusalPrompt advises edit_file and git commit --only', () => {
+  const forbidden = forbiddenCommands([]);
+  for (const cmd of ['git checkout', 'git restore', 'git switch']) {
+    assert.ok(forbidden.includes(cmd), `forbiddenCommands must include "${cmd}"`);
+  }
+  assert.equal(BASE_COMMANDS.length, 30, 'BASE_COMMANDS 30-item invariant must remain intact');
+
+  for (const cmd of [
+    'git checkout scripts/harvest-native-client.ts',
+    'git checkout -- src/app.ts',
+    'git checkout -b feat/test',
+    'git restore scripts/harvest-native-client.ts',
+    'git restore --staged src/app.ts',
+    'git switch main',
+  ]) {
+    const prob = commandProblem(cmd, []);
+    assert.ok(prob, `commandProblem must reject "${cmd}"`);
+    assert.match(prob, /covers forbidden command/i);
+    const prop = proposeRules(cmd, []);
+    assert.equal(prop.auto, true, `proposeRules must auto-refuse "${cmd}" without prompting user`);
+  }
+
+  // Git shim blocks checkout, restore, and switch with exit 97 under AGENT_LOOP=1
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'orch-t086-'));
+  try {
+    const shimDir = path.join(tmp, 'shims');
+    writeGitShim({ shimDir, realGit: '/usr/bin/git', sandboxRoot: tmp, workDir: tmp });
+    const gitShim = path.join(shimDir, 'git');
+    for (const args of [
+      ['checkout', 'scripts/harvest-native-client.ts'],
+      ['restore', 'scripts/harvest-native-client.ts'],
+      ['switch', 'main'],
+    ]) {
+      const r = spawnSync(gitShim, args, {
+        cwd: tmp,
+        env: { ...process.env, AGENT_LOOP: '1' },
+        encoding: 'utf8',
+      });
+      assert.equal(r.status, 97, `git shim must exit 97 on "git ${args.join(' ')}" under AGENT_LOOP=1`);
+      assert.match(r.stderr, new RegExp(`agent-loop guard: git ${args[0]} is blocked for agents`, 'i'));
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+
+  // autoRefusalPrompt gives an actionable hint for git checkout / restore / switch
+  const checkoutRefusal = autoRefusalPrompt('executor', {
+    command: 'git checkout scripts/harvest-native-client.ts',
+    reason: 'covers forbidden command "git checkout"',
+  });
+  assert.match(
+    checkoutRefusal,
+    /edit_file|built-in file tools/i,
+    'autoRefusalPrompt for git checkout must advise using built-in file tools (edit_file) to undo edits',
+  );
+  assert.match(
+    checkoutRefusal,
+    /outside Change|unrelated|--only/i,
+    'autoRefusalPrompt for git checkout must remind to leave unrelated files outside Change untouched and commit with --only',
+  );
+
+  for (const modName of ['permissions.mjs', 'guards.mjs', 'prompts.mjs']) {
+    const lines = readFileSync(path.join(orchDir, modName), 'utf8').split('\n').length;
+    assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
+  }
+});
+
+test('T-087: deniedFromTranscript and extractClaudeDeniedStep extract command reason, run.mjs passes taskTitle and reason, and questionText renders them', () => {
+  const tmpHome = mkdtempSync(path.join(os.tmpdir(), 'orch-t087-'));
+  try {
+    // 1. agy deniedFromTranscript extracts toolSummary from preceding run_command call
+    const conv1 = 'conv-with-summary';
+    const tFile1 = transcriptPath(conv1, tmpHome);
+    mkdirSync(path.dirname(tFile1), { recursive: true });
+    writeFileSync(
+      tFile1,
+      [
+        JSON.stringify({
+          step_index: 1,
+          type: 'PLANNER_RESPONSE',
+          status: 'DONE',
+          thinking: 'Running playwright smoke test',
+          tool_calls: [
+            {
+              name: 'run_command',
+              args: {
+                CommandLine: '"npx playwright test tests/smoke.spec.ts"',
+                toolSummary: '"Run Playwright smoke test"',
+              },
+            },
+          ],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          status: 'ERROR',
+          content: 'permission check failed for unsandboxed "npx playwright test tests/smoke.spec.ts": user denied permission',
+        }),
+      ].join('\n') + '\n',
+    );
+    assert.deepEqual(deniedFromTranscript(conv1, tmpHome), {
+      kind: 'command',
+      command: 'npx playwright test tests/smoke.spec.ts',
+      reason: 'Run Playwright smoke test',
+    });
+
+    // Fallback to thinking when toolSummary is absent
+    const conv2 = 'conv-with-thinking';
+    const tFile2 = transcriptPath(conv2, tmpHome);
+    mkdirSync(path.dirname(tFile2), { recursive: true });
+    writeFileSync(
+      tFile2,
+      [
+        JSON.stringify({
+          step_index: 1,
+          type: 'PLANNER_RESPONSE',
+          status: 'DONE',
+          thinking: 'Verify native bundle output with custom check script.\nSecond line of thinking.',
+          tool_calls: [{ name: 'run_command', args: { CommandLine: 'npm run verify:bundle' } }],
+        }),
+        JSON.stringify({
+          step_index: 2,
+          status: 'ERROR',
+          content: 'permission check failed for unsandboxed "npm run verify:bundle": user denied permission',
+        }),
+      ].join('\n') + '\n',
+    );
+    assert.deepEqual(deniedFromTranscript(conv2, tmpHome), {
+      kind: 'command',
+      command: 'npm run verify:bundle',
+      reason: 'Verify native bundle output with custom check script.',
+    });
+
+    // Backward-compatible when no preceding context exists
+    const conv3 = 'conv-bare';
+    const tFile3 = transcriptPath(conv3, tmpHome);
+    mkdirSync(path.dirname(tFile3), { recursive: true });
+    writeFileSync(
+      tFile3,
+      `${JSON.stringify({
+        step_index: 1,
+        status: 'ERROR',
+        content: 'permission check failed for unsandboxed "cat a": user denied permission',
+      })}\n`,
+    );
+    assert.deepEqual(deniedFromTranscript(conv3, tmpHome), {
+      kind: 'command',
+      command: 'cat a',
+    });
+  } finally {
+    rmSync(tmpHome, { recursive: true, force: true });
+  }
+
+  // 2. Claude extractClaudeDeniedStep extracts tool_input.description when present
+  assert.deepEqual(
+    extractClaudeDeniedStep([
+      {
+        tool_name: 'Bash',
+        tool_input: {
+          command: 'npx playwright test',
+          description: 'Run end-to-end browser verification',
+        },
+      },
+    ]),
+    {
+      kind: 'command',
+      command: 'npx playwright test',
+      reason: 'Run end-to-end browser verification',
+    },
+  );
+  assert.deepEqual(
+    extractClaudeDeniedStep([{ tool_name: 'Bash', tool_input: { command: 'npm run lint' } }]),
+    { kind: 'command', command: 'npm run lint' },
+  );
+
+  // 3. questionText renders taskTitle and **Why:** when provided, and stays identical when omitted
+  const richQuestion = {
+    id: 'T-084-exec-q',
+    who: 'Executor',
+    taskId: 'T-084',
+    taskTitle: 'Native client harvest',
+    command: 'npx playwright test',
+    reason: 'Run end-to-end browser verification',
+    options: [
+      { answer: '1', rule: 'npx playwright' },
+      { answer: '2', rule: 'npx playwright test' },
+    ],
+  };
+  const renderedRich = questionText(richQuestion);
+  assert.match(renderedRich, /\*\*Who:\*\* Executor, task T-084 \(Native client harvest\)/);
+  assert.match(renderedRich, /\*\*Command:\*\* `npx playwright test`\n\n\*\*Why:\*\* Run end-to-end browser verification/);
+
+  const bareQuestion = {
+    id: 'T-084-exec-q',
+    who: 'Executor',
+    taskId: 'T-084',
+    command: 'npx playwright test',
+    options: [{ answer: '2', rule: 'npx playwright test' }],
+  };
+  const renderedBare = questionText(bareQuestion);
+  assert.match(renderedBare, /\*\*Who:\*\* Executor, task T-084\n/);
+  assert.ok(!renderedBare.includes('**Why:**'), 'bare question without reason must not include **Why:**');
+
+  // 4. run.mjs passes taskTitle and reason into question object for askPermission
+  const runSrc = readFileSync(path.join(orchDir, 'run.mjs'), 'utf8');
+  assert.match(runSrc, /taskTitle/, 'run.mjs must pass taskTitle into askPermission question');
+  assert.match(runSrc, /step\.reason/, 'run.mjs must pass step.reason into askPermission question');
+
+  for (const modName of ['ask.mjs', 'run.mjs', 'adapters/agy.mjs', 'adapters/claude.mjs']) {
     const lines = readFileSync(path.join(orchDir, modName), 'utf8').split('\n').length;
     assert.ok(lines <= 400, `${modName} must stay <= 400 lines (got ${lines})`);
   }
