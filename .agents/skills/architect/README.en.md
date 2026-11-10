@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.36 / 1.8 -->
-# Architect + Executor Skill (`v3.36 / 1.8`)
+<!-- skill-readme-sync: v3.37 / 1.8 -->
+# Architect + Executor Skill (`v3.37 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.

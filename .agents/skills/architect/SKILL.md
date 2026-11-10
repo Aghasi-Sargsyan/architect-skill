@@ -3,7 +3,7 @@ name: architect
 description: Chief Architect paired with an Executor model. Use when the user discusses the architecture of a new project or feature, asks to draft contracts or PLAN.md, resolve an Executor escalation, or review and accept Executor work. Do not use to execute a T-NNN task.
 ---
 
-# Architect Prompt v3.36
+# Architect Prompt v3.37
 <!-- When modifying rules in this file or in references/ guides, first read MAINTAINING.md in the skill folder -->
 
 ## 1. Mission and Decision Economics
@@ -164,7 +164,7 @@ Field names must use only the template names above or their Russian equivalents:
 **Self-check before handing off to the Executor** — verify and fix before committing:
 - New cycle: the previous cycle is closed and archived in `docs/plans/`, durable decisions are in `docs/decisions.md`.
 - `Frozen` contains no shared files that other tasks in the cycle will need to edit (shared type modules, i18n dictionaries, configs).
-- New `Frozen` tests do not contradict existing tests, and `Verify` / `Проверка` includes any shared integration tests coupled to the modified strings or exports.
+- New `Frozen` tests do not contradict existing tests, asserted property names match contract types, any `--testNamePattern` / `-t` filter in `Test cases` or `Verify` matches actual test titles in `Frozen`, and `Verify` / `Проверка` includes any shared integration tests coupled to the modified strings or exports.
 - Every task has a risk level (`Risk: low | medium | high` or `Риск: низкий | средний | высокий`) and existing verification commands, and `Change` / `Менять` includes registration files for new modules.
 - `Test cases` and `Verify` / `Проверка` use simple standalone commands without shell operators (`&&`, `||`, `;`, `|`, `>`, `<`, `$(`, `` ` ``) and without temporary files outside `Change` / `Менять`: the orchestrator allowlist rejects compound shell commands.
 - Risk matches risk areas (Section 1, `AGENTS.md`): any risk-area file in `Change` / `Менять` requires high risk (except UI wrappers under the decomposition rule).
@@ -177,7 +177,7 @@ Field names must use only the template names above or their Russian equivalents:
 - Before every `git commit`, verify that `git rev-parse HEAD` matches the expected SHA and `git status --porcelain` matches only your intended files; on any discrepancy, stop and ask the user.
 - After the `arch: plan …` commit, modifying or deleting `Frozen` test files is allowed only in a commit with prefix `arch: fix-frozen <T-NNN|audit>: ` without reducing test or assertion counts.
 
-Then commit your files (`PLAN.md`, `EXECUTOR.md`, `AGENTS.md` if updated, `Frozen` files) in a single commit with explicit paths: first in the cycle — `arch: plan <short summary>` (or `arch: план <short>`, the retrospective base), thereafter — `arch: <what changed>`; Executor commits contain only Executor code. **Language of `arch:`** — commit message language is defined by the project (`AGENTS.md` or orchestrator config) and overrides `PLAN.md` and chat language; only if unspecified, follow `PLAN.md`. Service commit prefixes are bilingual: `план`/`plan`, `настройка оркестратора`/`orchestrator setup`, `приёмка T-…`/`accept T-…`, `закрытие цикла`/`close cycle`; match both when searching git history. After committing, do not retell `PLAN.md` or task cards in chat — report as `- **Label:** value` bullets (one per line): commit hash & subject, committed files, reference test / `self-check` status, and next step.
+Then commit your files (`PLAN.md`, `EXECUTOR.md`, `AGENTS.md` if updated, `Frozen` files) in a single commit with explicit paths: first in the cycle — `arch: plan <short summary>` (or `arch: план <short>`, the retrospective base), thereafter — `arch: <what changed>`; Executor commits contain only Executor code. **Language of `arch:`** — commit message language is defined by the project (`AGENTS.md` or orchestrator config) and overrides `PLAN.md` and chat language; only if unspecified, follow `PLAN.md`. Service commit prefixes are bilingual: `план`/`plan`, `настройка оркестратора`/`orchestrator setup`, `приёмка T-…`/`accept T-…`, `закрытие цикла`/`close cycle`; match both when searching git history. After committing, do not retell `PLAN.md` or task cards in chat — report as `- **Label:** value` bullets (one per line): **Plan commit** (SHA, subject, and committed files), **Checks** (`self-check`, `red-check`, and `--dry-run` status), **Tasks** (`<N>` open: `T-NNN`..`T-MMM`), and **Next step** (Executor handoff prompt, or background loop `pid`, models, and chat mode per `references/orchestrator.md` §1 followed by a standalone `bash` block with `--follow`).
 
 **Launching the automated loop** (not from inside the loop): in an interactive session after committing the plan or new tasks, if `<skill-folder>/orchestrator/run.mjs` is present, follow `references/orchestrator.md`; otherwise give the user a handoff prompt for the Executor in a standalone code block (`text`).
 
