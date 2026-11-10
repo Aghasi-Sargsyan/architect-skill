@@ -5,6 +5,7 @@ import { git, commitsSince } from './git.mjs';
 import { runTaskVerification } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
 import { splitDiffByFiles } from './selfcheck.mjs';
+import { resolveEscalationResume } from './check.mjs';
 
 const COUNTER_RE = /\b\d+\/\d+\s+PASS\b/;
 const EVAL_KEYWORD_RE = /(?:\b(?:evals?|live)\b|замер)/i;
@@ -209,14 +210,42 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
 
   let parsedPlan = plan;
   if (!parsedPlan) {
-    try {
-      parsedPlan = parsePlan(readFileSync(path.join(cwd, 'PLAN.md'), 'utf8'));
-    } catch {
-      try {
-        parsedPlan = parsePlan(git(realGit, cwd, ['show', 'HEAD:PLAN.md']));
-      } catch {
-        parsedPlan = { tasks: [], frozen: [] };
+    const planCandidates = [config?.paths?.planPath, '.architect/PLAN.md', 'PLAN.md'].filter(Boolean);
+    for (const rel of planCandidates) {
+      const fullPath = path.join(cwd, rel);
+      if (existsSync(fullPath)) {
+        try {
+          parsedPlan = parsePlan(readFileSync(fullPath, 'utf8'));
+          break;
+        } catch (err) {
+          parsedPlan = null;
+          void err;
+        }
       }
+      try {
+        parsedPlan = parsePlan(git(realGit, cwd, ['show', `HEAD:${rel}`]));
+        break;
+      } catch (err) {
+        parsedPlan = null;
+        void err;
+      }
+    }
+    if (!parsedPlan) {
+      parsedPlan = { tasks: [], frozen: [] };
+    }
+  }
+
+  for (const t of (parsedPlan.tasks ?? []).filter((task) => !task.done)) {
+    const resume = resolveEscalationResume({ realGit, workDir: cwd, task: t, layout: config?.paths });
+    if (resume.ok) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: `resuming ${t.id} after escalation on dirty working tree: red-check skipped`,
+        violations: [],
+        notVerified: [],
+        checked: [],
+      };
     }
   }
 
