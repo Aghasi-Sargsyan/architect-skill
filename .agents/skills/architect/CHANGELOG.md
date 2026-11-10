@@ -2,6 +2,9 @@
 
 All notable changes to the `architect` skill and its embedded orchestrator are documented in this file.
 
+## v3.41 / 1.8 (2026-11-10 — Strict Multi-Line Visual Response Format Across Subagent Milestones, Escalations, and Rework Turns)
+- **Strict multi-line visual response format across subagent milestones, escalations, and rework turns (`SKILL.md` `v3.41`, `references/auto-review.md`):** Replaced the conflicting `Print one status line per milestone` wording in `SKILL.md` §2.5 with explicit per-turn formatting rules (restricting single-line output strictly to `--watch` exit code `4` background milestones), required `[MODE: ... · PHASE N]` to sit on its own first line followed by a blank line (`\n\n`) and a blank line after the 1-sentence BLUF, banned semicolon (`;`) and parenthetical multi-fact stuffing in `Visual response format`, and mandated switching to `[MODE: REVIEW / ESCALATION · PHASE 2]` with the 5-bullet `references/auto-review.md` §4 schema on every subagent return — acceptance, `rework` (`T-NNN (fix N)`), and `arch: fix-frozen` escalation (`SKILL.md` `33796` → `34396` bytes `<= 34 KB`, replacing `Print one status line per milestone` in-place and justified by eliminating single-line wall-of-text turns during subagent execution observed in `sl-factory-kit`).
+
 ## v3.40 / 1.8 (2026-11-10 — Explicit Cycle-Complete Status Bullet on Clean Cycle Closure)
 - **Explicit cycle-complete **Status** bullet on clean cycle closure (`SKILL.md` `v3.40`, `references/retro.md`):** Added a mandatory **Status** bullet to the cycle closure technical summary in `references/retro.md` §1 and `SKILL.md` (`33692` → `33796` bytes `<= 34 KB`, justified by giving operators an explicit confirmation that the cycle is 100% complete with zero open `[ ]` tasks or pending work instead of a continuation handoff prompt).
 
