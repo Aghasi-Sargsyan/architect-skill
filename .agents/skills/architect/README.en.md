@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.37 / 1.8 -->
-# Architect + Executor Skill (`v3.37 / 1.8`)
+<!-- skill-readme-sync: v3.38 / 1.8 -->
+# Architect + Executor Skill (`v3.38 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
@@ -27,7 +27,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
      # or: npm run agents -- --update
      ```
 2. **Open your agent and write `/architect`** (or *"Read `.agents/skills/architect/SKILL.md`"*):
-   - **First run in a new project:** in Phase 1 (read-only), the Architect touches no files before your approval, asks in a single question for the **Executor model** (proposing options available in your current environment without picking a model itself), and offers to add the roles block to `AGENTS.md` (or `CLAUDE.md` / `GEMINI.md`). After you approve the plan in Phase 2, the Architect copies `EXECUTOR.md` itself and records the chosen model, roles block, `EXECUTOR.md`, and `PLAN.md` together in the first `arch: plan ...` commit. If you want the automated orchestrator, the Architect runs `--init`, `--check`, and `--dry-run` itself, asking `"yes"` only before `--write-permissions`.
+   - **First run in a new project:** in Phase 1 (read-only), the Architect touches no files before your approval, asks in a single question for the **Executor model** (proposing options available in your current environment without picking a model itself), and offers to add the roles block to `AGENTS.md` (or `CLAUDE.md` / `GEMINI.md`). After you approve the plan in Phase 2, the Architect uses the `.architect/` (`compact`) layout by default for new projects: it copies `.architect/EXECUTOR.md` and commits the chosen model, roles block, `.architect/EXECUTOR.md`, and `.architect/PLAN.md` together in `arch: plan ...`. To migrate an existing `classic` project into `.architect/` in one command, write **`/architect compact`** (or run `node .agents/skills/architect/orchestrator/run.mjs --compact`).
 
 ---
 
@@ -139,6 +139,7 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 | `--init [--team]` | Create `.architect/config.json` (or `.agents/orchestrator.json`), install `.git/hooks/commit-msg`, add `.agent-runs/` and `*.local.json` to `.gitignore`; with `--team`, set `"team": true` and create `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Install the zero-dependency Node `.git/hooks/commit-msg` hook (without overwriting an existing custom hook or `core.hooksPath`) |
 | `--update [--force]` | Fetch latest commit, atomically update installed skill folder, write commit SHA to `.version`, sync `EXECUTOR.md`, and refresh git hooks |
+| `--compact` | Migrate an existing `classic` project (root `PLAN.md`/`EXECUTOR.md`/`docs/`) into the `.architect/` compact layout (`/architect compact`) |
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | List current `executor` / `architect` models and all available environment models with effort tiers (`--models`), or set the chosen role model in shared/local config and sync `AGENTS.md` / `.claude/agents/executor.md` (`--set-model`, `/architect model`) |
 | `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, resolved Executor model and its source, `PLAN.md`, parallel task boundaries, runner binaries, and allowlists |
 | `--check-task T-NNN [--base <ref>]` | Mechanically verify task `T-NNN` against `<base>:PLAN.md` and `git merge-base <base> HEAD` (`Change` boundaries, `Frozen`, bypasses, commit messages, no-squash, and task `Verify` commands) |

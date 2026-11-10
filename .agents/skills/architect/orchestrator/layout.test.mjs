@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import * as layoutMod from './layout.mjs';
 import {
   COMPACT_CONFIG_PATH,
   CLASSIC_CONFIG_PATH,
@@ -15,6 +16,8 @@ import {
 import { DEFAULTS, initProject, loadConfig, validateConfig, withDefaults } from './config.mjs';
 import { localChecks } from './check.mjs';
 import { checkExecutorRun } from './mechanics.mjs';
+import { loadConfigOrDefaults, parseArgs } from './cli.mjs';
+import { checkPostReviewSelfCheck, runSelfCheckGit } from './selfcheck.mjs';
 
 const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
 const ENV = {
@@ -183,4 +186,167 @@ test('T-021 (П6, П1): checkExecutorRun always freezes orchestrator config file
     });
     assert.match(res.violations.join('\n'), new RegExp(`Frozen: ${protectedFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   }
+});
+
+test('T-083: loadConfigOrDefaults defaults to compact layout (.architect/) in new projects without root PLAN.md/EXECUTOR.md and preserves classic when root files exist', () => {
+  const freshCfg = loadConfigOrDefaults(null, dir);
+  assert.equal(freshCfg.layout, 'compact');
+  assert.equal(freshCfg.paths.planPath, '.architect/PLAN.md');
+  assert.equal(freshCfg.paths.executorPath, '.architect/EXECUTOR.md');
+
+  write('PLAN.md', '# PLAN\n');
+  const classicByPlan = loadConfigOrDefaults(null, dir);
+  assert.equal(classicByPlan.layout, 'classic');
+  assert.equal(classicByPlan.paths.planPath, 'PLAN.md');
+
+  rmSync(path.join(dir, 'PLAN.md'), { force: true });
+  write('EXECUTOR.md', '<!-- executor-policy-version: 1.8 -->\n');
+  const classicByExec = loadConfigOrDefaults(null, dir);
+  assert.equal(classicByExec.layout, 'classic');
+  assert.equal(classicByExec.paths.executorPath, 'EXECUTOR.md');
+
+  const explicitClassic = loadConfigOrDefaults(CLASSIC_CONFIG_PATH, dir);
+  assert.equal(explicitClassic.layout, 'classic');
+});
+
+test('T-083: migrateToCompact and CLI --compact migrate a classic project to .architect/, update references, and fail closed on AGENT_LOOP=1, active lock, or file conflicts', () => {
+  const { migrateToCompact, handleCompactCli } = layoutMod;
+  assert.equal(typeof migrateToCompact, 'function', 'layout.mjs must export migrateToCompact');
+  assert.equal(typeof handleCompactCli, 'function', 'layout.mjs must export handleCompactCli');
+
+  const parsed = parseArgs(['--compact']);
+  assert.equal(parsed.compact, true);
+  assert.throws(() => parseArgs(['--compact', '--init']), /only one/i);
+
+  // 1. Fail closed when AGENT_LOOP=1
+  const prevLoop = process.env.AGENT_LOOP;
+  process.env.AGENT_LOOP = '1';
+  try {
+    assert.throws(() => migrateToCompact({ workDir: dir }), /AGENT_LOOP=1/);
+  } finally {
+    if (prevLoop === undefined) delete process.env.AGENT_LOOP;
+    else process.env.AGENT_LOOP = prevLoop;
+  }
+
+  // 2. Fail closed when .agent-runs/.lock holds live PID
+  write('.agent-runs/.lock', `${process.pid}\n`);
+  assert.throws(() => migrateToCompact({ workDir: dir }), /loop is running|lock/i);
+  rmSync(path.join(dir, '.agent-runs'), { recursive: true, force: true });
+
+  // 3. Fail closed on conflicting classic and compact files
+  write('PLAN.md', '# Classic Plan\n');
+  write('.architect/PLAN.md', '# Different Compact Plan\n');
+  assert.throws(() => migrateToCompact({ workDir: dir }), /conflict/i);
+  assert.equal(readFileSync(path.join(dir, 'PLAN.md'), 'utf8'), '# Classic Plan\n');
+  rmSync(path.join(dir, '.architect'), { recursive: true, force: true });
+
+  // 4. Migrate full classic project to compact (.architect/)
+  write('EXECUTOR.md', '<!-- executor-policy-version: 1.8 -->\n# Executor Rules\n');
+  write(
+    'PLAN.md',
+    [
+      '# PLAN',
+      'Archive in `docs/plans/2026-11-01-c1.md`, decisions in `docs/decisions.md`, profiles in `docs/executor-profiles.md`.',
+      '',
+      '## Frozen',
+      '- `EXECUTOR.md`',
+      '',
+      '## Rules',
+      'For Executor on task T-NNN: read EXECUTOR.md first and follow it.',
+      '',
+      '## Tasks',
+    ].join('\n') + '\n',
+  );
+  write('docs/decisions.md', '# Decisions\n- ADR-001: test\n');
+  write('docs/executor-profiles.md', '# Profiles\n');
+  write('docs/plans/2026-11-01-c1.md', '# Cycle 1 Archive\n');
+  write('.agents/orchestrator.json', JSON.stringify({ runner: 'agy', executor: { model: 'gemini-3.8-flash-high' }, architect: { model: 'gemini-4-argon-high' } }, null, 2) + '\n');
+  write('.agents/orchestrator.local.json', JSON.stringify({ executor: { model: 'gemini-3.8-flash-high' } }, null, 2) + '\n');
+  write(
+    'AGENTS.md',
+    [
+      '# Rules',
+      '- First read `.agents/skills/architect/SKILL.md` and `.agents/skills/architect/EXECUTOR.md`.',
+      '- Executor session: read `EXECUTOR.md` and `PLAN.md`, config in `.agents/orchestrator.json` or `.agents/orchestrator.local.json`.',
+    ].join('\n') + '\n',
+  );
+
+  const lines = [];
+  const res = handleCompactCli({ workDir: dir, print: (m) => lines.push(m) });
+  assert.equal(res.ok, true);
+  assert.equal(res.alreadyCompact, false);
+  assert.ok(res.moved.length >= 6);
+  assert.ok(lines.length > 0);
+
+  // Old files and empty docs/ directory removed
+  for (const oldRel of ['EXECUTOR.md', 'PLAN.md', 'docs/decisions.md', 'docs/executor-profiles.md', 'docs/plans/2026-11-01-c1.md', 'docs', '.agents/orchestrator.json', '.agents/orchestrator.local.json']) {
+    assert.equal(
+      (() => { try { readFileSync(path.join(dir, oldRel)); return true; } catch { /* cleanup: abort check */ return false; } })(),
+      false,
+      `${oldRel} must be removed after migration`,
+    );
+  }
+
+  // New .architect/ files exist with updated content
+  const newPlan = readFileSync(path.join(dir, '.architect/PLAN.md'), 'utf8');
+  assert.match(newPlan, /- `\.architect\/EXECUTOR\.md`/);
+  assert.match(newPlan, /read \.architect\/EXECUTOR\.md first/);
+  assert.match(newPlan, /\.architect\/decisions\.md/);
+  assert.match(newPlan, /\.architect\/executor-profiles\.md/);
+  assert.match(newPlan, /\.architect\/plans\/2026-11-01-c1\.md/);
+
+  const newCfg = JSON.parse(readFileSync(path.join(dir, '.architect/config.json'), 'utf8'));
+  assert.equal(newCfg.layout, 'compact');
+  assert.equal(newCfg.executor.model, 'gemini-3.8-flash-high');
+  assert.equal(readFileSync(path.join(dir, '.architect/plans/2026-11-01-c1.md'), 'utf8'), '# Cycle 1 Archive\n');
+
+  const updatedAgents = readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+  assert.match(updatedAgents, /\.agents\/skills\/architect\/EXECUTOR\.md/, 'skill subfolder path must stay intact');
+  assert.match(updatedAgents, /read `\.architect\/EXECUTOR\.md` and `\.architect\/PLAN\.md`/);
+  assert.match(updatedAgents, /\.architect\/config\.json/);
+  assert.match(updatedAgents, /\.architect\/config\.local\.json/);
+
+  // Idempotent second run
+  const second = migrateToCompact({ workDir: dir });
+  assert.equal(second.ok, true);
+  assert.equal(second.alreadyCompact, true);
+  assert.deepEqual(second.moved, []);
+});
+
+test('T-083: runSelfCheckGit and checkPostReviewSelfCheck inspect .architect/PLAN.md in compact layout', () => {
+  write('.architect/EXECUTOR.md', '<!-- executor-policy-version: 1.8 -->\n');
+  write('.architect/PLAN.md', '# PLAN\n\n## Frozen\n- `.architect/EXECUTOR.md`\n\n## Tasks\n');
+  g('add', '.architect/EXECUTOR.md', '.architect/PLAN.md');
+  g('commit', '-q', '-m', 'arch: close cycle 1');
+  const baseSha = g('rev-parse', 'HEAD');
+
+  write('tests/ref.test.mjs', 'import { test } from "node:test";\nimport assert from "node:assert/strict";\ntest("a", () => { assert.equal(1, 1); });\n');
+  write(
+    '.architect/PLAN.md',
+    '# PLAN\n\n## Frozen\n- `.architect/EXECUTOR.md`\n- `tests/ref.test.mjs`\n\n## Tasks\n- [ ] T-001: task\n  - Risk: high\n  - Change: `src/a.mjs`\n  - Test cases: `tests/ref.test.mjs`\n',
+  );
+  g('add', 'tests/ref.test.mjs', '.architect/PLAN.md');
+  g('commit', '-q', '-m', 'arch: plan T-001 in compact layout');
+
+  // Unjustified modification to frozen test referenced in .architect/PLAN.md must be caught
+  write('tests/ref.test.mjs', 'import { test } from "node:test";\nimport assert from "node:assert/strict";\ntest("a", () => { assert.equal(1, 1); assert.equal(2, 2); });\n');
+  g('add', 'tests/ref.test.mjs');
+  g('commit', '-q', '-m', 'arch: tweak test without fix-frozen');
+
+  const cfg = loadConfigOrDefaults(null, dir);
+  const scBad = runSelfCheckGit({ realGit, cwd: dir, config: cfg, baseRef: baseSha });
+  assert.equal(scBad.ok, false);
+  assert.match(scBad.violations.join('\n'), /touches frozen test.*tests\/ref\.test\.mjs/);
+
+  // Adding a WAIVER in .architect/PLAN.md during automated cycle must be caught by checkPostReviewSelfCheck
+  write(
+    '.architect/PLAN.md',
+    '# PLAN\n\n## Decisions\n- WAIVER abcdef0: fix-frozen — excuse\n\n## Frozen\n- `.architect/EXECUTOR.md`\n- `tests/ref.test.mjs`\n\n## Tasks\n',
+  );
+  g('add', '.architect/PLAN.md');
+  g('commit', '-q', '-m', 'arch: add waiver in compact plan');
+
+  const postRes = checkPostReviewSelfCheck({ realGit, cwd: dir, baseSha, config: cfg });
+  assert.equal(postRes.ok, false);
+  assert.match(postRes.violations.join('\n'), /new WAIVER line added/);
 });

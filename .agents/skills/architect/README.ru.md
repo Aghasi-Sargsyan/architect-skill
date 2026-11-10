@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.37 / 1.8 -->
-# Скилл «Архитектор + Исполнитель» (`v3.37 / 1.8`)
+<!-- skill-readme-sync: v3.38 / 1.8 -->
+# Скилл «Архитектор + Исполнитель» (`v3.38 / 1.8`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
@@ -27,7 +27,7 @@
      # или: npm run agents -- --update
      ```
 2. **Откройте агента и напишите `/architect`** (или *«прочитай `.agents/skills/architect/SKILL.md`»*):
-   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор до утверждения не трогает файлы, одним вопросом спрашивает **модель Исполнителя** (предлагает варианты, доступные в текущем окружении, сам модель не выбирает) и предлагает добавить блок ролей в `AGENTS.md` (или `CLAUDE.md` / `GEMINI.md`). После утверждения плана в Фазе 2 Архитектор сам копирует `EXECUTOR.md` и записывает выбранную модель, блок ролей, `EXECUTOR.md` и `PLAN.md` вместе с первым коммитом плана (`arch: plan ...`). Если нужен автоматический оркестратор — Архитектор сам запускает `--init`, `--check` и `--dry-run`, а явное «да» спрашивает только для `--write-permissions`.
+   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор не трогает файлы, спрашивает **модель Исполнителя** (из вариантов окружения) и предлагает добавить блок ролей в `AGENTS.md`. В Фазе 2 по умолчанию создаёт рабочие файлы в `.architect/` (`compact`: `.architect/EXECUTOR.md`, `.architect/PLAN.md`, `.architect/decisions.md`, `.architect/executor-profiles.md`, `.architect/plans/`) и коммитит их в `arch: plan ...`. Для миграции старого `classic`-проекта в `.architect/` одной командой напишите **`/architect compact`** (или `node .agents/skills/architect/orchestrator/run.mjs --compact`).
 
 ---
 
@@ -134,7 +134,8 @@
 | `--init [--team]` | Создание конфига, установка `.git/hooks/commit-msg`, добавление `.agent-runs/` и `*.local.json` в `.gitignore`; с `--team` пишет `"team": true` и `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Установка Node-хука `.git/hooks/commit-msg` (без перезаписи существующего хука или `core.hooksPath`) |
 | `--update [--force]` | Обновление папки скилла, `.version`, `EXECUTOR.md` и хуков |
-| `--models` / `--set-model <executor\|architect> <id> [--local]` | Список текущих моделей и всех моделей окружения с `effort` (`--models`) или запись модели роли в конфиг и `AGENTS.md` (`--set-model`, `/architect model`) |
+| `--compact` | Миграция существующего проекта из `classic` (корень / `docs/`) в компактную раскладку `.architect/` (`/architect compact`) |
+| `--models` / `--set-model <executor\|architect> <id> [--local]` | Список моделей окружения с `effort` (`--models`) или запись модели роли в конфиг и `AGENTS.md` (`--set-model`, `/architect model`) |
 | `--check` | Проверка ОС, Node 22+, git 2.31+, подпапки скилла, копии `EXECUTOR.md`, хука `commit-msg`, итоговой модели Исполнителя и её источника, `PLAN.md`, параллельных задач, раннеров и allowlist |
 | `--check-task T-NNN [--base <ref>]` | Шлюз задачи `T-NNN` по `<base>:PLAN.md` и `git merge-base <base> HEAD` (`Change`, `Frozen`, обходы, коммиты, запрет squash и `Verify`-команды задачи) |
 | `--write-permissions` | Запись allowlist команд и путей для `agy` или `claude` (после явного согласия пользователя) |
