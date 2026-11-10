@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.43 / 1.8 -->
-# Скилл «Архитектор + Исполнитель» (`v3.43 / 1.8`)
+<!-- skill-readme-sync: v3.44 / 1.8 -->
+# Скилл «Архитектор + Исполнитель» (`v3.44 / 1.8`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
@@ -138,7 +138,7 @@
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | Список моделей окружения с `effort` (`--models`) или запись модели роли в конфиг и `AGENTS.md` (`--set-model`, `/architect model`) |
 | `--check` | Проверка ОС, Node 22+, git 2.31+, подпапки скилла, копии `EXECUTOR.md`, хука `commit-msg`, итоговой модели Исполнителя и её источника, `PLAN.md`, параллельных задач, раннеров и allowlist |
 | `--check-task T-NNN [--base <ref>]` | Шлюз задачи `T-NNN` по `<base>:PLAN.md` и `git merge-base <base> HEAD` (`Change`, `Frozen`, обходы, коммиты, запрет squash и `Verify`-команды задачи) |
-| `--write-permissions` | Запись allowlist команд и путей для `agy` или `claude` (после явного согласия пользователя) |
+| `--write-permissions` | Запись allowlist и очистка опасных / чужих проектных `allow`-правил для `agy` или `claude` (после явного согласия пользователя) |
 | `--dry-run` | Проверка готовности, `--self-check` (`red-check`) и показ промпта следующей задачи без вызова LLM |
 | `--self-check [--base <ref>]` | Самопроверка Архитектора (обходы, пустой `catch`, таймеры, монотонность, `fix-frozen`, `eval`, аудит, параллельные задачи и `red-check`) |
 | `--audit-plan` | Read-only аудит плана другой моделью (`references/plan-audit.md`) через `config.auditor` (до 1 повтора на базу цикла) |

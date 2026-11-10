@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.43 / 1.8 -->
-# Architect + Executor Skill (`v3.43 / 1.8`)
+<!-- skill-readme-sync: v3.44 / 1.8 -->
+# Architect + Executor Skill (`v3.44 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
@@ -143,7 +143,7 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | List current `executor` / `architect` models and all available environment models with effort tiers (`--models`), or set the chosen role model in shared/local config and sync `AGENTS.md` / `.claude/agents/executor.md` (`--set-model`, `/architect model`) |
 | `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, resolved Executor model and its source, `PLAN.md`, parallel task boundaries, runner binaries, and allowlists |
 | `--check-task T-NNN [--base <ref>]` | Mechanically verify task `T-NNN` against `<base>:PLAN.md` and `git merge-base <base> HEAD` (`Change` boundaries, `Frozen`, bypasses, commit messages, no-squash, and task `Verify` commands) |
-| `--write-permissions` | Write safe command/file allowlists for `agy` or `claude` (only after explicit user confirmation) |
+| `--write-permissions` | Write safe command/file allowlists and prune unsafe or cross-project `allow` rules for `agy` or `claude` (only after explicit user confirmation) |
 | `--dry-run` | Validate readiness, run `--self-check` (including `red-check`), and preview the next task prompt without calling any LLM |
 | `--self-check [--base <ref>]` | Run deterministic Architect self-check (bypasses, empty `catch`, test timers, monotonicity, `fix-frozen`, `eval` evidence, audit coverage, parallel task overlaps, and `red-check`) |
 | `--audit-plan` | Run advisory read-only cross-model plan audit (`references/plan-audit.md`) via `config.auditor` (paid live call, max 1 re-run per cycle base) |
