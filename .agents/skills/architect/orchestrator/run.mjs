@@ -158,13 +158,11 @@ async function main() {
     cleaned = true;
     clearQuestion(workDir); guards.restore(); releaseLock();
   };
-  for (const sig of ['SIGINT', 'SIGTERM']) {
-    process.on(sig, () => { cleanup(); process.exit(130); });
-  }
+  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { cleanup(); process.exit(130); });
 
   // One agent run. A denied command does not end it: unsafe commands get an automatic «no», others are asked
   // about (terminal or --answer); either way the same conversation continues, at most maxPermissionPrompts times.
-  const agent = async (role, model, prompt, label) => {
+  const agent = async (role, model, prompt, label, task = null) => {
     const who = role === 'executor' ? 'Executor' : 'Architect';
     const format = adapter.createFormatter({ workDir: realOrResolved(workDir) });
     const taskId = label.split('-').slice(0, 2).join('-');
@@ -201,7 +199,11 @@ async function main() {
         continue;
       }
       const answer = await askPermission({
-        question: { id: `${turnLabel}-q`, who, taskId, command: step.command, options: proposal.options },
+        question: {
+          id: `${turnLabel}-q`, who, taskId, command: step.command, options: proposal.options,
+          ...(task?.title ? { taskTitle: task.title } : {}),
+          ...(step.reason ? { reason: step.reason } : {}),
+        },
         workDir, runDir, rl, tty: Boolean(rl), timeoutMs: config.answerTimeoutMinutes * 60_000, log,
         notify: (t) => { void sendNotification({ config, text: t, eventType: 'question', taskId, role, log }); },
       });
@@ -272,7 +274,7 @@ async function main() {
             const esc = resolveEscalationResume({ realGit, workDir, task, layout, currentRunDir: runDir });
             if (esc.ok) promptLayout = { ...layout, escalationReport: esc.reportText };
           }
-          const ex = await agent('executor', executorModel, executorPrompt(task, rework, executorModel, promptLayout), label);
+          const ex = await agent('executor', executorModel, executorPrompt(task, rework, executorModel, promptLayout), label, task);
           const exTampered = guards.verify();
           if (exTampered.length) { stopReason = `${task.id}: guards were tampered with after Executor — ${exTampered.join('; ')}`; break outer; }
           if (!ex.ok) {
@@ -331,7 +333,7 @@ async function main() {
 
           const archBase = head(realGit, workDir);
           const reviewLabel = `${task.id}-review${round}`;
-          const ar = await agent('architect', config.architect.model, architectPrompt(task, String(ex.json.report_markdown), mechText, executorModel, { planPath: layout.planPath, reviewPath: reviewFilePath(workDir, here), skillPath: skillFilePath(workDir, here) }), reviewLabel);
+          const ar = await agent('architect', config.architect.model, architectPrompt(task, String(ex.json.report_markdown), mechText, executorModel, { planPath: layout.planPath, reviewPath: reviewFilePath(workDir, here), skillPath: skillFilePath(workDir, here) }), reviewLabel, task);
           const arTampered = guards.verify();
           if (arTampered.length) { stopReason = `${task.id}: guards were tampered with after Architect — ${arTampered.join('; ')}`; break outer; }
           if (!ar.ok) { stopReason = `${task.id}: Architect failed — ${ar.error}`; break outer; }

@@ -36,19 +36,28 @@ export function questionText(question) {
   const options = (question.options || []).map((o) => (o.answer === '1'
     ? `1. **Always** — rule \`command(${o.rule})\`, with any arguments`
     : `2. **This command only** — rule \`command(${o.rule})\`; extra arguments will also pass`));
-  return [
+  const whoLine = question.taskTitle
+    ? `**Who:** ${question.who}, task ${question.taskId} (${question.taskTitle})`
+    : `**Who:** ${question.who}, task ${question.taskId}`;
+  const lines = [
     '### 🔐 Command Permission',
     '',
-    `**Who:** ${question.who}, task ${question.taskId}`,
+    whoLine,
     '',
     `**Command:** \`${question.command}\``,
+  ];
+  if (question.reason) {
+    lines.push('', `**Why:** ${question.reason}`);
+  }
+  lines.push(
     '',
     '**Options:**',
     ...options,
     '3. **No** — the agent will continue without it or escalate',
     '',
     `**Reply:** ${answersText(validAnswers(question))}`,
-  ].join('\n');
+  );
+  return lines.join('\n');
 }
 
 /** Removes the fixed question and answer files (after an answer, on timeout, on stop). */
@@ -118,11 +127,15 @@ export async function askPermission(optsOrQuestion, maybeOpts) {
   const command = opts.step?.command ?? opts.command ?? '';
   const who = opts.who ?? (opts.role === 'executor' ? 'Executor' : opts.role === 'architect' ? 'Architect' : 'Agent');
   const taskId = opts.taskId ?? opts.question?.taskId ?? '';
+  const taskTitle = opts.taskTitle ?? opts.task?.title ?? opts.question?.taskTitle;
+  const reason = opts.step?.reason ?? opts.reason ?? opts.question?.reason;
   const question = opts.question ?? {
     id: `${taskId || 'perm'}-${Date.now()}-q`,
     who,
     taskId,
     command,
+    ...(taskTitle ? { taskTitle } : {}),
+    ...(reason ? { reason } : {}),
     options: opts.proposal?.options ?? [],
   };
 

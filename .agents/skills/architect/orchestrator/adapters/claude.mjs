@@ -199,7 +199,10 @@ export function claudePermissionsCheck({ config, settingsPath = null, workDir, h
 export function extractClaudeDeniedStep(denials = []) {
   if (!Array.isArray(denials) || denials.length === 0) return null;
   const d = denials.at(-1);
-  if (d?.tool_name === 'Bash' && typeof d?.tool_input?.command === 'string') return { kind: 'command', command: d.tool_input.command };
+  if (d?.tool_name === 'Bash' && typeof d?.tool_input?.command === 'string') {
+    const reason = typeof d?.tool_input?.description === 'string' ? d.tool_input.description.trim() : '';
+    return { kind: 'command', command: d.tool_input.command, ...(reason ? { reason } : {}) };
+  }
   return { kind: 'other', text: `${d?.tool_name ?? 'tool'}: ${d?.tool_input?.file_path ?? JSON.stringify(d?.tool_input ?? {}).slice(0, 200)}` };
 }
 

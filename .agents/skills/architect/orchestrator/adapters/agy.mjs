@@ -19,9 +19,18 @@ export const brainDir = (home = os.homedir()) => path.join(home, '.gemini', 'ant
 export const transcriptPath = (conversationId, home = os.homedir()) => path.join(brainDir(home), conversationId, '.system_generated', 'logs', 'transcript.jsonl');
 export const maskHome = (p, home = os.homedir()) => String(p).split(home).join('~');
 
+const unquote = (v) => {
+  if (typeof v !== 'string') return '';
+  const s = v.trim();
+  if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) {
+    try { return JSON.parse(s); } catch { return s.slice(1, -1); /* close */ }
+  }
+  return s;
+};
+
 /**
  * The step that was denied, from the agent's transcript (newest ERROR step about a permission).
- * @returns {{ kind: 'command', command: string } | { kind: 'other', text: string } | null}
+ * @returns {{ kind: 'command', command: string, reason?: string } | { kind: 'other', text: string } | null}
  */
 export function deniedFromTranscript(conversationId, home = os.homedir()) {
   const file = conversationId ? transcriptPath(conversationId, home) : '';
@@ -38,7 +47,38 @@ export function deniedFromTranscript(conversationId, home = os.homedir()) {
     if (row.status !== 'ERROR') continue;
     const text = typeof row.content === 'string' ? row.content : JSON.stringify(row.content);
     const m = text.match(DENIED_COMMAND_RE);
-    if (m) return { kind: 'command', command: m[1] };
+    if (m) {
+      let cand = null;
+      for (let j = i - 1; j >= 0; j--) {
+        let prev;
+        try { prev = JSON.parse(lines[j]); } catch { continue; /* close */ }
+        if (!Array.isArray(prev?.tool_calls)) continue;
+        for (const tc of prev.tool_calls) {
+          if (tc?.name !== 'run_command') continue;
+          let a = tc?.args;
+          if (typeof a === 'string') try { a = JSON.parse(a); } catch { /* close */ }
+          if (unquote(a?.CommandLine) === m[1]) {
+            cand = { step: prev, tc, args: a };
+            break;
+          }
+          if (!cand) cand = { step: prev, tc, args: a };
+        }
+        if (cand && unquote(cand.args?.CommandLine) === m[1]) break;
+      }
+      let reason = '';
+      if (cand) {
+        const summary = unquote(cand.args?.toolSummary);
+        if (summary) reason = summary.slice(0, 160);
+        else {
+          const fallback = typeof cand.step?.thinking === 'string' && cand.step.thinking.trim()
+            ? cand.step.thinking : (typeof cand.step?.content === 'string' ? cand.step.content : '');
+          const line = fallback.split('\n').map((s) => s.trim()).find(Boolean) ?? '';
+          if (line) reason = line.slice(0, 160);
+        }
+      }
+      reason = reason.trim();
+      return reason ? { kind: 'command', command: m[1], reason } : { kind: 'command', command: m[1] };
+    }
     if (/permission/i.test(text)) return { kind: 'other', text: text.slice(0, 300) };
   }
   return null;
@@ -84,11 +124,7 @@ function spawnCollect(bin, args, { cwd, env, timeoutMs, killGraceMs = 5000 }) {
     timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGTERM');
-      killTimer = setTimeout(() => {
-        if (!done) {
-          child.kill('SIGKILL');
-        }
-      }, killGraceMs);
+      killTimer = setTimeout(() => { if (!done) child.kill('SIGKILL'); }, killGraceMs);
     }, timeoutMs);
     child.stdout.on('data', (d) => { stdout += d; });
     child.stderr.on('data', (d) => { stderr += d; });
@@ -120,21 +156,15 @@ function newestConversation(sinceMs, home) {
  */
 export function parseAgyOutput(stdout, stderr = '', code = 0) {
   const text = String(stdout ?? '').trim();
-  if (!text) {
-    return { ok: false, error: `agy output does not contain JSON (code ${code}): ${stderr || '(empty)'}` };
-  }
+  if (!text) return { ok: false, error: `agy output does not contain JSON (code ${code}): ${stderr || '(empty)'}` };
   let parsed;
   try {
     parsed = JSON.parse(text);
   } catch (err) {
-    if (!text.includes('{')) {
-      return { ok: false, error: `agy output does not contain JSON (code ${code}): ${text.slice(0, 300)}` };
-    }
+    if (!text.includes('{')) return { ok: false, error: `agy output does not contain JSON (code ${code}): ${text.slice(0, 300)}` };
     return { ok: false, error: `invalid JSON from agy: ${err.message}` };
   }
-  if (parsed.status === 'ERROR') {
-    return { ok: false, error: parsed.error || parsed.response || 'rejected by model', raw: parsed };
-  }
+  if (parsed.status === 'ERROR') return { ok: false, error: parsed.error || parsed.response || 'rejected by model', raw: parsed };
   try {
     const { json, discardedPrefixLength } = parseAgentResponse(parsed.response ?? text);
     return { ok: true, json, raw: parsed, discardedPrefixLength };
@@ -168,9 +198,7 @@ export function checkAgyEnv(agyBin = 'agy') {
       if (ps.status !== 0 || !ps.stdout.trim()) {
         issues.push('Antigravity server is not running (no language_server_macos* process). Open the Antigravity app before running the loop.');
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* close */ }
   }
   return { ok: issues.length === 0, issues };
 }
@@ -328,35 +356,20 @@ function isNestedInUnclosedJson(trimmed, idx) {
       } else if (ch === '{' || ch === '[') {
         stack.push(ch);
       } else if (ch === '}') {
-        if (stack.length > 0 && stack[stack.length - 1] === '{') {
-          stack.pop();
-        }
+        if (stack.length > 0 && stack[stack.length - 1] === '{') stack.pop();
       } else if (ch === ']') {
-        if (stack.length > 0 && stack[stack.length - 1] === '[') {
-          stack.pop();
-        }
+        if (stack.length > 0 && stack[stack.length - 1] === '[') stack.pop();
       }
     }
   }
-
-  if (stack.length === 0) {
-    return false;
-  }
-
+  if (stack.length === 0) return false;
   const top = stack[stack.length - 1];
   if (top === '{') {
-    if (trimmedBefore.endsWith(':') && /"(?:[^"\\]|\\.)*"\s*:$/.test(trimmedBefore)) {
-      return true;
-    }
-    if (trimmedBefore.endsWith(',')) {
-      return true;
-    }
+    if (trimmedBefore.endsWith(':') && /"(?:[^"\\]|\\.)*"\s*:$/.test(trimmedBefore)) return true;
+    if (trimmedBefore.endsWith(',')) return true;
   } else if (top === '[') {
-    if (trimmedBefore.endsWith('[') || trimmedBefore.endsWith(',')) {
-      return true;
-    }
+    if (trimmedBefore.endsWith('[') || trimmedBefore.endsWith(',')) return true;
   }
-
   return false;
 }
 
@@ -368,32 +381,19 @@ function isNestedInUnclosedJson(trimmed, idx) {
  */
 export function parseAgentResponse(rawResponse) {
   const trimmed = String(rawResponse ?? '').trim();
-  if (!trimmed || !trimmed.endsWith('}')) {
-    throw new SyntaxError('Agent response must end with "}"');
-  }
-
+  if (!trimmed || !trimmed.endsWith('}')) throw new SyntaxError('Agent response must end with "}"');
   try {
     const whole = JSON.parse(trimmed);
-    if (isJsonObject(whole)) {
-      return { json: whole, discardedPrefixLength: 0 };
-    }
-  } catch {
-    // trimmed is not valid clean JSON, look for trailing JSON object
-  }
-
+    if (isJsonObject(whole)) return { json: whole, discardedPrefixLength: 0 };
+  } catch { /* close */ }
   for (let idx = 1; idx < trimmed.length; idx++) {
     if (trimmed[idx] !== '{') continue;
     try {
       const parsed = JSON.parse(trimmed.slice(idx));
-      if (isJsonObject(parsed)) {
-        if (!isNestedInUnclosedJson(trimmed, idx)) {
-          return { json: parsed, discardedPrefixLength: idx };
-        }
+      if (isJsonObject(parsed) && !isNestedInUnclosedJson(trimmed, idx)) {
+        return { json: parsed, discardedPrefixLength: idx };
       }
-    } catch {
-      // slice is not valid JSON, continue searching
-    }
+    } catch { /* close */ }
   }
-
   throw new SyntaxError('No valid JSON object found at the end of agent response');
 }
