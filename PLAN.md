@@ -41,7 +41,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/permissions.test.mjs .agents/skills/architect/orchestrator/guards-git.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
 
-- [ ] T-087: Извлечение причины вызова (`reason`) из транскрипта и вывод `taskTitle` + `**Why:**` в `Command Permission`
+- [x] T-087: Извлечение причины вызова (`reason`) из транскрипта и вывод `taskTitle` + `**Why:**` в `Command Permission`
   - Риск: high.
   - Зависит от: T-086.
   - Модель: Gemini Flash (`flash`).
