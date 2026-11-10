@@ -24,7 +24,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-088: Авто-очистка конфликтующих и запрещённых правил allowlist при `--write-permissions` и выделение `permissions-cli.mjs`
+- [x] T-088: Авто-очистка конфликтующих и запрещённых правил allowlist при `--write-permissions` и выделение `permissions-cli.mjs`
   - Риск: high.
   - Зависит от: —.
   - Модель: Gemini 3.8 Flash / High (`gemini-3.8-flash-high`).
