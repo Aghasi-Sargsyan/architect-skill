@@ -23,7 +23,7 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-083: Поддержать раскладку compact (.architect/) по умолчанию в loadConfigOrDefaults, миграцию migrateToCompact (--compact) и чтение .architect/PLAN.md в selfcheck.mjs
+- [x] T-083: Поддержать раскладку compact (.architect/) по умолчанию в loadConfigOrDefaults, миграцию migrateToCompact (--compact) и чтение .architect/PLAN.md в selfcheck.mjs
   - Риск: высокий
   - Зависит от: —
   - Модель: Gemini Flash (`flash`)
