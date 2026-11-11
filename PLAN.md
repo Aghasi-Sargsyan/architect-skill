@@ -52,7 +52,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/plan-validate.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/plan.test.mjs .agents/skills/architect/orchestrator/plan-reference-tests.test.mjs`
 
-- [ ] T-090: Wire strict plan, `Risk`, `Frozen`, and high-risk `referenceTests` gates into `check.mjs`, `evidence.mjs`, `cli.mjs`, and `mechanics.mjs` (`C-01`..`C-04`)
+- [x] T-090: Wire strict plan, `Risk`, `Frozen`, and high-risk `referenceTests` gates into `check.mjs`, `evidence.mjs`, `cli.mjs`, and `mechanics.mjs` (`C-01`..`C-04`)
   - Риск: high.
   - Зависит от: T-089.
   - Читать: `.agents/skills/architect/orchestrator/plan-gates.test.mjs`, `.agents/skills/architect/orchestrator/plan-validate.mjs`, `.agents/skills/architect/orchestrator/check.mjs` (строки 135–165, 300–330), `.agents/skills/architect/orchestrator/evidence.mjs` (строки 250–285), `.agents/skills/architect/orchestrator/cli.mjs` (строки 145–175, 325–360), `.agents/skills/architect/orchestrator/mechanics.mjs` (строки 120–155).
