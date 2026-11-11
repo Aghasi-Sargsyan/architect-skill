@@ -75,7 +75,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/check-en.test.mjs .agents/skills/architect/orchestrator/check-task.test.mjs .agents/skills/architect/orchestrator/install-check.test.mjs .agents/skills/architect/orchestrator/team-gate.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/evidence.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs .agents/skills/architect/orchestrator/mechanics.test.mjs .agents/skills/architect/orchestrator/mechanics-frozen.test.mjs`
 
-- [ ] T-091: Extract CLI subcommand dispatch into `cli-dispatch.mjs` and fix `--repair` and `--write-permissions` exit codes (`C-06`)
+- [x] T-091: Extract CLI subcommand dispatch into `cli-dispatch.mjs` and fix `--repair` and `--write-permissions` exit codes (`C-06`)
   - Риск: high.
   - Зависит от: T-090.
   - Читать: `.agents/skills/architect/orchestrator/cli-exit-codes.test.mjs`, `.agents/skills/architect/orchestrator/cli-dispatch.mjs`, `.agents/skills/architect/orchestrator/run.mjs` (строки 1–85), `.agents/skills/architect/orchestrator/guards-recovery.mjs` (строки 205–223), `.agents/skills/architect/orchestrator/permissions-cli.mjs` (строки 10–67), `.agents/skills/architect/orchestrator/cli-node-version.test.mjs` (строки 50–74), `.agents/skills/architect/orchestrator/write-permissions-prune.test.mjs` (строки 195–206).
