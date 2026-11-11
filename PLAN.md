@@ -33,7 +33,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-092: Resolve `--update` targets by real path so a symlinked `.claude/skills/architect` is never replaced by a copy
+- [x] T-092: Resolve `--update` targets by real path so a symlinked `.claude/skills/architect` is never replaced by a copy
   - Риск: high.
   - Зависит от: —
   - Читать: `.agents/skills/architect/orchestrator/skill-targets.test.mjs`, `.agents/skills/architect/orchestrator/skill-targets.mjs`, `.agents/skills/architect/orchestrator/update.mjs` (строки 1–12, 60–95, 145–210), `.agents/skills/architect/orchestrator/layout.mjs` (строки 84–104), `.agents/skills/architect/orchestrator/update.test.mjs` (строки 1–60).
