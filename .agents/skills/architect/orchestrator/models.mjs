@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { getAdapter } from './adapters/index.mjs';
+import { syncClaudeAgentFile } from './adapters/claude-models.mjs';
 import { resolveExecutorModelInfo } from './hooks.mjs';
 
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
@@ -227,8 +228,9 @@ export function setRoleModel({ workDir = process.cwd(), role, model, local = fal
     const claudeAgent = path.join(workDir, '.claude', 'agents', 'executor.md');
     if (existsSync(claudeAgent)) {
       const text = readFileSync(claudeAgent, 'utf8');
-      if (/^model:[ \t]*.*$/m.test(text)) {
-        writeFileSync(claudeAgent, text.replace(/^model:[ \t]*.*$/m, `model: ${validModel}`));
+      const synced = syncClaudeAgentFile(text, validModel);
+      if (synced !== null) {
+        writeFileSync(claudeAgent, synced);
         updatedFiles.push('.claude/agents/executor.md');
       }
     }

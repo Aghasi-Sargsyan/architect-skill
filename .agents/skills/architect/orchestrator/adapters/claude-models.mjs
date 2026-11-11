@@ -6,6 +6,18 @@ export const CLAUDE_MODEL_ALIASES = ['sonnet', 'opus', 'haiku', 'fable'];
 /** Effort levels accepted by `claude --effort` and by the `effort` field of `.claude/agents/*.md`. */
 export const CLAUDE_EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
+const LEVEL_NAMES = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  xhigh: 'XHigh',
+  max: 'Max',
+};
+
+function aliasName(alias) {
+  return alias.charAt(0).toUpperCase() + alias.slice(1);
+}
+
 /**
  * Models offered by the `claude` runner.
  * First the plain aliases in `CLAUDE_MODEL_ALIASES` order (`{ id: 'sonnet', name: 'Claude Sonnet' }`, ...),
@@ -15,7 +27,19 @@ export const CLAUDE_EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
  * @returns {Array<{ id: string, name: string }>}
  */
 export function listClaudeModels() {
-  throw new Error('Not implemented: listClaudeModels');
+  const result = [];
+  for (const alias of CLAUDE_MODEL_ALIASES) {
+    result.push({ id: alias, name: `Claude ${aliasName(alias)}` });
+  }
+  for (const alias of CLAUDE_MODEL_ALIASES) {
+    for (const level of CLAUDE_EFFORT_LEVELS) {
+      result.push({
+        id: `${alias}-${level}`,
+        name: `Claude ${aliasName(alias)} (${LEVEL_NAMES[level] || level})`,
+      });
+    }
+  }
+  return result;
 }
 
 /**
@@ -29,7 +53,23 @@ export function listClaudeModels() {
  * @returns {{ model: string, effort: string | null }}
  */
 export function splitClaudeModel(id) {
-  throw new Error(`Not implemented: splitClaudeModel(${id})`);
+  if (typeof id !== 'string') {
+    throw new TypeError('Model id must be a non-empty string');
+  }
+  const trimmed = id.trim();
+  if (!trimmed) {
+    throw new TypeError('Model id must be a non-empty string');
+  }
+  const dashIndex = trimmed.lastIndexOf('-');
+  if (dashIndex > 0) {
+    const base = trimmed.slice(0, dashIndex);
+    const suffix = trimmed.slice(dashIndex + 1);
+    const isClaude = CLAUDE_MODEL_ALIASES.includes(base) || base.startsWith('claude-');
+    if (CLAUDE_EFFORT_LEVELS.includes(suffix) && isClaude) {
+      return { model: base, effort: suffix };
+    }
+  }
+  return { model: trimmed, effort: null };
 }
 
 /**
@@ -39,7 +79,12 @@ export function splitClaudeModel(id) {
  * @returns {string[]}
  */
 export function claudeModelArgs(id) {
-  throw new Error(`Not implemented: claudeModelArgs(${id})`);
+  const { model, effort } = splitClaudeModel(id);
+  const args = ['--model', model];
+  if (effort) {
+    args.push('--effort', effort);
+  }
+  return args;
 }
 
 /**
@@ -56,5 +101,49 @@ export function claudeModelArgs(id) {
  * @returns {string | null}
  */
 export function syncClaudeAgentFile(text, id) {
-  throw new Error(`Not implemented: syncClaudeAgentFile(${text.length}, ${id})`);
+  if (typeof text !== 'string' || !text.startsWith('---')) {
+    return null;
+  }
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  if (lines[0].trim() !== '---') {
+    return null;
+  }
+  let closingIndex = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') {
+      closingIndex = i;
+      break;
+    }
+  }
+  if (closingIndex === -1) {
+    return null;
+  }
+
+  const fmLines = lines.slice(1, closingIndex);
+  const modelLineIdx = fmLines.findIndex((line) => /^model:(?:\s.*)?$/.test(line));
+  if (modelLineIdx === -1) {
+    return null;
+  }
+
+  const { model, effort } = splitClaudeModel(id);
+  fmLines[modelLineIdx] = `model: ${model}`;
+
+  const effortLineIdx = fmLines.findIndex((line) => /^effort:(?:\s.*)?$/.test(line));
+  if (effort) {
+    if (effortLineIdx !== -1) {
+      fmLines[effortLineIdx] = `effort: ${effort}`;
+    } else {
+      fmLines.splice(modelLineIdx + 1, 0, `effort: ${effort}`);
+    }
+  } else if (effortLineIdx !== -1) {
+    fmLines.splice(effortLineIdx, 1);
+  }
+
+  const reconstructed = [
+    lines[0],
+    ...fmLines,
+    ...lines.slice(closingIndex),
+  ];
+  return reconstructed.join(eol);
 }

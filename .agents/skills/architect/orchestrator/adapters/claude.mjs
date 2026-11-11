@@ -8,6 +8,7 @@ import { JsonlTail } from '../feed.mjs';
 import { findExecutable } from '../events.mjs';
 import { allowedCommandsFor, commandProblem, isInside, realOrResolved, resolveSkillDir } from '../permissions.mjs';
 import { parseAgentResponse } from './agy.mjs';
+import { claudeModelArgs } from './claude-models.mjs';
 
 export const CLAUDE_SETTINGS_SHOWN = '~/.config/architect/claude-settings.json';
 
@@ -233,7 +234,7 @@ export function createClaudeFormatter({ workDir, home = os.homedir() }) {
   });
 }
 
-export const listClaudeModels = () => [{ id: 'sonnet', name: 'Claude Sonnet' }, { id: 'opus', name: 'Claude Opus' }, { id: 'haiku', name: 'Claude Haiku' }];
+export { listClaudeModels } from './claude-models.mjs';
 
 export function findClaudeTranscript(sessionId, home = os.homedir()) {
   if (!sessionId) return null;
@@ -324,7 +325,7 @@ export async function runClaudeAgent({
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const attemptSessionId = conversationId ? null : randomUUID(), activeId = conversationId || attemptSessionId;
     const args = [
-      '-p', prompt, '--model', model, '--output-format', 'json', '--json-schema', schemaJson,
+      '-p', prompt, ...claudeModelArgs(model), '--output-format', 'json', '--json-schema', schemaJson,
       '--setting-sources', '', '--settings', actualSettings, '--permission-mode', 'dontAsk', '--permission-prompts', 'none',
       ...(conversationId ? ['--resume', conversationId] : ['--session-id', attemptSessionId]),
       ...(skipPermissions ? ['--dangerously-skip-permissions'] : []),
