@@ -1,4 +1,4 @@
-<!-- skill-readme-sync: v3.47 / 1.8 -->
+<!-- skill-readme-sync: v3.48 / 1.8 -->
 # Architect + Executor Skill (`v3.47 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
@@ -49,11 +49,11 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 ## 3. Manual Installation and Updating by Environment
 
 ### Manual Installation (Step by Step)
-1. **Copy the skill folder into a subfolder of your project** (e.g. `.agents/skills/architect/`, or `.claude/skills/architect/` for Claude Code). Never unpack the skill directly into the repository root (`--check` rejects root-level installation).
+1. **Copy the skill folder into a subfolder of your project** (e.g. `.agents/skills/architect/`, or for Claude Code a `.claude/skills/architect` copy or link to it). Never unpack the skill directly into the repository root (`--check` rejects root-level installation).
 2. **Copy `EXECUTOR.md`** into the project root (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, or `.architect/EXECUTOR.md` in compact layout).
 3. **Set the Executor model once for your project:**
    - **With the orchestrator (`agy` or `claude`):** set `executor.model` in `.architect/config.json` or `.agents/orchestrator.json`.
-   - **Without the orchestrator:** add `Executor model: <Model / Tier>` to your project's `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` (see Section 4 snippet). For Claude Code subagents, copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and set an explicit `model:` field (never leave `inherit` or omit `model`).
+   - **Without the orchestrator:** add `Executor model: <Model / Tier>` to your project's `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md` (see Section 4 snippet). For Claude Code subagents, see B below.
 4. **Verify setup and run tasks (`T-NNN`):**
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -73,9 +73,9 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
    ```
 
 ### B. Claude Code (`claude`) — Core + Orchestrator or Subagent
-1. Place the skill at `.agents/skills/architect/` or `.claude/skills/architect/` and copy `EXECUTOR.md` to the project root.
-2. **Subagent mode:** copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and verify `model:` is set explicitly (e.g. `model: sonnet`, never `inherit`).
-3. **Orchestrator mode (macOS only, Node 22+):** set `"runner": "claude"`, `"executor": { "model": "sonnet" }`, and `"architect": { "model": "opus" }` in `.architect/config.json` (or `.agents/orchestrator.json`), then run:
+1. Place the skill at `.agents/skills/architect/` and link `.claude/skills/architect` to it (`--init` does it), or copy it there; copy `EXECUTOR.md` to the project root.
+2. **Subagent mode:** copy `.agents/skills/architect/templates/claude-agent-executor.md` to `.claude/agents/executor.md` and verify `model:` is set explicitly (`model: sonnet`, never `inherit`; optional `effort:`).
+3. **Orchestrator mode (macOS only, Node 22+):** set `"runner": "claude"`, `"executor": { "model": "sonnet-high" }`, and `"architect": { "model": "opus" }` (`-<effort>` adds `--effort`) in `.architect/config.json` (or `.agents/orchestrator.json`), then run:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check

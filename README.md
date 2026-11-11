@@ -1,4 +1,4 @@
-# Architect + Executor Skill (`v3.47 / 1.8`)
+# Architect + Executor Skill (`v3.48 / 1.8`)
 
 A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator.
 
@@ -17,6 +17,10 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
    - **Claude Code (`.claude/skills/`):**
      ```bash
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
+     ```
+   - **One install for all agents:** after the `.agents/skills/` install, link it for Claude Code (`--init` does this inside Claude Code):
+     ```bash
+     mkdir -p .claude/skills && ln -s ../../.agents/skills/architect .claude/skills/architect
      ```
 2. **Open your agent and write `/architect`** (or read `.agents/skills/architect/SKILL.md`). On first run in a new project, the Architect asks for the Executor model and configures the project safely before any code changes.
 

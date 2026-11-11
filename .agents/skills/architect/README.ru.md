@@ -1,4 +1,4 @@
-<!-- skill-readme-sync: v3.47 / 1.8 -->
+<!-- skill-readme-sync: v3.48 / 1.8 -->
 # Скилл «Архитектор + Исполнитель» (`v3.47 / 1.8`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
@@ -49,11 +49,11 @@
 ## 3. Ручная установка и обновление по средам
 
 ### Ручная установка (по шагам)
-1. **Скопируйте папку скилла в подпапку проекта** (например, `.agents/skills/architect/`, либо `.claude/skills/architect/` для Claude Code). Не распаковывайте скилл прямо в корень репозитория (`--check` отклоняет корневую раскладку).
+1. **Скопируйте папку скилла в подпапку проекта** (например, `.agents/skills/architect/`; для Claude Code — копия или ссылка `.claude/skills/architect`). Не распаковывайте скилл прямо в корень репозитория (`--check` отклоняет корневую раскладку).
 2. **Скопируйте `EXECUTOR.md`** в корень проекта (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, либо в `.architect/EXECUTOR.md` при компактной раскладке).
 3. **Задайте модель Исполнителя один раз на проект:**
    - **С оркестратором (`agy` или `claude`):** укажите `executor.model` в `.architect/config.json` или `.agents/orchestrator.json`.
-   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md`, `CLAUDE.md` или `GEMINI.md` проекта (см. врезку в разделе 4). Для субагента Claude Code скопируйте шаблон `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (не оставляйте `inherit` или пустое поле).
+   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md`, `CLAUDE.md` или `GEMINI.md` проекта (см. врезку в разделе 4). Для субагента Claude Code см. пункт B ниже.
 4. **Проверьте настройку и запускайте задачи (`T-NNN`):**
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -72,9 +72,9 @@
    ```
 
 ### B. Claude Code (`claude`) — Ядро + Оркестратор или Субагент
-1. Положите скилл в `.agents/skills/architect/` или `.claude/skills/architect/` и скопируйте `EXECUTOR.md` в корень.
-2. **Субагент:** скопируйте `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (например, `model: sonnet`, никогда `inherit`).
-3. **Оркестратор (macOS, Node 22+):** укажите `"runner": "claude"`, `"executor": { "model": "sonnet" }` и `"architect": { "model": "opus" }` в конфиге, затем выполните:
+1. Положите скилл в `.agents/skills/architect/` и ссылку на него в `.claude/skills/architect` (`--init`) и скопируйте `EXECUTOR.md` в корень.
+2. **Субагент:** скопируйте `.agents/skills/architect/templates/claude-agent-executor.md` в `.claude/agents/executor.md` и задайте явное поле `model:` (`model: sonnet`, не `inherit`; `effort:` — опция).
+3. **Оркестратор (macOS, Node 22+):** укажите `"runner": "claude"`, `"executor": { "model": "sonnet-high" }` и `"architect": { "model": "opus" }` (`-<effort>` → `--effort`) в конфиге, затем выполните:
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --write-permissions
    node .agents/skills/architect/orchestrator/run.mjs --check

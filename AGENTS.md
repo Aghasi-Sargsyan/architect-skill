@@ -11,6 +11,7 @@
 - Чистый Node.js 22+ (`node:fs`, `node:path`, `node:child_process`, `node:test`, `node:assert/strict`), ES-модули (`.mjs`), без внешних зависимостей.
 - `.agents/skills/architect/` — ядро скилла (`SKILL.md`, `EXECUTOR.md`, `MAINTAINING.md`, `README.ru.md`, `README.en.md`, `LICENSE`, `CHANGELOG.md`, `references/*.md`) и оркестратор (`orchestrator/*.mjs`, `orchestrator/adapters/*.mjs`, `orchestrator/schemas/*.json`).
 - Корневой `EXECUTOR.md` — побайтная копия `.agents/skills/architect/EXECUTOR.md`.
+- `.claude/skills/architect` — относительный симлинк на `.agents/skills/architect` (обнаружение скилла в Claude Code, `ADR-063`); правки делаются только в `.agents/skills/architect`.
 - Конфиг оркестратора — `.agents/orchestrator.json` (или `.architect/config.json`), личный gitignored-оверлей — `.agents/orchestrator.local.json` / `.architect/config.local.json`, логи прогонов — `.agent-runs/`.
 - Файлы больше ~400 строк — архитектурный долг; при чтении сначала ищи по символу/grep, затем читай участок 30–80 строк.
 
