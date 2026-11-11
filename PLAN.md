@@ -50,7 +50,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/skill-targets.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/update.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs`
 
-- [ ] T-093: Claude model ids with effort tiers for the `claude` runner and `.claude/agents/executor.md`
+- [x] T-093: Claude model ids with effort tiers for the `claude` runner and `.claude/agents/executor.md`
   - Риск: high.
   - Зависит от: —
   - Читать: `.agents/skills/architect/orchestrator/adapters/claude-models.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude-models.mjs`, `.agents/skills/architect/orchestrator/adapters/claude.mjs` (строки 1–12, 230–240, 300–335), `.agents/skills/architect/orchestrator/adapters/index.mjs` (строки 1–15, 60–80), `.agents/skills/architect/orchestrator/models.mjs` (строки 1–30, 155–240), `.agents/skills/architect/templates/claude-agent-executor.md`, `.agents/skills/architect/orchestrator/check-task.test.mjs` (строки 236–256).
