@@ -24,7 +24,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-089: Strict `PLAN.md` parser in `plan.mjs` and structural/risk/frozen/referenceTests validator in `plan-validate.mjs` (`C-01`..`C-04`)
+- [x] T-089: Strict `PLAN.md` parser in `plan.mjs` and structural/risk/frozen/referenceTests validator in `plan-validate.mjs` (`C-01`..`C-04`)
   - Риск: high.
   - Зависит от: —
   - Читать: `.agents/skills/architect/orchestrator/plan-validate.test.mjs`, `.agents/skills/architect/orchestrator/plan.mjs` (строки 1–170), `.agents/skills/architect/orchestrator/plan-validate.mjs`, `.agents/skills/architect/orchestrator/plan.test.mjs`, `.agents/skills/architect/orchestrator/plan-reference-tests.test.mjs`.
