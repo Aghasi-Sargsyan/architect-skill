@@ -10,21 +10,18 @@ import { readPlan, nextTask } from './plan.mjs';
 import { git, gitRaw, head } from './git.mjs';
 import { checkExecutorRun, checkArchitectRun, inspectFailedExecutorTurn, runTaskVerification } from './mechanics.mjs';
 import { acquireLock, installGuards, which } from './guards.mjs';
-import { initProject, loadConfig, RUNS_DIR } from './config.mjs';
+import { RUNS_DIR } from './config.mjs';
 import { resolveConfigPath, reviewFilePath, skillFilePath } from './layout.mjs';
-import { EMPTY_CHANGE, UNPARSED_VERIFY, modelResolver, readiness, resolveEscalationResume, runCheckCommand } from './check.mjs';
+import { EMPTY_CHANGE, UNPARSED_VERIFY, modelResolver, readiness, resolveEscalationResume } from './check.mjs';
 import { commandProblem, proposeRules, readAgyRules, realOrResolved } from './permissions.mjs';
 import { handleWritePermissionsCli } from './permissions-cli.mjs';
-import { handleRepairCli } from './guards-recovery.mjs';
-import { askPermission, clearQuestion, writeAnswer } from './ask.mjs';
-import { runView } from './feed.mjs';
+import { dispatchCliSubcommand } from './cli-dispatch.mjs';
+import { askPermission, clearQuestion } from './ask.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { appendEvent, classifyStopReason, sendNotification } from './events.mjs';
 import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
-import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, handleSelfCheckCli, handleAuditPlanCli, safeLoadConfig, loadConfigOrDefaults, handleCheckTaskCli, handleUpdateCli, handleCompactCli } from './cli.mjs';
+import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, safeLoadConfig } from './cli.mjs';
 import { checkPostReviewSelfCheck } from './selfcheck.mjs';
-import { installCommitMsgHook } from './hooks.mjs';
-import { handleModelsCli } from './models.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,41 +33,16 @@ async function main() {
   if (process.env.AGENT_LOOP === '1') throw new Error('orchestrator cannot be run from inside the agent loop (AGENT_LOOP=1)');
   const configPath = resolveConfigPath({ workDir: process.cwd(), configPath: opts.configPath, init: opts.init });
   const realGit = which('git');
-  if (opts.repair) { const res = handleRepairCli({ workDir: process.cwd(), realGit }); if (!res.ok) process.exitCode = 1; return; }
-  if (opts.compact) return handleCompactCli({ workDir: process.cwd() });
-  if (opts.models || opts.setModel) return handleModelsCli({ workDir: process.cwd(), opts });
-  if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
-  if (opts.selfCheck) return handleSelfCheckCli({ opts, config: safeLoadConfig(configPath), workDir: path.resolve(safeLoadConfig(configPath).workDir ?? process.cwd()), realGit });
-  if (process.platform === 'win32') throw new Error('Windows is not supported: git/npm shims are sh scripts (see skill README)');
-  if (opts.init) {
-    for (const note of initProject({ workDir: process.cwd(), configPath, realGit, team: opts.team })) console.log(`• ${note}`);
-    const ready = loadConfig(configPath);
-    const adapter = getAdapter(ready);
-    console.log(`\nAllowlist for ${adapter.displayName}: ${adapter.permissions.settingsShown}, keys permissions.allow and permissions.deny.\nRules for command(...) are configured once per computer, with subcommand only: Antigravity matches by prefix, "command(git)" would allow git push too.\nwrite_file(<project>) and denying writes to its .git are configured once per project.\n\n${adapter.permissions.allowlistBlock(adapter.permissions.rulesFor(ready, realOrResolved(ready.workDir ?? process.cwd())))}\n\nInsert the block manually or add it with backup: run with --write-permissions. Then run with --check.`);
-    return;
-  }
-  if (opts.installHooks) { const res = installCommitMsgHook({ workDir: process.cwd(), realGit }); console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`); return; }
-  if (opts.update) { const res = await handleUpdateCli({ workDir: process.cwd(), realGit, force: opts.force }); if (!res?.ok) process.exitCode = 1; return res; }
-  const config = safeLoadConfig(configPath);
-  const layout = config.paths;
-  const workDir = path.resolve(config.workDir ?? process.cwd());
-  if (opts.writePermissions) {
-    handleWritePermissionsCli({ config, workDir });
-    return;
-  }
-  // Read-only views (--status, --watch for a chat; --follow for a terminal): no lock, nothing written.
-  if (await runView(opts, workDir)) return;
-  if (opts.answer !== null) {
-    // Checked after AGENT_LOOP above: an agent inside the loop can never answer its own permission request.
-    const question = writeAnswer({ workDir, answer: opts.answer });
-    console.log(`• answer "${opts.answer}" sent to the loop: ${question.command}`);
-    return;
-  }
-  if (opts.check) {
-    if (!(await runCheckCommand({ config, workDir, realGit }))) process.exitCode = 1;
-    return;
-  }
-  if (opts.auditPlan) return handleAuditPlanCli({ opts, config, workDir, realGit });
+  const sub = await dispatchCliSubcommand({
+    opts,
+    configPath,
+    realGit,
+    cwd: process.cwd(),
+    loadConfig: () => safeLoadConfig(configPath),
+    writePermissions: handleWritePermissionsCli,
+  });
+  if (sub.handled) return;
+  const { config, layout, workDir } = sub;
   const adapter = getAdapter(config);
   const runnerBin = adapter.resolveBin(config);
   const { permissions } = config;
