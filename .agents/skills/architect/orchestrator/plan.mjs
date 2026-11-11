@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-const TASK_RE = /^- \[( |x)\] (T-\d+): (.*)$/;
+const TASK_RE = /^- \[( |x)\] (T-\d+): (.+)$/;
 const PATH_IN_BACKTICKS_RE = /`([^`]+)`/g;
 const FIELDS = {
   risk: ['риск', 'risk'],
@@ -15,7 +15,7 @@ const FIELDS = {
   executor: ['исполнитель', 'executor'],
   parallelWith: ['параллельно с', 'parallel with', 'параллельно', 'parallel'],
 };
-const NONE_RE = /^[—–-]*\.?$/; // «—», «-» or empty: the field is not set
+const NONE_RE = /^[-—–\s]*\.?$/; // «—», «-» or empty: the field is not set
 const normPath = (p) => String(p ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
 
 export function matchesFrozenPath(filePath, frozenList) {
@@ -55,36 +55,113 @@ function fieldKey(name) {
 
 /**
  * @param {string} text PLAN.md content
- * @returns {{ tasks: Array<{ id: string, title: string, done: boolean, risk: string, dependsOn: string[], model: string, change: string[], verifyCommands: string[], referenceTests: string[] }>, frozen: string[] }}
+ * @returns {{ tasks: Array<{ id: string, title: string, done: boolean, risk: string, dependsOn: string[], model: string, change: string[], verifyCommands: string[], referenceTests: string[] }>, frozen: string[], parseErrors: Array<{ line: number, text: string, reason: string }>, frozenErrors: Array<{ line: number, text: string, reason: string }> }}
  */
 export function parsePlan(text) {
+  const normText = String(text ?? '').replace(/\r\n?/g, '\n');
   const tasks = [];
   const frozen = [];
+  const parseErrors = [];
+  const frozenErrors = [];
   const rawCasesMap = new Map();
   const rawVerifyMap = new Map();
+  const seenIds = new Set();
   let section = '';
   let current = null;
   let field = '';
-  for (const line of text.split('\n')) {
+  let seenTaskInSection = false;
+
+  const lines = normText.split('\n');
+  for (let idx = 0; idx < lines.length; idx++) {
+    const line = lines[idx];
+    const lineNo = idx + 1;
+
     if (line.startsWith('## ')) {
       const heading = line.slice(3).trim();
-      section = /^(frozen\b|заморожен)/i.test(heading) ? 'frozen' : heading.toLowerCase();
+      const cleanHeading = heading.replace(/^\d+[.)]\s*/, '');
+      if (/^(frozen\b|заморожен)/i.test(cleanHeading)) {
+        section = 'frozen';
+      } else if (/^(tasks\b|задачи\b)/i.test(cleanHeading)) {
+        section = 'tasks';
+      } else {
+        section = cleanHeading.toLowerCase();
+      }
       current = null;
+      field = '';
+      seenTaskInSection = false;
       continue;
     }
+
     if (section === 'frozen') {
+      const trimmed = line.trim();
+      if (!trimmed || NONE_RE.test(trimmed)) continue;
       const m = line.match(/^- `([^`]+)`/);
-      if (m) frozen.push(m[1]);
+      if (m) {
+        frozen.push(m[1]);
+      } else {
+        frozenErrors.push({
+          line: lineNo,
+          text: trimmed,
+          reason: 'Frozen entry must be a top-level "- `<path>`" item wrapped in backticks',
+        });
+      }
       continue;
     }
+
     const t = line.match(TASK_RE);
     if (t) {
-      current = { id: t[2], title: t[3].trim(), done: t[1] === 'x', risk: '', dependsOn: [], model: '', change: [], verifyCommands: [], referenceTests: [], executor: '', executorInfo: null, parallelWith: [] };
+      const taskId = t[2];
+      if (seenIds.has(taskId)) {
+        parseErrors.push({
+          line: lineNo,
+          text: line.trim(),
+          reason: `Duplicate task ID: ${taskId}`,
+        });
+      } else {
+        seenIds.add(taskId);
+      }
+      current = {
+        id: taskId,
+        title: t[3].trim(),
+        done: t[1] === 'x',
+        risk: '',
+        dependsOn: [],
+        model: '',
+        change: [],
+        verifyCommands: [],
+        referenceTests: [],
+        executor: '',
+        executorInfo: null,
+        parallelWith: [],
+        rawTestCases: [],
+      };
       tasks.push(current);
+      seenTaskInSection = true;
       field = '';
       continue;
     }
+
+    if (/^[-*+]\s+/.test(line) || /^#+\s+/.test(line)) {
+      current = null;
+      field = '';
+    }
+
+    const isCheckbox = /^\s*[-*+]\s*\[[^\]]*\]/.test(line);
+    const isTopLevelInTasks =
+      /^[-*+]\s+/.test(line) &&
+      (section === 'tasks' || seenTaskInSection) &&
+      !NONE_RE.test(line.trim());
+    if (isCheckbox || isTopLevelInTasks) {
+      parseErrors.push({
+        line: lineNo,
+        text: line.trim(),
+        reason: 'Task line does not match "- [ ] T-NNN: Title"',
+      });
+      continue;
+    }
+
     if (!current) continue;
+
     const f = line.match(/^ {2,4}-\s*([^:`]+):\s*(.*)$/);
     if (f) {
       field = fieldKey(f[1]);
@@ -111,6 +188,7 @@ export function parsePlan(text) {
         rawVerifyMap.set(current, vList);
       }
       if (field === 'testCases') {
+        if (value && !NONE_RE.test(value)) current.rawTestCases.push(value);
         const list = rawCasesMap.get(current) ?? [];
         list.push(...[...value.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1]));
         rawCasesMap.set(current, list);
@@ -130,10 +208,17 @@ export function parsePlan(text) {
         rawVerifyMap.set(current, vList);
       }
     }
-    if (field === 'testCases' && /^ {4,}- /.test(line)) {
-      const list = rawCasesMap.get(current) ?? [];
-      list.push(...[...line.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1]));
-      rawCasesMap.set(current, list);
+    if (field === 'testCases') {
+      const subMatch = line.match(/^ {4,}-\s*(.+)$/);
+      if (subMatch) {
+        const sub = subMatch[1].trim();
+        if (sub && !NONE_RE.test(sub)) current.rawTestCases.push(sub);
+      }
+      if (/^ {4,}- /.test(line)) {
+        const list = rawCasesMap.get(current) ?? [];
+        list.push(...[...line.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1]));
+        rawCasesMap.set(current, list);
+      }
     }
   }
   const testFileRe = /(?:^|\/)tests\/|\.(?:test|spec)\.[^/\s]+$/;
@@ -165,7 +250,7 @@ export function parsePlan(text) {
     task.referenceTests = refs;
     task.parallelWith = [...new Set(task.parallelWith ?? [])];
   }
-  return { tasks, frozen };
+  return { tasks, frozen, parseErrors, frozenErrors };
 }
 
 /**
