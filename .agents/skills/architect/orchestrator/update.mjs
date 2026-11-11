@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lockHolder, which } from './guards.mjs';
 import { resolveInstalledSkillDir } from './layout.mjs';
+import { resolveSkillUpdateTargets } from './skill-targets.mjs';
 import { installCommitMsgHook } from './hooks.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
@@ -69,24 +70,10 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
   }
 
   const effectiveOrchDir = orchestratorDir ?? orchDir;
-  const targetDirs = [];
-  const seen = new Set();
-  const candidates = [
-    path.join(workDir, '.agents', 'skills', 'architect'),
-    path.join(workDir, '.claude', 'skills', 'architect'),
-  ];
-  const resolved = resolveInstalledSkillDir(workDir, effectiveOrchDir);
-  if (resolved) candidates.push(resolved);
-
-  for (const c of candidates) {
-    if (existsSync(c)) {
-      const abs = path.resolve(c);
-      if (!seen.has(abs)) {
-        seen.add(abs);
-        targetDirs.push(abs);
-      }
-    }
-  }
+  const { targets: targetDirs, skipped: skippedDirs } = resolveSkillUpdateTargets({
+    workDir,
+    orchestratorDir: effectiveOrchDir,
+  });
 
   if (targetDirs.length === 0) {
     throw new Error(`no installed architect skill found in ${workDir} (checked .agents/skills/architect and .claude/skills/architect)`);
@@ -177,6 +164,7 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
       afterVersion,
       commitSha,
       targetDirs,
+      skippedDirs,
       hookResult,
     };
   } finally {
@@ -194,6 +182,9 @@ export async function handleUpdateCli({ workDir = process.cwd(), orchestratorDir
     print(`• Architect Skill updated: ${res.afterVersion} (${res.commitSha})`);
     for (const d of res.targetDirs) {
       print(`  updated: ${path.relative(workDir, d) || d}`);
+    }
+    for (const d of res.skippedDirs ?? []) {
+      print(`  skipped (outside project): ${path.relative(workDir, d) || d}`);
     }
     if (res.hookResult?.installed) {
       print('• installed .git/hooks/commit-msg');

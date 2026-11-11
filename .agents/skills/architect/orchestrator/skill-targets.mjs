@@ -1,4 +1,7 @@
 // Resolves which installed skill folders `--update` may replace, so a symlinked install is updated once and never replaced by a copy.
+import { existsSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+import { resolveInstalledSkillDir } from './layout.mjs';
 
 /**
  * Resolves the installed architect skill folders that `--update` may replace.
@@ -19,9 +22,50 @@
  * - Entries are de-duplicated by real path (the first candidate wins) and keep candidate order.
  * - Errors other than a missing path propagate (fail-closed).
  *
- * @param {{ workDir: string, orchestratorDir?: string }} param0
+ * @param {{ workDir?: string, orchestratorDir?: string }} param0
  * @returns {{ targets: string[], skipped: string[] }}
  */
-export function resolveSkillUpdateTargets({ workDir, orchestratorDir } = {}) {
-  throw new Error(`Not implemented: resolveSkillUpdateTargets(${workDir}, ${orchestratorDir})`);
+export function resolveSkillUpdateTargets({ workDir = process.cwd(), orchestratorDir } = {}) {
+  const candidates = [
+    path.join(workDir, '.agents', 'skills', 'architect'),
+    path.join(workDir, '.claude', 'skills', 'architect'),
+  ];
+  const resolved = resolveInstalledSkillDir(workDir, orchestratorDir);
+  if (resolved) {
+    candidates.push(resolved);
+  }
+
+  const targets = [];
+  const skipped = [];
+  const seenReal = new Set();
+  const realWorkDir = realpathSync(workDir);
+
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) {
+      continue;
+    }
+    let real;
+    try {
+      real = realpathSync(candidate);
+    } catch (err) {
+      if (err && (err.code === 'ENOENT' || err.code === 'ENOTDIR')) {
+        continue;
+      }
+      throw err;
+    }
+    if (seenReal.has(real)) {
+      continue;
+    }
+    seenReal.add(real);
+
+    const rel = path.relative(realWorkDir, real);
+    const isInside = rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+    if (isInside) {
+      targets.push(path.join(workDir, rel));
+    } else {
+      skipped.push(candidate);
+    }
+  }
+
+  return { targets, skipped };
 }
