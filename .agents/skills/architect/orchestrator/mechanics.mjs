@@ -6,6 +6,7 @@ import { alwaysFrozenFiles, isAlwaysFrozenFile } from './layout.mjs';
 import { which } from './guards.mjs';
 import { BASE_COMMANDS, commandProblem } from './permissions.mjs';
 import { matchesFrozenPath } from './plan.mjs';
+import { isHighRisk, isValidRisk } from './plan-validate.mjs';
 
 function matchesProtectedConfig(file, patterns) {
   if (!patterns || !patterns.length) return false;
@@ -122,7 +123,10 @@ export function checkExecutorRun(opts) {
   }
 
   const effectiveFrozen = [...(frozen ?? []), ...alwaysFrozenFiles(configPath, { workDir: cwd, orchestratorDir })];
-  const isHighRisk = /^(высокий|high)$/i.test((task.risk ?? '').trim());
+  if (!isValidRisk(task.risk)) {
+    violations.push(`invalid or empty task Risk "${task.risk ?? ''}"`);
+  }
+  const highRisk = isHighRisk(task.risk);
   const normP = (p) => String(p ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
   const taskChange = task.change ?? task.changeFiles ?? [];
   const normChange = new Set(taskChange.map(normP));
@@ -145,7 +149,7 @@ export function checkExecutorRun(opts) {
       if (matchesFrozenPath(f, effectiveFrozen) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
         violations.push(`${short} touches Frozen — touched Frozen: ${f}`);
       } else {
-        if (!isHighRisk && matchesProtectedConfig(f, protectedConfigFiles)) {
+        if (!highRisk && matchesProtectedConfig(f, protectedConfigFiles)) {
           violations.push(`${short} touches verification config outside high-risk task: ${f}`);
         }
         if (!normChange.has(nf)) {

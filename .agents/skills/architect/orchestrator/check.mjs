@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { git, gitRaw, head, isIgnored, porcelain } from './git.mjs';
 import { checkParallelTasks, matchesFrozenPath, nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
+import { validatePlan } from './plan-validate.mjs';
 import { DEFAULTS, RUNS_DIR } from './config.mjs';
 import { isAlwaysFrozenFile, isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
 import { acquireLock, defaultSandboxRoot, installGuards, lockHolder, recoverCrashedGuards } from './guards.mjs';
@@ -140,9 +141,17 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
     const planText = readFileSync(path.join(workDir, layout.planPath), 'utf8');
     const plan = parsePlan(planText);
     const open = plan.tasks.filter((t) => !t.done);
-    add(plan.tasks.length > 0, 'PLAN.md', plan.tasks.length
-      ? `tasks ${plan.tasks.length}, open ${open.length}, Frozen ${plan.frozen.length}`
-      : 'no tasks matching "- [ ] T-NNN: …" — check template format in SKILL.md');
+    const pv = validatePlan(plan, { workDir, layout, config });
+    if (pv.parseIssues.length > 0) {
+      add(false, 'PLAN.md', pv.parseIssues.join('; '));
+    } else {
+      add(plan.tasks.length > 0, 'PLAN.md', plan.tasks.length
+        ? `tasks ${plan.tasks.length}, open ${open.length}, Frozen ${plan.frozen.length}`
+        : 'no tasks matching "- [ ] T-NNN: …" — check template format in SKILL.md');
+    }
+    if (pv.riskIssues.length > 0) add(false, 'Risk field', pv.riskIssues.join('; '));
+    if (pv.frozenIssues.length > 0) add(false, 'Frozen', pv.frozenIssues.join('; '));
+    if (pv.highRiskTestIssues.length > 0) add(false, 'Reference tests', pv.highRiskTestIssues.join('; '));
     const noChange = open.filter((t) => t.change.length === 0).map((t) => t.id);
     if (open.length) add(noChange.length === 0, 'Change («Менять») field', noChange.length ? `empty for ${noChange.join(', ')}` : 'present for all open tasks');
     const badVerify = open.filter((t) => t.unparsedVerify).map((t) => t.id);

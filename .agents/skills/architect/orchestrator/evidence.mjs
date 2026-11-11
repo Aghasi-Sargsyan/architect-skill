@@ -6,6 +6,7 @@ import { runTaskVerification } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
 import { splitDiffByFiles } from './selfcheck.mjs';
 import { resolveEscalationResume } from './check.mjs';
+import { isHighRisk, isExecutableCodeFile, hasStructuralVerificationMarker } from './plan-validate.mjs';
 
 const COUNTER_RE = /\b\d+\/\d+\s+PASS\b/;
 const EVAL_KEYWORD_RE = /(?:\b(?:evals?|live)\b|замер)/i;
@@ -249,7 +250,6 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
     }
   }
 
-  const isHighRisk = (r) => /^(?:high|высокий)$/i.test(String(r ?? '').trim());
   const highRiskTasks = (parsedPlan.tasks ?? []).filter((t) => !t.done && isHighRisk(t.risk));
 
   const checked = [];
@@ -259,20 +259,12 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
   const rawCmdTemplate = config?.redCheckCommand ?? 'node --test {file}';
   const cmdTpl = typeof rawCmdTemplate === 'string' ? rawCmdTemplate.trim() : '';
   const isDefaultNodeTest = /^node\s+--test(?:\s+\{file\})?$/.test(cmdTpl);
-  const bypassScanPaths = config?.bypassScanPaths ?? ['src', 'tests'];
-  const isCodeFile = (f) => !/\.(?:md|json|ya?ml)$/i.test(f);
-  const isInScanPaths = (f) => {
-    const norm = f.replace(/\\/g, '/').replace(/^\.\//, '');
-    return bypassScanPaths.some((p) => {
-      const np = p.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
-      return norm === np || norm.startsWith(np + '/');
-    });
-  };
 
   for (const task of highRiskTasks) {
     if ((task.referenceTests ?? []).length === 0) {
-      if ((task.change ?? []).some((f) => isCodeFile(f) && isInScanPaths(f))) {
+      if ((task.change ?? []).some(isExecutableCodeFile) && !hasStructuralVerificationMarker(task)) {
         notVerified.push(`high-risk task ${task.id} has no frozen referenceTests in PLAN.md (NOT VERIFIED)`);
+        violations.push(`high-risk task ${task.id} with executable code in Change has no frozen referenceTests in PLAN.md`);
       }
       continue;
     }

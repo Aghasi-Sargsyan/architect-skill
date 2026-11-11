@@ -11,6 +11,7 @@ import { checkEvalEvidence, runRedCheck } from './evidence.mjs';
 import { checkAuditCoverage, runPlanAudit } from './audit.mjs';
 import { checkSkillInstallation } from './check.mjs';
 import { checkParallelTasks, parsePlan } from './plan.mjs';
+import { validatePlan } from './plan-validate.mjs';
 import { git, resolveMergeBase } from './git.mjs';
 import { checkExecutorRun, formatMechanicsReport, runTaskVerification } from './mechanics.mjs';
 import { resolveBaseShaForTask, scanRangeCommitMessages } from './hooks.mjs';
@@ -156,7 +157,19 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
     orchestratorDir,
   });
   const planPath = path.join(workDir, layout.planPath);
-  const parallelProblems = existsSync(planPath) ? checkParallelTasks(parsePlan(readFileSync(planPath, 'utf8'))) : [];
+  let planIssues = [];
+  let parallelProblems = [];
+  if (existsSync(planPath)) {
+    const parsedPlan = parsePlan(readFileSync(planPath, 'utf8'));
+    parallelProblems = checkParallelTasks(parsedPlan);
+    const pv = validatePlan(parsedPlan, { workDir, layout, config: cfg });
+    planIssues = [
+      ...pv.parseIssues,
+      ...pv.riskIssues,
+      ...pv.frozenIssues,
+      ...pv.highRiskTestIssues,
+    ];
+  }
 
   const violations = [
     ...gitRes.violations,
@@ -164,6 +177,7 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
     ...auditRes.violations,
     ...installProblems.map((p) => `${p.name}: ${p.detail}`),
     ...parallelProblems,
+    ...planIssues,
   ];
   const notVerified = [...(gitRes.notVerified ?? []), ...(evidenceRes.notVerified ?? [])];
   const waivers = gitRes.waivers ?? [], rejectedBlockers = auditRes.rejectedBlockers ?? [], warnings = gitRes.warnings ?? [];
