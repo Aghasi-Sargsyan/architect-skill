@@ -307,7 +307,7 @@ export function loadConfig(configPath) {
  * to .gitignore unless it is already ignored. Throws outside a git repository.
  * @returns {string[]} what was done, for the console
  */
-export function initProject({ workDir, configPath = COMPACT_CONFIG_PATH, realGit, team = false }) {
+export function initProject({ workDir, configPath = COMPACT_CONFIG_PATH, realGit, team = false, runner = null }) {
   const targetPath = configPath || COMPACT_CONFIG_PATH;
   const ignored = isIgnored(realGit, workDir, `${RUNS_DIR}/`);
   const notes = [];
@@ -318,6 +318,9 @@ export function initProject({ workDir, configPath = COMPACT_CONFIG_PATH, realGit
     const norm = targetPath.replace(/\\/g, '/');
     const isCompact = norm === COMPACT_CONFIG_PATH || norm.endsWith('/' + COMPACT_CONFIG_PATH) || norm.startsWith('.architect/');
     const base = { ...DEFAULTS, executor: { model: '' }, architect: { model: '' } };
+    if (runner) {
+      base.runner = runner;
+    }
     if (team) {
       base.team = true;
       base.fullTestCommand = 'npm test';

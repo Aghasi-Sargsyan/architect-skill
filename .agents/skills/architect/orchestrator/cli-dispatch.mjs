@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { handleRepairCli } from './guards-recovery.mjs';
 import { handleModelsCli } from './models.mjs';
-import { handleCompactCli } from './layout.mjs';
+import { handleCompactCli, resolveInstalledSkillDir } from './layout.mjs';
 import {
   handleCheckTaskCli,
   handleSelfCheckCli,
@@ -18,7 +18,8 @@ import { installCommitMsgHook } from './hooks.mjs';
 import { handleWritePermissionsCli } from './permissions-cli.mjs';
 import { runView } from './feed.mjs';
 import { writeAnswer } from './ask.mjs';
-import { runCheckCommand } from './check.mjs';
+import { findBinary, runCheckCommand } from './check.mjs';
+import { detectInitRunner, ensureClaudeSkillLink } from './claude-setup.mjs';
 
 /**
  * Handles early CLI subcommands (--repair, --compact, --models/--set-model, --check-task, --self-check,
@@ -90,10 +91,20 @@ export async function dispatchCliSubcommand({
   }
 
   if (opts.init) {
-    for (const note of initProject({ workDir: cwd, configPath, realGit, team: opts.team })) {
+    const runner = detectInitRunner({ env: process.env, hasBin: (b) => Boolean(findBinary(b)) });
+    for (const note of initProject({ workDir: cwd, configPath, realGit, team: opts.team, runner })) {
       console.log(`• ${note}`);
     }
     const ready = loadProjectConfig(configPath);
+    const link = ensureClaudeSkillLink({
+      workDir: cwd,
+      skillDir: resolveInstalledSkillDir(cwd),
+      env: process.env,
+      runner: ready.runner,
+    });
+    if (link.created) {
+      console.log(`• ${link.reason}`);
+    }
     const adapter = getAdapter(ready);
     console.log(
       `\nAllowlist for ${adapter.displayName}: ${adapter.permissions.settingsShown}, keys permissions.allow and permissions.deny.\nRules for command(...) are configured once per computer, with subcommand only: Antigravity matches by prefix, "command(git)" would allow git push too.\nwrite_file(<project>) and denying writes to its .git are configured once per project.\n\n${adapter.permissions.allowlistBlock(adapter.permissions.rulesFor(ready, realOrResolved(ready.workDir ?? cwd)))}\n\nInsert the block manually or add it with backup: run with --write-permissions. Then run with --check.`

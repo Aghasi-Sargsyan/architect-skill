@@ -1,4 +1,7 @@
 // Claude Code project setup: runner choice for `--init`, skill discovery link, and non-blocking `--check` warnings.
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, symlinkSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 /**
  * Runner for a config created by `--init`.
@@ -9,7 +12,10 @@
  * @returns {'claude' | null}
  */
 export function detectInitRunner({ env = {}, hasBin = () => false } = {}) {
-  throw new Error(`Not implemented: detectInitRunner(${Object.keys(env).length}, ${typeof hasBin})`);
+  if (env?.CLAUDECODE === '1' && !hasBin('agy') && Boolean(hasBin('claude'))) {
+    return 'claude';
+  }
+  return null;
 }
 
 /**
@@ -28,7 +34,40 @@ export function detectInitRunner({ env = {}, hasBin = () => false } = {}) {
  * @returns {{ created: boolean, reason: string }}
  */
 export function ensureClaudeSkillLink({ workDir, skillDir, env = {}, runner = null } = {}) {
-  throw new Error(`Not implemented: ensureClaudeSkillLink(${workDir}, ${skillDir}, ${Object.keys(env).length}, ${runner})`);
+  const isClaude = env?.CLAUDECODE === '1' || runner === 'claude';
+  if (!isClaude) {
+    return { created: false, reason: 'not inside Claude Code or claude runner' };
+  }
+  if (!skillDir) {
+    return { created: false, reason: 'skill directory is not specified' };
+  }
+
+  const realSkill = realpathSync(skillDir);
+  const expectedAgentsDir = path.join(realpathSync(workDir), '.agents', 'skills', 'architect');
+  if (realSkill !== expectedAgentsDir) {
+    return { created: false, reason: `skill directory is not ${expectedAgentsDir}` };
+  }
+
+  const linkPath = path.join(workDir, '.claude', 'skills', 'architect');
+  let linkExists = false;
+  try {
+    lstatSync(linkPath);
+    linkExists = true;
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      linkExists = false;
+    } else {
+      throw err;
+    }
+  }
+  if (linkExists) {
+    return { created: false, reason: `link path already exists: ${linkPath}` };
+  }
+
+  mkdirSync(path.dirname(linkPath), { recursive: true });
+  const target = path.join('..', '..', '.agents', 'skills', 'architect');
+  symlinkSync(target, linkPath, 'dir');
+  return { created: true, reason: 'linked .claude/skills/architect -> ../../.agents/skills/architect' };
 }
 
 /**
@@ -47,5 +86,57 @@ export function ensureClaudeSkillLink({ workDir, skillDir, env = {}, runner = nu
  * @returns {Array<{ name: string, detail: string }>}
  */
 export function checkClaudeSetup({ workDir, runner = null, home } = {}) {
-  throw new Error(`Not implemented: checkClaudeSetup(${workDir}, ${runner}, ${home})`);
+  const warnings = [];
+  const effectiveHome = home ?? os.homedir();
+
+  let dotClaudeExists = false;
+  try {
+    lstatSync(path.join(workDir, '.claude'));
+    dotClaudeExists = true;
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      dotClaudeExists = false;
+    } else {
+      throw err;
+    }
+  }
+
+  if (runner === 'claude' || dotClaudeExists) {
+    const projectSkill = path.join(workDir, '.claude', 'skills', 'architect', 'SKILL.md');
+    const userSkill = path.join(effectiveHome, '.claude', 'skills', 'architect', 'SKILL.md');
+    if (!existsSync(projectSkill) && !existsSync(userSkill)) {
+      warnings.push({
+        name: 'Claude Code skill',
+        detail: 'skill is not discoverable by Claude Code (missing .claude/skills/architect/SKILL.md)',
+      });
+    }
+  }
+
+  const agentsPath = path.join(workDir, 'AGENTS.md');
+  if (existsSync(agentsPath)) {
+    const agentsText = readFileSync(agentsPath, 'utf8');
+    if (agentsText.includes('EXECUTOR.md')) {
+      const memoryFiles = [
+        path.join(workDir, 'CLAUDE.md'),
+        path.join(workDir, '.claude', 'CLAUDE.md'),
+        path.join(workDir, 'CLAUDE.local.md'),
+      ];
+      const existing = memoryFiles.filter((f) => existsSync(f));
+      if (existing.length > 0) {
+        const importPattern = /^\s*@(?:\.\/)?AGENTS\.md\s*$/m;
+        const covered = existing.some((f) => {
+          const content = readFileSync(f, 'utf8');
+          return importPattern.test(content) || content.includes('EXECUTOR.md');
+        });
+        if (!covered) {
+          warnings.push({
+            name: 'CLAUDE.md',
+            detail: 'Claude memory file hides AGENTS.md; import @AGENTS.md or include EXECUTOR.md instructions',
+          });
+        }
+      }
+    }
+  }
+
+  return warnings;
 }

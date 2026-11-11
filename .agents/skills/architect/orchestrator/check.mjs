@@ -16,6 +16,7 @@ import { getAdapter } from './adapters/index.mjs';
 import { agySettingsPath } from './permissions.mjs';
 import { checkCommitMsgHook, checkExecutorModelConfig, resolveExecutorModelInfo } from './hooks.mjs';
 import { checkSkillUpdateAvailable } from './update.mjs';
+import { checkClaudeSetup } from './claude-setup.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MIN_NODE = 22;
@@ -348,6 +349,9 @@ export async function runCheckCommand({ config, workDir, realGit, settingsPath =
   results.push(...runnerChecks({ config, workDir }));
   for (const r of results) print(`${r.ok ? '✓' : '✗'} ${r.name}: ${r.detail}`);
   if (hookRes.skipped) print(`– ${hookRes.name}: skipped (${hookRes.detail})`);
+  for (const w of checkClaudeSetup({ workDir, runner: config.runner })) {
+    print(`! ${w.name}: ${w.detail}`);
+  }
   const updateCheck = checkSkillUpdateAvailable({ workDir, realGit });
   if (updateCheck?.updateAvailable && updateCheck.notice) print(updateCheck.notice);
   const allOk = results.every((r) => r.ok);
