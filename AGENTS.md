@@ -34,7 +34,7 @@
   - пути кода — `.agents/skills/architect/orchestrator`; grep ретро по добавленным строкам: `git log -p --format='commit %h %s' <база>..HEAD -- .agents/skills/architect/orchestrator | grep -nE '^commit |^\+.*([:<,|=>&[(][[:space:]]*any\b|\bas[[:space:]]+any\b|as unknown as|@ts-(ignore|expect-error|nocheck)|eslint-disable|\.(skip|only)\(|(?:Object\.assign|(?:Object|Reflect)\.(?:defineProperty|defineProperties|setPrototypeOf))[[:space:]]*\([[:space:]]*(?:[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*prototype|globalThis)\b|\b(?:[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*prototype|globalThis)[[:space:]]*(?:\.[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*|\[[^]]+\])[[:space:]]*=[^=]|(^|[^A-Za-z0-9_$])__proto__[[:space:]]*(=[^=]| :))'`.
 
 ## 5. Зоны высокого риска
-`.agents/skills/architect/orchestrator/{guards,guards-recovery,permissions,permissions-cli,runners,mechanics,selfcheck,evidence,audit,hooks,eval-fixtures}.mjs` · `.agents/skills/architect/orchestrator/adapters/` · `.agents/skills/architect/{SKILL,EXECUTOR}.md` и `.agents/skills/architect/references/` · `.agents/orchestrator.json`.
+`.agents/skills/architect/orchestrator/{guards,guards-recovery,permissions,permissions-cli,runners,mechanics,selfcheck,evidence,audit,hooks,eval-fixtures,ask,plan,plan-validate,run,check,cli,cli-dispatch,events,layout}.mjs` · `.agents/skills/architect/orchestrator/adapters/` · `.agents/skills/architect/{SKILL,EXECUTOR}.md` и `.agents/skills/architect/references/` · `.agents/orchestrator.json`.
 
 ## 6. Git и секреты
 - Коммиты — только с явными путями: `git add <пути>`, затем `git commit --only <те же пути>`, после — `git show --stat HEAD`. `git add .` и `git add -A` не использовать.

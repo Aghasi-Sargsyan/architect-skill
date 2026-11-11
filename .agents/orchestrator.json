@@ -1,7 +1,11 @@
 {
   "agyBin": "agy",
-  "executor": { "model": "gemini-3.8-flash-high" },
-  "architect": { "model": "gemini-4-argon-high" },
+  "executor": {
+    "model": "gemini-3.8-flash-high"
+  },
+  "architect": {
+    "model": "gemini-4-carbon-high"
+  },
   "commitLanguage": "en",
   "permissions": "allowlist",
   "blockedNpmScripts": [],
@@ -18,7 +22,9 @@
     "eslint.config.*",
     ".eslintrc*"
   ],
-  "bypassScanPaths": [".agents/skills/architect/orchestrator"],
+  "bypassScanPaths": [
+    ".agents/skills/architect/orchestrator"
+  ],
   "bypassPatterns": [
     "[:<,|=>&[(]\\s*any\\b",
     "\\bas\\s+any\\b",

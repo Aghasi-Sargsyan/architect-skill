@@ -29,7 +29,7 @@ test('T-052: localChecks and runFastSelfCheck reject skill installed in repo roo
     mkdirSync(rootOrchDir, { recursive: true });
     writeFileSync(path.join(dir, 'SKILL.md'), '# Architect Prompt v3.27\n');
     writeFileSync(path.join(dir, 'EXECUTOR.md'), '<!-- executor-policy-version: 1.8 -->\n');
-    writeFileSync(path.join(dir, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n- [ ] T-001: x\n  - Change: `src/a.js`\n');
+    writeFileSync(path.join(dir, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n- [ ] T-001: x\n  - Risk: low.\n  - Change: `src/a.js`\n');
     writeFileSync(path.join(dir, '.gitignore'), '.agent-runs/\n');
     g('add', '.');
     g('commit', '-q', '-m', 'init');
@@ -60,7 +60,7 @@ test('T-052: localChecks and runFastSelfCheck verify EXECUTOR.md copy parity and
       path.join(dir, 'AGENTS.md'),
       '# Project Rules\nRun `npm run agents -- --init` or `npm run agents -- --dry-run`.\n',
     );
-    writeFileSync(path.join(dir, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n- [ ] T-001: x\n  - Change: `src/a.js`\n');
+    writeFileSync(path.join(dir, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n- [ ] T-001: x\n  - Risk: low.\n  - Change: `src/a.js`\n');
     writeFileSync(path.join(dir, '.gitignore'), '.agent-runs/\n');
     g('add', '.');
     g('commit', '-q', '-m', 'init with outdated executor and incomplete AGENTS.md');

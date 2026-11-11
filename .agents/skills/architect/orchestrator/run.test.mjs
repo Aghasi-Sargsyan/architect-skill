@@ -31,7 +31,7 @@ beforeEach(() => {
   writeFileSync(agy, `#!/bin/sh\nif [ "$1" = "models" ]; then printf 'm\\tM\\n'; exit 0; fi\nprintf '%s' '${JSON.stringify({ status: 'SUCCESS', response: answer })}'\n`);
   chmodSync(agy, 0o755);
   g('init', '-q', '-b', 'master');
-  writeFileSync(path.join(work, 'PLAN.md'), '# PLAN\n\n## Tasks\n\n- [ ] T-001: one\n  - Change: `a.txt`\n');
+  writeFileSync(path.join(work, 'PLAN.md'), '# PLAN\n\n## Tasks\n\n- [ ] T-001: one\n  - Risk: low.\n  - Change: `a.txt`\n');
   writeFileSync(path.join(work, '.gitignore'), '.agent-runs/\n');
   const config = { ...DEFAULTS, agyBin: agy, notify: false };
   mkdirSync(path.join(work, '.agents'));

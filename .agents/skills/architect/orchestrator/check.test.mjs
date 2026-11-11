@@ -12,7 +12,7 @@ const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).tr
 const ENV = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid' };
 let dir;
 const g = (...args) => execFileSync(realGit, args, { cwd: dir, encoding: 'utf8', env: ENV }).trim();
-const PLAN = '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n\n- [ ] T-001: one\n  - Risk: low.\n  - Model: Gemini 3.8 Flash / High\n  - Change: `src/a.ts`\n\n- [ ] T-002: two\n  - Model: `no-such-model`\n  - Change: `src/b.ts`\n';
+const PLAN = '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n\n- [ ] T-001: one\n  - Risk: low.\n  - Model: Gemini 3.8 Flash / High\n  - Change: `src/a.ts`\n\n- [ ] T-002: two\n  - Risk: low.\n  - Model: `no-such-model`\n  - Change: `src/b.ts`\n';
 const config = (extra = {}) => ({ ...DEFAULTS, ...extra });
 const failed = (results) => results.filter((r) => !r.ok).map((r) => r.name);
 
@@ -132,7 +132,7 @@ test('readiness: no model calls; settings, lock, next task, «Менять» and
     writeFileSync(path.join(dir, '.agent-runs', '.lock'), String(process.pid));
     assert.match(failedNames(run()).join(','), /^(?:другой цикл|another loop)$/);
     rmSync(path.join(dir, '.agent-runs', '.lock'));
-    writeFileSync(path.join(dir, 'PLAN.md'), '# PLAN\n\n## Tasks\n\n- [ ] T-001: one\n  - Modify: `src/a.ts`\n');
+    writeFileSync(path.join(dir, 'PLAN.md'), '# PLAN\n\n## Tasks\n\n- [ ] T-001: one\n  - Risk: low.\n  - Modify: `src/a.ts`\n');
     g('commit', '-q', '-am', 'typo');
     const emptyChangeNames = failedNames(run());
     assert.equal(emptyChangeNames.length, 2);
