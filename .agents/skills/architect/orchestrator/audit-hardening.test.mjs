@@ -13,7 +13,7 @@ import { localChecks, readiness, runCheckCommand, UNPARSED_VERIFY } from './chec
 import { parseArgs, runCheckTask } from './cli.mjs';
 import { checkExecutorRun, splitCommandArgs } from './mechanics.mjs';
 import { runSelfCheckGit } from './selfcheck.mjs';
-import { DISABLED_PUSH_URL, guardsJournalPath, installGuards, recoverCrashedGuards } from './guards.mjs';
+import { DISABLED_PUSH_URL, guardsJournalPath, installGuards, recoverCrashedGuards, which } from './guards.mjs';
 import { handleRepairCli } from './guards-recovery.mjs';
 import { questionText, sanitizeReason } from './ask.mjs';
 import { updateSkill } from './update.mjs';
@@ -22,7 +22,7 @@ import { brainDir, newestConversation } from './adapters/agy.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 const skillDir = path.dirname(orchDir);
-const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
+const realGit = which('git');
 const BASE_ENV = Object.fromEntries(
   Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_') && k !== 'AGENT_LOOP'),
 );
@@ -131,6 +131,8 @@ test('F-03: shims/node blocks non-PATH scripts and pre-flag --test escapes, and 
   mkdirSync(workDir, { recursive: true });
   mkdirSync(outside, { recursive: true });
   git(workDir, 'init', '-q', '-b', 'master');
+  git(workDir, 'config', 'user.name', 'test');
+  git(workDir, 'config', 'user.email', 'test@example.invalid');
   writeFileSync(path.join(workDir, 'a.txt'), 'hello\n');
   git(workDir, 'add', 'a.txt');
   git(workDir, 'commit', '-q', '-m', 'init');
