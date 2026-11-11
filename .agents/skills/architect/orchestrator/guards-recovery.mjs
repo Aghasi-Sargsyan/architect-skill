@@ -28,22 +28,52 @@ function resolveGitDir(workDir, realGit) {
   return existsSync(dotGit) ? dotGit : null;
 }
 
+function resolveGitTopLevel(workDir, realGit) {
+  if (!workDir || !realGit) return null;
+  try {
+    const out = execFileSync(realGit, ['rev-parse', '--show-toplevel'], {
+      cwd: workDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      env: { ...process.env, AGENT_LOOP: '' },
+    }).trim();
+    return out ? path.resolve(workDir, out) : null;
+  } catch {
+    /* cleanup: abort toplevel lookup outside a valid worktree */
+    return null;
+  }
+}
+
+function candidateLockDirs(workDir, gitDir = null, realGit = null) {
+  const dirs = new Set();
+  if (workDir) dirs.add(path.resolve(workDir));
+  const top = resolveGitTopLevel(workDir, realGit);
+  if (top) dirs.add(top);
+  if (gitDir && path.basename(gitDir) === '.git') {
+    dirs.add(path.dirname(gitDir));
+  }
+  return [...dirs];
+}
+
 export function guardsJournalPath(workDir, realGit = null) {
   const gitDir = resolveGitDir(workDir, realGit);
   return gitDir ? path.join(gitDir, JOURNAL_REL) : path.join(workDir, '.git', JOURNAL_REL);
 }
 
-function activeLoopPid(workDir) {
-  const lock = path.join(workDir, RUNS_DIR, '.lock');
-  if (!existsSync(lock)) return null;
-  const pid = Number(readFileSync(lock, 'utf8').trim());
-  if (!Number.isInteger(pid) || pid <= 0) return null;
-  try {
-    process.kill(pid, 0);
-    return pid;
-  } catch (err) {
-    return err instanceof Error && 'code' in err && err.code === 'EPERM' ? pid : null;
+function activeLoopPid(workDir, gitDir = null, realGit = null) {
+  for (const dir of candidateLockDirs(workDir, gitDir, realGit)) {
+    const lock = path.join(dir, RUNS_DIR, '.lock');
+    if (!existsSync(lock)) continue;
+    const pid = Number(readFileSync(lock, 'utf8').trim());
+    if (!Number.isInteger(pid) || pid <= 0) continue;
+    try {
+      process.kill(pid, 0);
+      return pid;
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 'EPERM') return pid;
+    }
   }
+  return null;
 }
 
 function readPreGuardRemotes(workDir, realGit) {
@@ -68,7 +98,7 @@ export function writeGuardsJournal({ workDir, realGit }) {
   if (!gitDir || !realGit) return null;
   try {
     const jPath = path.join(gitDir, JOURNAL_REL);
-    if (existsSync(jPath) && activeLoopPid(workDir) === null) {
+    if (existsSync(jPath) && activeLoopPid(workDir, gitDir, realGit) === null) {
       recoverCrashedGuards({ workDir, realGit });
     }
     const run = (args) => execFileSync(realGit, args, { cwd: workDir, encoding: 'utf8', env: { ...process.env, AGENT_LOOP: '' } });
@@ -104,15 +134,17 @@ export function recoverCrashedGuards({ workDir = process.cwd(), realGit }) {
   if (!gitDir || !realGit) {
     return { recovered: false, activePid: null, notes };
   }
-  const pid = activeLoopPid(workDir);
+  const pid = activeLoopPid(workDir, gitDir, realGit);
   if (pid !== null) {
     return { recovered: false, activePid: pid, notes };
   }
 
-  const lockFile = path.join(workDir, RUNS_DIR, '.lock');
-  if (existsSync(lockFile)) {
-    rmSync(lockFile, { force: true });
-    notes.push('removed stale .agent-runs/.lock');
+  for (const dir of candidateLockDirs(workDir, gitDir, realGit)) {
+    const lockFile = path.join(dir, RUNS_DIR, '.lock');
+    if (existsSync(lockFile)) {
+      rmSync(lockFile, { force: true });
+      notes.push('removed stale .agent-runs/.lock');
+    }
   }
 
   const run = (args) => execFileSync(realGit, args, { cwd: workDir, encoding: 'utf8', env: { ...process.env, AGENT_LOOP: '' } });
