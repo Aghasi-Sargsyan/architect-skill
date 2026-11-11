@@ -134,14 +134,14 @@ function spawnCollect(bin, args, { cwd, env, timeoutMs, killGraceMs = 5000 }) {
 }
 
 /**
- * Conversation directory created since `sinceMs`, or null. Creation time, not modification time: another agy
- * session that keeps writing (an interactive Architect chat) must never be mistaken for this run.
+ * Conversation directory created since `sinceMs` and absent from `existingDirs`, or null.
  */
-function newestConversation(sinceMs, home) {
+export function newestConversation(sinceMs, home, existingDirs = null) {
   const dir = brainDir(home);
   if (!existsSync(dir)) return null;
   let best = null;
   for (const name of readdirSync(dir)) {
+    if (existingDirs?.has(name)) continue;
     const st = statSync(path.join(dir, name), { throwIfNoEntry: false });
     if (st && st.isDirectory() && st.birthtimeMs >= sinceMs - 1000 && (!best || st.birthtimeMs > best.birthtimeMs)) best = { name, birthtimeMs: st.birthtimeMs };
   }
@@ -221,13 +221,13 @@ export async function runAgent({ bin, model, prompt, cwd, schemaPath, env, skipP
   const elapsed = () => Math.round((Date.now() - started) / 1000);
   let lastError = '';
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    // Feed the transcript while the agent works: a continued conversation from its current end, a new one from
-    // its start once its directory appears. Only complete lines are read; a final read follows the exit.
     let tail = conversationId ? JsonlTail.fromEnd(transcriptPath(conversationId, home)) : null;
+    const bDir = brainDir(home);
+    const existingDirs = !conversationId && existsSync(bDir) ? new Set(readdirSync(bDir)) : null;
     const attemptStart = Date.now();
     const pump = () => {
       if (!tail) {
-        const id = newestConversation(attemptStart, home);
+        const id = newestConversation(attemptStart, home, existingDirs);
         if (id) tail = new JsonlTail(transcriptPath(id, home));
       }
       const rows = tail ? tail.read() : [];
@@ -239,11 +239,7 @@ export async function runAgent({ bin, model, prompt, cwd, schemaPath, env, skipP
     if (r.error) lastError = `failed to start ${bin}: ${r.error.message}`;
     let raw = null;
     if (!r.error) {
-      try {
-        raw = JSON.parse(r.stdout);
-      } catch (err) {
-        lastError = `stdout is not JSON (${errText(err)}); stderr: ${String(r.stderr).slice(0, 400)}`;
-      }
+      try { raw = JSON.parse(r.stdout); } catch (err) { lastError = `stdout is not JSON (${errText(err)}); stderr: ${String(r.stderr).slice(0, 400)}`; }
     }
     const conv = raw?.conversation_id ?? conversationId ?? null;
     if (onTranscriptRows) {

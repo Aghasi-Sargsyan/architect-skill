@@ -28,6 +28,19 @@ const answersText = (codes) => {
   return quoted.length > 1 ? `${quoted.slice(0, -1).join(', ')} or ${quoted.at(-1)}` : quoted.join('');
 };
 
+/** Strips control characters, newlines, and Markdown block delimiters from agent-supplied reason strings. */
+export function sanitizeReason(reason) {
+  if (typeof reason !== 'string') return '';
+  return reason
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[\x00-\x1f\x7f]+/g, '')
+    .replace(/`+/g, "'")
+    .replace(/(?:^|\s)(?:#{1,6}|---+|\*\*\*+)(?=\s|$)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
+
 /**
  * The question as the person sees it, in Markdown format, ready to paste into a chat.
  * List numbers are the answer codes themselves: without option 1 the list starts at 2.
@@ -46,8 +59,9 @@ export function questionText(question) {
     '',
     `**Command:** \`${question.command}\``,
   ];
-  if (question.reason) {
-    lines.push('', `**Why:** ${question.reason}`);
+  const cleanReason = sanitizeReason(question.reason);
+  if (cleanReason) {
+    lines.push('', `**Why:** ${cleanReason}`);
   }
   lines.push(
     '',

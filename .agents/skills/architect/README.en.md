@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.45 / 1.8 -->
-# Architect + Executor Skill (`v3.45 / 1.8`)
+<!-- skill-readme-sync: v3.46 / 1.8 -->
+# Architect + Executor Skill (`v3.46 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
@@ -140,6 +140,7 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 | `--install-hooks` | Install the zero-dependency Node `.git/hooks/commit-msg` hook (without overwriting an existing custom hook or `core.hooksPath`) |
 | `--update [--force]` | Fetch latest commit, atomically update installed skill folder, write commit SHA to `.version`, sync `EXECUTOR.md`, and refresh git hooks |
 | `--compact` | Migrate an existing `classic` project (root `PLAN.md`/`EXECUTOR.md`/`docs/`) into the `.architect/` compact layout (`/architect compact`) |
+| `--repair` | Restore leftover `remote.<name>.pushurl`, `.git/hooks/pre-push`, and stale `.agent-runs/.lock` after a crashed run (`/architect repair`) |
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | List current `executor` / `architect` models and all available environment models with effort tiers (`--models`), or set the chosen role model in shared/local config and sync `AGENTS.md` / `.claude/agents/executor.md` (`--set-model`, `/architect model`) |
 | `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, resolved Executor model and its source, `PLAN.md`, parallel task boundaries, runner binaries, and allowlists |
 | `--check-task T-NNN [--base <ref>]` | Mechanically verify task `T-NNN` against `<base>:PLAN.md` and `git merge-base <base> HEAD` (`Change` boundaries, `Frozen`, bypasses, commit messages, no-squash, and task `Verify` commands) |

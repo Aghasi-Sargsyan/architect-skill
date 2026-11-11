@@ -84,18 +84,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: Run full project test suite from config
-        run: |
-          TEST_CMD=$(node -e '
-            const fs = require("node:fs");
-            const p = fs.existsSync(".architect/config.json") ? ".architect/config.json" : ".agents/orchestrator.json";
-            const cfg = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : {};
-            const cmd = (cfg.fullTestCommand || (Array.isArray(cfg.allowedCommands) && cfg.allowedCommands[0]) || "npm test").trim();
-            process.stdout.write(cmd);
-          ')
-          echo "Running full test command: $TEST_CMD"
-          sh -e -c "$TEST_CMD"
-
       - name: Run Architect self-check
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -110,3 +98,49 @@ jobs:
           else
             node "$ORCH" --self-check
           fi
+
+      - name: Run full project test suite from config
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            import path from "node:path";
+            import { execFileSync, spawnSync } from "node:child_process";
+            import { pathToFileURL } from "node:url";
+
+            const orchDir = fs.existsSync(".agents/skills/architect/orchestrator/run.mjs")
+              ? path.resolve(".agents/skills/architect/orchestrator")
+              : path.resolve(".claude/skills/architect/orchestrator");
+            const { commandProblem } = await import(pathToFileURL(path.join(orchDir, "permissions.mjs")).href);
+            const { splitCommandArgs } = await import(pathToFileURL(path.join(orchDir, "mechanics.mjs")).href);
+            const { effectiveBlockedScripts } = await import(pathToFileURL(path.join(orchDir, "runners.mjs")).href);
+
+            const cfgRel = fs.existsSync(".architect/config.json") ? ".architect/config.json" : ".agents/orchestrator.json";
+            let cfgText = null;
+            if (process.env.EVENT_NAME === "pull_request" && process.env.BASE_REF) {
+              for (const cand of [".architect/config.json", ".agents/orchestrator.json"]) {
+                try {
+                  cfgText = execFileSync("git", ["show", `origin/${process.env.BASE_REF}:${cand}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+                  if (cfgText) break;
+                } catch { cfgText = null; }
+              }
+            }
+            if (!cfgText && fs.existsSync(cfgRel)) cfgText = fs.readFileSync(cfgRel, "utf8");
+            const cfg = cfgText ? JSON.parse(cfgText) : {};
+            const cmd = String(cfg.fullTestCommand || (Array.isArray(cfg.allowedCommands) && cfg.allowedCommands[0]) || "npm test").trim();
+            const problem = commandProblem(cmd, effectiveBlockedScripts(cfg));
+            if (problem) {
+              console.error(`Error: unsafe fullTestCommand "${cmd}" — ${problem}`);
+              process.exit(1);
+            }
+            const tokens = splitCommandArgs(cmd);
+            if (!tokens.length) {
+              console.error("Error: empty fullTestCommand");
+              process.exit(1);
+            }
+            console.log(`Running full test command: ${cmd}`);
+            const res = spawnSync(tokens[0], tokens.slice(1), { stdio: "inherit", shell: false });
+            process.exit(res.status ?? 1);
+          '

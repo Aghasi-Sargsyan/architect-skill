@@ -61,33 +61,66 @@ export function pathCheckSnippet(tool, effDirVar = 'cur_pwd') {
 export function writePathShims({ shimDir, workDir, realBins = {}, exemptNodeScripts = [] }) {
   mkdirSync(shimDir, { recursive: true });
   const workReal = workDir ? (() => { try { return realpathSync(workDir); } catch { return ''; } })() : '';
-  const exemptList = (exemptNodeScripts ?? []).filter((s) => typeof s === 'string' && s.length > 0);
-  const exemptStr = exemptList.join(' ');
+  const rawExempt = (exemptNodeScripts ?? []).filter((s) => typeof s === 'string' && s.length > 0);
+  for (const s of [...rawExempt]) {
+    try { rawExempt.push(realpathSync(s)); } catch { /* cleanup: close missing symlink target */ }
+  }
+  const exemptStr = [...new Set(rawExempt)].join('\n');
 
   for (const tool of PATH_GUARDED_TOOLS) {
     const file = path.join(shimDir, tool);
     const realBin = realBins[tool] || (tool === 'node' ? process.execPath : (findExecutable(tool) ?? ''));
     let guardBody = '';
     if (tool === 'node') {
-      guardBody = `  if [ "$1" != "--test" ]; then
+      guardBody = `  if [ "$#" -eq 1 ] && { [ "$1" = "--version" ] || [ "$1" = "-v" ]; }; then
     if [ -n "$REAL_BIN" ]; then exec "$REAL_BIN" "$@"; fi
     echo "node: command not found" >&2
     exit 127
   fi
-  if [ -n "$WORK_REAL" ]; then
-    cur_pwd=$(pwd -P 2>/dev/null)
-    case "$cur_pwd" in
-      "$WORK_REAL"|"$WORK_REAL"/*) ;;
+  is_path_cli=0
+  if [ "$#" -ge 1 ]; then
+    case "$1" in
+      -*) ;;
       *)
-        echo "agent-loop guard: $TOOL outside workDir is blocked for agents" >&2
-        exit 97
+        if [ -n "$EXEMPT_SCRIPTS" ]; then
+          while IFS= read -r ex; do
+            if [ -n "$ex" ] && [ "$1" = "$ex" ]; then is_path_cli=1; break; fi
+          done <<EOF_EXEMPT
+$EXEMPT_SCRIPTS
+EOF_EXEMPT
+        fi
+        if [ "$is_path_cli" -eq 0 ] && [ -f "$1" ] && [ -x "$1" ]; then
+          case "$1" in */*) cli_d="\${1%/*}" ;; *) cli_d="." ;; esac
+          cli_dir=$(cd "$cli_d" 2>/dev/null && pwd -P)
+          if [ -n "$cli_dir" ]; then
+            old_ifs="$IFS"; IFS=":"
+            for pd in $PATH; do
+              [ -z "$pd" ] && continue
+              pd_real=$(cd "$pd" 2>/dev/null && pwd -P)
+              if [ -n "$pd_real" ] && [ "$cli_dir" = "$pd_real" ]; then is_path_cli=1; break; fi
+            done
+            IFS="$old_ifs"
+          fi
+        fi
         ;;
     esac
   fi
+  if [ "$is_path_cli" -eq 0 ]; then
+    if [ -n "$WORK_REAL" ]; then
+      cur_pwd=$(pwd -P 2>/dev/null)
+      case "$cur_pwd" in
+        "$WORK_REAL"|"$WORK_REAL"/*) ;;
+        *)
+          echo "agent-loop guard: $TOOL outside workDir is blocked for agents" >&2
+          exit 97
+          ;;
+      esac
+    fi
 ${pathCheckSnippet(tool, 'cur_pwd')}
-  for a in "$@"; do
-    check_arg "$a"
-  done`;
+    for a in "$@"; do
+      check_arg "$a"
+    done
+  fi`;
     } else {
       guardBody = `  if [ -n "$WORK_REAL" ]; then
     cur_pwd=$(pwd -P 2>/dev/null)

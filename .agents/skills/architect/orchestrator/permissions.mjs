@@ -21,10 +21,11 @@ const TOO_BROAD = new Set([
 export const WRAPPERS = new Set(['time', 'timeout', 'nice', 'nohup', 'caffeinate', 'stdbuf', 'command', 'builtin', 'arch']);
 export const FILE_BINARIES = new Set(['cat', 'head', 'tail', 'less', 'more', 'sed', 'awk', 'perl', 'python', 'python3', 'tee', 'find', 'touch', 'mkdir', 'cp', 'mv', 'shasum', 'sha256sum', 'md5']);
 const DENIED_BINARIES = new Set([
-  'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec', 'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript',
-  ...WRAPPERS, ...FILE_BINARIES,
+  'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec', 'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript', ...WRAPPERS, ...FILE_BINARIES,
 ]);
-const SHELL_OPERATORS_RE = /&&|\||;|>|<|\$\(|`/;
+const PY_SAFE_MODULES = new Set(['pytest', 'unittest', 'mypy', 'ruff', 'flake8', 'black', 'isort', 'pyright', 'doctest']);
+const SHELL_OPERATORS_RE = /&|\||;|>|<|\$\(|`/;
+const SHELL_OPERATORS_ERR = 'contains shell operators (; & && || | > < ` $() or newlines) — only simple commands are allowed';
 const RULE_RE = /^([a-z_]+)\((.*)\)$/;
 
 const words = (cmd) => String(cmd).trim().split(/\s+/).filter(Boolean);
@@ -90,11 +91,11 @@ const LEADING_FLAG_RUNNERS = new Set(['git', 'npm', 'pnpm', 'yarn', 'bun', 'make
 
 /** Why allowing `command(<command>)` is unsafe, or null. */
 export function commandProblem(command, blockedScripts = []) {
+  if (/[\r\n\0]/.test(String(command ?? ''))) return SHELL_OPERATORS_ERR;
   const c = normalizeCommand(command);
   if (!c) return 'empty command';
-  if (SHELL_OPERATORS_RE.test(c)) return 'contains shell operators (; && || | > < ` $()) — only simple commands are allowed';
-  const rawWords = words(c);
-  const rawFirst = rawWords[0] ?? '';
+  if (SHELL_OPERATORS_RE.test(c)) return SHELL_OPERATORS_ERR;
+  const rawWords = words(c), rawFirst = rawWords[0] ?? '';
   const unwrappedTokens = unwrapTokens(rawWords);
   if (unwrappedTokens.length === 0) return `command wrapper "${rawFirst}" is not allowed`;
   const unwrappedBin = binName(unwrappedTokens[0]);
@@ -102,7 +103,7 @@ export function commandProblem(command, blockedScripts = []) {
   const unwrappedSecond = unwrappedTokens[1] ?? '';
   if (TOO_BROAD.has(c) || TOO_BROAD.has(unwrappedStr)) return `rule is too broad: allows any command "${c} ..."`;
   const isPython = unwrappedBin === 'python' || unwrappedBin === 'python3';
-  const isPythonTestRunner = isPython && unwrappedSecond === '-m' && (unwrappedTokens[2] === 'pytest' || unwrappedTokens[2] === 'unittest');
+  const isPythonTestRunner = isPython && ((unwrappedSecond === '-m' && PY_SAFE_MODULES.has(unwrappedTokens[2])) || (unwrappedSecond === 'manage.py' && unwrappedTokens[2] === 'test'));
   if ((isPython || FILE_BINARIES.has(unwrappedBin)) && !isPythonTestRunner) return `"${unwrappedBin}" is forbidden in the terminal: use built-in file tools for reading and modifying files`;
   const hit = forbiddenCommands(blockedScripts).find((f) => startsWithWords(f, c) || startsWithWords(c, f) || startsWithWords(f, unwrappedStr) || startsWithWords(unwrappedStr, f));
   if (hit) return `covers forbidden command "${hit}"`;
@@ -137,19 +138,12 @@ export function suggestAllowedCommand(command, blockedScripts = [], optsOrWorkDi
   const workDir = typeof optsOrWorkDir === 'string' ? optsOrWorkDir : (optsOrWorkDir?.workDir ?? null);
   if (!workDir) return null;
   const unwrapped = unwrapTokens(words(normalizeCommand(command)));
-  if (!unwrapped.length) return null;
-  const bin = binName(unwrapped[0]);
-  if (!LEADING_FLAG_RUNNERS.has(bin)) return null;
-
-  const realWork = realOrResolved(workDir);
-  const realGitDir = realOrResolved(path.join(workDir, '.git'));
-  let i = 1;
-  let strippedAny = false;
-
+  if (!unwrapped.length || !LEADING_FLAG_RUNNERS.has(binName(unwrapped[0]))) return null;
+  const bin = binName(unwrapped[0]), realWork = realOrResolved(workDir), realGitDir = realOrResolved(path.join(workDir, '.git'));
+  let i = 1, strippedAny = false;
   while (i < unwrapped.length && unwrapped[i].startsWith('-')) {
     const tok = unwrapped[i];
-    let target = null;
-    let isGitDir = false;
+    let target = null, isGitDir = false;
     if (tok === '-C') {
       if (i + 1 >= unwrapped.length) return null;
       target = unwrapped[++i];
@@ -178,15 +172,13 @@ export function suggestAllowedCommand(command, blockedScripts = [], optsOrWorkDi
 
 /** Proposes safe rules for a denied command: [1] prefix rule, [2] exact command; or auto refusal. */
 export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null) {
-  const full = normalizeCommand(command);
-  const w = words(full);
-  const problem = commandProblem(full, blockedScripts);
+  const rawProblem = /[\r\n\0]/.test(String(command ?? '')) ? SHELL_OPERATORS_ERR : null;
+  const full = normalizeCommand(command), w = words(full);
+  const problem = rawProblem ?? commandProblem(full, blockedScripts);
   if (problem) {
     const unwrapped = unwrapTokens(w);
-    const unwrappedBin = binName(unwrapped[0] ?? w[0] ?? '');
-    const unwrappedSecond = unwrapped[1] ?? '';
-    let reason = problem;
-    let suggestedCommand = null;
+    const unwrappedBin = binName(unwrapped[0] ?? w[0] ?? ''), unwrappedSecond = unwrapped[1] ?? '';
+    let reason = problem, suggestedCommand = null;
     if (LEADING_FLAG_RUNNERS.has(unwrappedBin) && unwrappedSecond.startsWith('-')) {
       reason = `leading flag "${unwrappedSecond}" before ${unwrappedBin} subcommand is not allowed: the subcommand must immediately follow ${unwrappedBin}`;
       suggestedCommand = suggestAllowedCommand(full, blockedScripts, optsOrWorkDir);
@@ -195,20 +187,17 @@ export function proposeRules(command, blockedScripts = [], optsOrWorkDir = null)
     }
     return { auto: true, reason, fileTool: FILE_BINARIES.has(unwrappedBin), ...(suggestedCommand !== null ? { suggestedCommand } : {}) };
   }
-
   if (w[0] === 'npm' && w[1] === 'list') return { auto: true, reason: 'use "npm ls" instead of "npm list"', fileTool: false, suggestedCommand: ['npm', 'ls', ...w.slice(2)].join(' ') };
-
   let p = null;
   const [b0 = '', b1 = '', b2 = ''] = w;
   if (SUBCOMMAND_TOOLS.has(b0)) {
     if (b1 && !b1.startsWith('-')) {
-      const isRun = b1 === 'run' || b1 === 'run-script';
-      const isPkg = (b0 === 'npm' || b0 === 'pnpm' || b0 === 'yarn' || b0 === 'bun') && isRun;
+      const isPkg = (b0 === 'npm' || b0 === 'pnpm' || b0 === 'yarn' || b0 === 'bun') && (b1 === 'run' || b1 === 'run-script');
       const isPy = (b0 === 'uv' || b0 === 'poetry' || b0 === 'pipenv') && b1 === 'run';
       p = ((isPkg || isPy) && b2 && !b2.startsWith('-')) ? `${b0} ${b1} ${b2}` : `${b0} ${b1}`;
     }
   } else if (b0 === 'node' && b1 === '--test') p = 'node --test';
-  else if ((b0 === 'python' || b0 === 'python3') && b1 === '-m' && (b2 === 'pytest' || b2 === 'unittest')) p = `${b0} -m ${b2}`;
+  else if ((b0 === 'python' || b0 === 'python3') && ((b1 === '-m' && PY_SAFE_MODULES.has(b2)) || (b1 === 'manage.py' && b2 === 'test'))) p = `${b0} ${b1} ${b2}`;
   else if (b0 === 'wc' && b1 === '-l') p = 'wc -l';
   else if (STANDALONE_TOOLS.has(b0)) p = b0;
 

@@ -123,7 +123,9 @@ export function checkExecutorRun(opts) {
 
   const effectiveFrozen = [...(frozen ?? []), ...alwaysFrozenFiles(configPath, { workDir: cwd, orchestratorDir })];
   const isHighRisk = /^(высокий|high)$/i.test((task.risk ?? '').trim());
+  const normP = (p) => String(p ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
   const taskChange = task.change ?? task.changeFiles ?? [];
+  const normChange = new Set(taskChange.map(normP));
   const scanPaths = rawScanPaths ?? codePaths ?? [];
 
   for (const c of commits) {
@@ -136,7 +138,7 @@ export function checkExecutorRun(opts) {
       violations.push(`commit contains no files: ${short}`);
     }
     for (const f of c.files) {
-      const nf = f.replace(/\\/g, '/').replace(/^\.\//, '');
+      const nf = normP(f);
       if (nf === 'PLAN.md' || nf === '.architect/PLAN.md') {
         violations.push(`${short} modifies ${f}: task commits must not modify PLAN.md`);
       }
@@ -146,7 +148,7 @@ export function checkExecutorRun(opts) {
         if (!isHighRisk && matchesProtectedConfig(f, protectedConfigFiles)) {
           violations.push(`${short} touches verification config outside high-risk task: ${f}`);
         }
-        if (!taskChange.includes(f)) {
+        if (!normChange.has(nf)) {
           violations.push(`${short} touches file outside Change list — outside task "Change" list: ${f}`);
         }
       }
@@ -247,62 +249,35 @@ export function inspectFailedExecutorTurn({
   }
 
   const effectiveFrozen = [...(frozen ?? []), ...alwaysFrozenFiles(configPath, { workDir: cwd, orchestratorDir })];
-  const taskChange = new Set(task.change ?? task.changeFiles ?? []);
+  const normP = (p) => String(p ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
+  const taskChange = new Set((task.change ?? task.changeFiles ?? []).map(normP));
 
-  const touchedFrozen = [];
-  const outsideChange = [];
+  const touchedFrozen = [], outsideChange = [];
   for (const f of dirtyFiles) {
     if (matchesFrozenPath(f, effectiveFrozen) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
       touchedFrozen.push(f);
-    } else if (!taskChange.has(f)) {
+    } else if (!taskChange.has(normP(f))) {
       outsideChange.push(f);
     }
   }
-  if (touchedFrozen.length > 0) {
-    issues.push(`touched Frozen: ${touchedFrozen.join(', ')}`);
-  }
-  if (outsideChange.length > 0) {
-    issues.push(`touched files outside task "Change" list: ${outsideChange.join(', ')}`);
-  }
+  if (touchedFrozen.length > 0) issues.push(`touched Frozen: ${touchedFrozen.join(', ')}`);
+  if (outsideChange.length > 0) issues.push(`touched files outside task "Change" list: ${outsideChange.join(', ')}`);
 
   let mechViolations = [];
   if (commits.length > 0) {
     const mech = checkExecutorRun({
-      realGit,
-      cwd,
-      base: baseSha,
-      baseSha,
-      task,
-      frozen,
-      scanPaths,
-      bypassPatterns,
-      protectedConfigFiles,
-      testFilePatterns: testFilePatterns ?? config?.testFilePatterns,
-      configPath,
-      orchestratorDir,
+      realGit, cwd, base: baseSha, baseSha, task, frozen, scanPaths, bypassPatterns,
+      protectedConfigFiles, testFilePatterns: testFilePatterns ?? config?.testFilePatterns, configPath, orchestratorDir,
     });
     mechViolations = mech.violations;
     issues.push(...mechViolations);
   }
-
-  const hasCommits = commits.length > 0;
-  const ok = hasCommits && mechViolations.length === 0;
-  const clean = issues.length === 0;
-
+  const hasCommits = commits.length > 0, ok = hasCommits && mechViolations.length === 0, clean = issues.length === 0;
   const commitDescriptions = commits.map((c) => `${c.sha.slice(0, 7)} "${c.subject}"`);
   const summaryText = ok
     ? `pre-failure commit mechanics: ok (${commits.length} commit(s): ${commitDescriptions.join(', ')})`
     : `pre-failure commit mechanics: violation (${(mechViolations.length > 0 ? mechViolations : issues).join('; ')})`;
-
-  return {
-    clean,
-    issues,
-    hasCommits,
-    ok,
-    commits,
-    violations: mechViolations,
-    summaryText: hasCommits ? summaryText : '',
-  };
+  return { clean, issues, hasCommits, ok, commits, violations: mechViolations, summaryText: hasCommits ? summaryText : '' };
 }
 
 export function formatMechanicsReport(mech) {
@@ -314,21 +289,18 @@ export function formatMechanicsReport(mech) {
   ];
   if (mech.violations && mech.violations.length) {
     lines.push('Violations:');
-    for (const v of mech.violations) {
-      lines.push(`- ${v}`);
-    }
+    for (const v of mech.violations) lines.push(`- ${v}`);
   }
   return lines.join('\n');
 }
 
 const words = (cmd) => String(cmd).trim().split(/\s+/).filter(Boolean);
 const startsWithWords = (cmd, prefix) => {
-  const a = words(cmd);
-  const b = words(prefix);
+  const a = words(cmd), b = words(prefix);
   return b.length > 0 && b.length <= a.length && b.every((w, i) => w === a[i]);
 };
 
-function splitCommandArgs(cmd) {
+export function splitCommandArgs(cmd) {
   const tokens = [];
   const re = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
   let match;

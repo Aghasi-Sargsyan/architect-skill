@@ -61,6 +61,7 @@ export function parsePlan(text) {
   const tasks = [];
   const frozen = [];
   const rawCasesMap = new Map();
+  const rawVerifyMap = new Map();
   let section = '';
   let current = null;
   let field = '';
@@ -84,7 +85,7 @@ export function parsePlan(text) {
       continue;
     }
     if (!current) continue;
-    const f = line.match(/^ {2}-\s*([^:]+):\s*(.*)$/);
+    const f = line.match(/^ {2,4}-\s*([^:`]+):\s*(.*)$/);
     if (f) {
       field = fieldKey(f[1]);
       const value = f[2].trim();
@@ -103,7 +104,12 @@ export function parsePlan(text) {
       if (field === 'parallelWith') current.parallelWith.push(...(value.match(/T-\d+/g) ?? []));
       // Only the path inside backticks counts: "`tsconfig.test.json` (новый)" → tsconfig.test.json
       if (field === 'change') current.change.push(...[...value.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1]));
-      if (field === 'verify') current.verifyCommands.push(...[...value.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1].trim()).filter(Boolean));
+      if (field === 'verify') {
+        current.verifyCommands.push(...[...value.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1].trim()).filter(Boolean));
+        const vList = rawVerifyMap.get(current) ?? [];
+        if (value && !NONE_RE.test(value)) vList.push(value);
+        rawVerifyMap.set(current, vList);
+      }
       if (field === 'testCases') {
         const list = rawCasesMap.get(current) ?? [];
         list.push(...[...value.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1]));
@@ -117,6 +123,12 @@ export function parsePlan(text) {
     }
     if (field === 'verify') {
       current.verifyCommands.push(...[...line.matchAll(PATH_IN_BACKTICKS_RE)].map((m) => m[1].trim()).filter(Boolean));
+      const sub = line.match(/^ {4,}-\s*(.+)$/)?.[1]?.trim() ?? '';
+      if (sub && !NONE_RE.test(sub)) {
+        const vList = rawVerifyMap.get(current) ?? [];
+        vList.push(sub);
+        rawVerifyMap.set(current, vList);
+      }
     }
     if (field === 'testCases' && /^ {4,}- /.test(line)) {
       const list = rawCasesMap.get(current) ?? [];
@@ -126,6 +138,10 @@ export function parsePlan(text) {
   }
   const testFileRe = /(?:^|\/)tests\/|\.(?:test|spec)\.[^/\s]+$/;
   for (const task of tasks) {
+    const rawVerify = rawVerifyMap.get(task) ?? [];
+    if (rawVerify.length > 0 && task.verifyCommands.length === 0) {
+      Object.defineProperty(task, 'unparsedVerify', { value: true, enumerable: false, writable: true, configurable: true });
+    }
     const raw = rawCasesMap.get(task) ?? [];
     const seen = new Set();
     const refs = [];

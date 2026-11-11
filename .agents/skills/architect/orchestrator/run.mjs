@@ -12,9 +12,10 @@ import { checkExecutorRun, checkArchitectRun, inspectFailedExecutorTurn, runTask
 import { acquireLock, installGuards, which } from './guards.mjs';
 import { initProject, loadConfig, RUNS_DIR } from './config.mjs';
 import { resolveConfigPath, reviewFilePath, skillFilePath } from './layout.mjs';
-import { EMPTY_CHANGE, modelResolver, readiness, resolveEscalationResume, runCheckCommand } from './check.mjs';
+import { EMPTY_CHANGE, UNPARSED_VERIFY, modelResolver, readiness, resolveEscalationResume, runCheckCommand } from './check.mjs';
 import { commandProblem, proposeRules, readAgyRules, realOrResolved } from './permissions.mjs';
 import { handleWritePermissionsCli } from './permissions-cli.mjs';
+import { handleRepairCli } from './guards-recovery.mjs';
 import { askPermission, clearQuestion, writeAnswer } from './ask.mjs';
 import { runView } from './feed.mjs';
 import { getAdapter } from './adapters/index.mjs';
@@ -33,9 +34,14 @@ async function main() {
   if (nodeErr) throw new Error(nodeErr);
   // An agent inside the loop must not start another loop or touch the permission settings.
   if (process.env.AGENT_LOOP === '1') throw new Error('orchestrator cannot be run from inside the agent loop (AGENT_LOOP=1)');
-  if (process.platform === 'win32') throw new Error('Windows is not supported: git/npm shims are sh scripts (see skill README)');
   const configPath = resolveConfigPath({ workDir: process.cwd(), configPath: opts.configPath, init: opts.init });
   const realGit = which('git');
+  if (opts.repair) { const res = handleRepairCli({ workDir: process.cwd(), realGit }); if (!res.ok) process.exitCode = 1; return; }
+  if (opts.compact) return handleCompactCli({ workDir: process.cwd() });
+  if (opts.models || opts.setModel) return handleModelsCli({ workDir: process.cwd(), opts });
+  if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
+  if (opts.selfCheck) return handleSelfCheckCli({ opts, config: safeLoadConfig(configPath), workDir: path.resolve(safeLoadConfig(configPath).workDir ?? process.cwd()), realGit });
+  if (process.platform === 'win32') throw new Error('Windows is not supported: git/npm shims are sh scripts (see skill README)');
   if (opts.init) {
     for (const note of initProject({ workDir: process.cwd(), configPath, realGit, team: opts.team })) console.log(`• ${note}`);
     const ready = loadConfig(configPath);
@@ -45,9 +51,6 @@ async function main() {
   }
   if (opts.installHooks) { const res = installCommitMsgHook({ workDir: process.cwd(), realGit }); console.log(res.installed ? '• installed .git/hooks/commit-msg' : `• skipped commit-msg hook: ${res.reason}`); return; }
   if (opts.update) { const res = await handleUpdateCli({ workDir: process.cwd(), realGit, force: opts.force }); if (!res?.ok) process.exitCode = 1; return res; }
-  if (opts.compact) return handleCompactCli({ workDir: process.cwd() });
-  if (opts.models || opts.setModel) return handleModelsCli({ workDir: process.cwd(), opts });
-  if (opts.checkTask) return handleCheckTaskCli({ opts, config: loadConfigOrDefaults(configPath, process.cwd()), workDir: process.cwd(), realGit });
   const config = safeLoadConfig(configPath);
   const layout = config.paths;
   const workDir = path.resolve(config.workDir ?? process.cwd());
@@ -67,7 +70,6 @@ async function main() {
     if (!(await runCheckCommand({ config, workDir, realGit }))) process.exitCode = 1;
     return;
   }
-  if (opts.selfCheck) return handleSelfCheckCli({ opts, config, workDir, realGit });
   if (opts.auditPlan) return handleAuditPlanCli({ opts, config, workDir, realGit });
   const adapter = getAdapter(config);
   const runnerBin = adapter.resolveBin(config);
@@ -244,6 +246,7 @@ async function main() {
         }
         // Without Change list every Executor commit would be a violation found only after the commit: stop before any agent runs.
         if (!task.change.length) { stopReason = `${task.id}: ${EMPTY_CHANGE} — fill it in ${layout.planPath}`; break; }
+        if (task.unparsedVerify) { stopReason = `${task.id}: ${UNPARSED_VERIFY} — wrap commands in backticks in ${layout.planPath}`; break; }
         const chosen = executorModelFor(task);
         if (chosen.error) { stopReason = `${task.id}: ${chosen.error}`; break; }
         const executorModel = chosen.model;
@@ -273,9 +276,7 @@ async function main() {
               appendEvent(runDir, { type: 'mechanics_checked', taskId: task.id, round, ok: postFail.ok, partial: true, commitsCount: postFail.commits.length, violations: postFail.violations });
               if (postFail.violations.length > 0) writeFileSync(path.join(runDir, `${label}.violations.txt`), postFail.violations.join('\n'));
               stopReason = `${task.id}: Executor failed — ${ex.error} (${postFail.summaryText})`;
-            } else {
-              stopReason = `${task.id}: Executor failed — ${ex.error}`;
-            }
+            } else stopReason = `${task.id}: Executor failed — ${ex.error}`;
             break outer;
           }
           appendEvent(runDir, { type: 'executor_finished', taskId: task.id, round, ok: true, status: ex.json.status, seconds: ex.seconds, attempts: ex.attempts });
@@ -288,6 +289,13 @@ async function main() {
           appendEvent(runDir, { type: 'mechanics_checked', taskId: task.id, round, ok: mech.violations.length === 0, commitsCount: mech.commits.length, violations: mech.violations });
           if (mech.violations.length) {
             writeFileSync(path.join(runDir, `${label}.violations.txt`), mech.violations.join('\n'));
+            const dirtyCheck = mech.commits.length === 0 ? inspectFailedExecutorTurn({ realGit, cwd: workDir, base: execBase, task, frozen: plan.frozen, scanPaths, bypassPatterns: config.bypassRegexps, protectedConfigFiles: config.protectedConfigFiles, configPath }) : null;
+            const canRetryNoCommit = dirtyCheck && round + 1 <= config.maxFixRounds && !dirtyCheck.issues.some((x) => x.includes('Frozen') || x.includes('outside task'));
+            if (canRetryNoCommit) {
+              log(`  mechanics: recoverable no-commit turn (round ${round + 1}/${config.maxFixRounds}) — requesting rework`);
+              rework = { round: round + 1, instructions: `Mechanics check failed before any task commit was created:\n${mech.violations.join('\n')}\nStage and commit only allowed files from Change ("${task.id}: ...") and leave a clean working tree.` };
+              continue;
+            }
             stopReason = `${task.id}: mechanics violation (attempt ${round + 1}/${config.maxFixRounds}): ${mech.violations.join('; ')}`;
             break outer;
           }

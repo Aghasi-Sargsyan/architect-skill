@@ -11,8 +11,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { PATH_GUARDED_TOOLS, pathCheckSnippet, writePathShims, writeRunnerShims } from './runners.mjs';
 import { findExecutable, isGuardShimFile, SHIM_MAX_BYTES, SHIM_HEADER_BYTES } from './events.mjs';
+import { clearGuardsJournal, writeGuardsJournal } from './guards-recovery.mjs';
 
 export { SHIM_MAX_BYTES, SHIM_HEADER_BYTES, isGuardShimFile } from './events.mjs';
+export { clearGuardsJournal, guardsJournalPath, recoverCrashedGuards, writeGuardsJournal } from './guards-recovery.mjs';
 
 export const DISABLED_PUSH_URL = '/dev/null/agent-loop-push-disabled';
 export const GUARDED_UNTRACKED_FILES = ['.claude/settings.json', '.claude/settings.local.json', 'CLAUDE.local.md', '.mcp.json', '.git/info/exclude'];
@@ -107,17 +109,21 @@ if [ "$AGENT_LOOP" = "1" ]; then
     fi
     if [ -z "$sub" ]; then
       case "$a" in
-        -c|-c*|--config-env|--config-env=*) echo "agent-loop guard: git configuration override ($a) is blocked for agents" >&2; exit 97 ;;
+        -c|-c*|--config-env|--config-env=*|--git-dir|--git-dir=*|--work-tree|--work-tree=*) echo "agent-loop guard: git configuration/directory override ($a) is blocked for agents" >&2; exit 97 ;;
         -C) skip="C" ;;
-        --git-dir|--work-tree|--namespace|--exec-path) skip="x" ;;
+        -C*) dir="\${a#-C}"; dir="\${dir#=}" ;;
+        --namespace|--exec-path) skip="x" ;;
         -*) ;;
         *) sub="$a" ;;
       esac
     elif [ "$sub" = "commit" ]; then
       case "$a" in
-        --no-verify) echo "agent-loop guard: --no-verify is blocked for agents" >&2; exit 97 ;;
+        --no-verify|--no-verify=*) echo "agent-loop guard: --no-verify is blocked for agents" >&2; exit 97 ;;
+        -m|-F|-C|-c|--message|--file) skip="m" ;;
+        -m?*|-F?*) ;;
         --*) ;;
         -*n*) echo "agent-loop guard: --no-verify (-n) is blocked for agents" >&2; exit 97 ;;
+        -[!-]*[mFcC]) skip="m" ;;
       esac
     elif [ "$sub" = "push" ] && [ -z "$remote" ]; then
       case "$a" in -*) ;; *) remote="$a" ;; esac
@@ -288,17 +294,9 @@ export function acquireLock(runsDir) {
  * and notes for the run log (a skipped layer).
  */
 export function installGuards({
-  workDir,
-  shimDir,
-  blockedScripts,
-  blockedNpmScripts,
-  sandboxRoot = defaultSandboxRoot(),
-  realGit = which('git'),
-  realNpm = which('npm'),
-  realGrep = whichOptional('grep'),
-  realLs = whichOptional('ls'),
-  realWc = whichOptional('wc'),
-  realNode = whichOptional('node') || process.execPath,
+  workDir, shimDir, blockedScripts, blockedNpmScripts, sandboxRoot = defaultSandboxRoot(),
+  realGit = which('git'), realNpm = which('npm'), realGrep = whichOptional('grep'),
+  realLs = whichOptional('ls'), realWc = whichOptional('wc'), realNode = whichOptional('node') || process.execPath,
 }) {
   if (!realGit || typeof realGit !== 'string' || !path.isAbsolute(realGit)) {
     throw new Error(`installGuards: realGit must be a non-empty string with an absolute path (path.isAbsolute): ${realGit}`);
@@ -307,22 +305,19 @@ export function installGuards({
   writeGitShim({ shimDir, realGit, sandboxRoot, workDir });
   const realBins = { npm: realNpm, pnpm: whichOptional('pnpm'), yarn: whichOptional('yarn'), bun: whichOptional('bun'), make: whichOptional('make'), just: whichOptional('just'), grep: realGrep, ls: realLs, wc: realWc, node: realNode };
   writeRunnerShims({ shimDir, blockedScripts: effectiveBlocked, realBins });
-  const exemptNodeScripts = [realNpm, realBins.pnpm, realBins.yarn].filter((s) => typeof s === 'string' && s.length > 0);
+  const exemptNodeScripts = [realNpm, realBins.pnpm, realBins.yarn, whichOptional('npx')].filter((s) => typeof s === 'string' && s.length > 0);
   for (const s of [...exemptNodeScripts]) {
-    try { exemptNodeScripts.push(realpathSync(s)); } catch { continue; }
+    try { exemptNodeScripts.push(realpathSync(s)); } catch { /* cleanup: close missing symlink */ continue; }
   }
-  writePathShims({
-    shimDir,
-    workDir,
-    realBins,
-    exemptNodeScripts: [...new Set(exemptNodeScripts)],
-  });
+  writePathShims({ shimDir, workDir, realBins, exemptNodeScripts: [...new Set(exemptNodeScripts)] });
+  writeGuardsJournal({ workDir, realGit });
   const hook = installPrePushHook({ workDir, realGit });
   let restorePushUrls;
   try {
     restorePushUrls = disablePushUrls({ workDir, realGit });
   } catch (err) {
     hook.restore();
+    clearGuardsJournal(workDir, realGit);
     throw err;
   }
   const env = { ...process.env, AGENT_LOOP: '1', PATH: `${shimDir}${path.delimiter}${cleanShimPath(process.env.PATH)}` };
@@ -334,12 +329,12 @@ export function installGuards({
   });
   const verify = () => verifyGuards({ workDir, realGit, hook, fileSnapshot, backupDir });
   const restore = () => {
-    // Both restores run even if the first one fails; the first error is rethrown.
     const errors = [];
     for (const fn of [restorePushUrls, hook.restore]) {
       try { fn(); } catch (err) { errors.push(err); }
     }
     if (errors.length) throw errors[0];
+    clearGuardsJournal(workDir, realGit);
   };
   return { realGit, realNpm, env, restore, verify, notes: hook.skipped ? [hook.skipped] : [] };
 }

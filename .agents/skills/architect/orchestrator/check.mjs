@@ -9,7 +9,7 @@ import { git, gitRaw, head, isIgnored, porcelain } from './git.mjs';
 import { checkParallelTasks, matchesFrozenPath, nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
 import { DEFAULTS, RUNS_DIR } from './config.mjs';
 import { isAlwaysFrozenFile, isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
-import { acquireLock, defaultSandboxRoot, installGuards, lockHolder } from './guards.mjs';
+import { acquireLock, defaultSandboxRoot, installGuards, lockHolder, recoverCrashedGuards } from './guards.mjs';
 import { findExecutable, readEvents } from './events.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { agySettingsPath } from './permissions.mjs';
@@ -133,9 +133,8 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
   const repo = inside.status === 0 && inside.stdout.trim() === 'true';
   add(repo, 'git repository', repo ? path.basename(workDir) : 'working directory is not in a git repository');
   if (!repo) return out;
-
+  recoverCrashedGuards({ workDir, realGit });
   const layout = config?.paths ?? resolveLayout({ config });
-
   if (!existsSync(path.join(workDir, layout.planPath))) add(false, 'PLAN.md', 'not found in working directory');
   else {
     const planText = readFileSync(path.join(workDir, layout.planPath), 'utf8');
@@ -146,6 +145,8 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
       : 'no tasks matching "- [ ] T-NNN: …" — check template format in SKILL.md');
     const noChange = open.filter((t) => t.change.length === 0).map((t) => t.id);
     if (open.length) add(noChange.length === 0, 'Change («Менять») field', noChange.length ? `empty for ${noChange.join(', ')}` : 'present for all open tasks');
+    const badVerify = open.filter((t) => t.unparsedVerify).map((t) => t.id);
+    if (badVerify.length) add(false, 'Verify («Проверка») field', `commands must be wrapped in backticks for ${badVerify.join(', ')}`);
     const hasExecutor = existsSync(path.join(workDir, layout.executorPath));
     const hasFrozenHeading = /^##\s+(frozen\b|заморожен)/im.test(planText);
     if ((hasExecutor || hasFrozenHeading) && !plan.frozen.includes(layout.executorPath) && !plan.frozen.includes('EXECUTOR.md')) {
@@ -275,23 +276,17 @@ export async function probePermissions({ config, workDir, realGit }) {
 }
 
 export const EMPTY_CHANGE = 'Change field is empty or not recognized (paths must be in backticks)';
+export const UNPARSED_VERIFY = 'Verify field has text without backticks (commands must be in backticks)';
 
-/**
- * Executor model per task: the task field «Модель» / Model wins over executor.model. `agy models` is read once,
- * only when a task names a model; an unknown model is an error (fail closed). A failed listing throws.
- * @returns {(task: { model: string }) => { model?: string, error?: string }}
- */
+/** Executor model per task: task «Модель» / Model wins over executor.model; unknown model fails closed. */
 export function modelResolver(config, env = process.env) {
   let models = null;
-  const adapter = getAdapter(config);
-  const runnerBin = adapter.resolveBin(config);
+  const adapter = getAdapter(config), runnerBin = adapter.resolveBin(config);
   return (task) => {
     if (task?.executorInfo?.runner && task.executorInfo.runner !== (config.runner ?? 'agy')) {
-      const taskEnv = task.executorInfo.env || task.executorInfo.runner;
-      return { error: `task assigned to ${taskEnv}, but local runner is ${config.runner ?? 'agy'}` };
+      return { error: `task assigned to ${task.executorInfo.env || task.executorInfo.runner}, but local runner is ${config.runner ?? 'agy'}` };
     }
-    const hasConfigModel = Boolean(config.executor?.model);
-    const candidate = task.model || (!hasConfigModel ? task.executorInfo?.model : null);
+    const candidate = task.model || (!config.executor?.model ? task.executorInfo?.model : null);
     if (!candidate) {
       if (!config.executor?.model) return { error: `not set in config — choose a model from "${path.basename(runnerBin)} models"` };
       return { model: config.executor.model };
@@ -302,15 +297,9 @@ export function modelResolver(config, env = process.env) {
   };
 }
 
-/**
- * Can the loop start right now? Everything --check verifies except model calls (no probe), plus the lock and the
- * next task: it exists, has «Менять», and its model resolves. Used by --dry-run, by the loop and by --background
- * before it detaches, so problems reach the person at the prompt.
- * @returns {Array<{ ok: boolean, name: string, detail: string }>}
- */
+/** Preflight without model calls (used by --dry-run, the loop, and --background before detaching). */
 export function readiness({ config, workDir, realGit, only = null, settingsPath = null, modelFor = null }) {
-  const adapter = getAdapter(config);
-  const runnerBin = adapter.resolveBin(config);
+  const adapter = getAdapter(config), runnerBin = adapter.resolveBin(config);
   const resolvedSettings = settingsPath ?? adapter.permissions.settingsPath(os.homedir(), workDir);
   const modelResolverFn = modelFor ?? modelResolver(config);
   const results = localChecks({ config, workDir, realGit, only });
@@ -328,17 +317,13 @@ export function readiness({ config, workDir, realGit, only = null, settingsPath 
     return results;
   }
   add(task.change.length > 0, `${task.id}: Change`, task.change.length ? task.change.join(', ') : EMPTY_CHANGE);
+  if (task.unparsedVerify) add(false, `${task.id}: Verify`, UNPARSED_VERIFY);
   if (task?.executorInfo?.runner && task.executorInfo.runner !== (config.runner ?? 'agy')) {
-    const taskEnv = task.executorInfo.env || task.executorInfo.runner;
-    add(false, `${task.id}: Executor model`, `task assigned to ${taskEnv}, but local runner is ${config.runner ?? 'agy'}`);
+    add(false, `${task.id}: Executor model`, `task assigned to ${task.executorInfo.env || task.executorInfo.runner}, but local runner is ${config.runner ?? 'agy'}`);
     return results;
   }
   let chosen;
-  try {
-    chosen = modelResolverFn(task);
-  } catch (err) {
-    chosen = { error: err instanceof Error ? err.message : String(err) };
-  }
+  try { chosen = modelResolverFn(task); } catch (err) { chosen = { error: err instanceof Error ? err.message : String(err) }; }
   add(Boolean(chosen.model), `${task.id}: Executor model`, chosen.model ?? String(chosen.error));
   return results;
 }
@@ -348,10 +333,12 @@ export async function runCheckCommand({ config, workDir, realGit, settingsPath =
   const adapter = getAdapter(config);
   const resolvedSettings = settingsPath ?? adapter.permissions.settingsPath(os.homedir(), workDir);
   const results = [...localChecks({ config, workDir, realGit })];
-  results.push(checkCommitMsgHook({ workDir, realGit }));
+  const hookRes = checkCommitMsgHook({ workDir, realGit });
+  if (!hookRes.skipped) results.push(hookRes);
   if (config.permissions === 'allowlist') results.push(adapter.permissions.check({ config, settingsPath: resolvedSettings, workDir }));
   results.push(...runnerChecks({ config, workDir }));
   for (const r of results) print(`${r.ok ? '✓' : '✗'} ${r.name}: ${r.detail}`);
+  if (hookRes.skipped) print(`– ${hookRes.name}: skipped (${hookRes.detail})`);
   const updateCheck = checkSkillUpdateAvailable({ workDir, realGit });
   if (updateCheck?.updateAvailable && updateCheck.notice) print(updateCheck.notice);
   const allOk = results.every((r) => r.ok);
@@ -367,30 +354,18 @@ export async function runCheckCommand({ config, workDir, realGit, settingsPath =
   return allOk;
 }
 
-/**
- * Runs local and runner checks on a directory.
- * @returns {{ ok: boolean, checks: Array<{ ok: boolean, name: string, detail: string }> }}
- */
 export function runCheck({ workDir = process.cwd(), home = os.homedir(), config = null, realGit = null }) {
-  const rGit = realGit ?? findBinary('git') ?? 'git';
-  const cfg = config ?? DEFAULTS;
+  const rGit = realGit ?? findBinary('git') ?? 'git', cfg = config ?? DEFAULTS;
   const checks = localChecks({ config: cfg, workDir, realGit: rGit });
   const repoCheck = checks.find((c) => (c.name === 'git repository' || c.name === 'git-репозиторий') && c.ok);
   if (repoCheck) {
-    try { checks.push(...runnerChecks({ config: cfg, workDir })); } catch { /* ignore */ }
+    try { checks.push(...runnerChecks({ config: cfg, workDir })); } catch { /* cleanup: close runner checks */ }
   }
-  const ok = checks.every((c) => c.ok);
-  return { ok, checks };
+  return { ok: checks.every((c) => c.ok), checks };
 }
 
-/**
- * Formats check results as human-readable report.
- * @param {{ ok: boolean, checks: Array<{ ok: boolean, name: string, detail: string }> } | Array<{ ok: boolean, name: string, detail: string }>} chk
- * @returns {string}
- */
 export function formatCheckReport(chk) {
-  const lines = ['=== Environment check ===', ''];
-  const checks = Array.isArray(chk) ? chk : (chk?.checks ?? []);
+  const lines = ['=== Environment check ===', ''], checks = Array.isArray(chk) ? chk : (chk?.checks ?? []);
   for (const c of checks) lines.push(`[${c.ok ? 'PASS' : 'FAIL'}] ${c.name}: ${c.detail}`);
   lines.push('', checks.length > 0 && checks.every((c) => c.ok) ? 'Summary: READY' : 'Summary: NOT READY (fix the [FAIL] items above)');
   return lines.join('\n');

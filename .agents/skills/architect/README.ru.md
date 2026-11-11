@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.45 / 1.8 -->
-# Скилл «Архитектор + Исполнитель» (`v3.45 / 1.8`)
+<!-- skill-readme-sync: v3.46 / 1.8 -->
+# Скилл «Архитектор + Исполнитель» (`v3.46 / 1.8`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
@@ -134,7 +134,8 @@
 | `--init [--team]` | Создание конфига, установка `.git/hooks/commit-msg`, добавление `.agent-runs/` и `*.local.json` в `.gitignore`; с `--team` пишет `"team": true` и `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Установка Node-хука `.git/hooks/commit-msg` (без перезаписи существующего хука или `core.hooksPath`) |
 | `--update [--force]` | Обновление папки скилла, `.version`, `EXECUTOR.md` и хуков |
-| `--compact` | Миграция существующего проекта из `classic` (корень / `docs/`) в компактную раскладку `.architect/` (`/architect compact`) |
+| `--compact` | Миграция проекта из `classic` (корень / `docs/`) в компактную раскладку `.architect/` (`/architect compact`) |
+| `--repair` | Восстановление `pushurl`, `.git/hooks/pre-push` и очистка stale `.lock` после аварийного завершения (`/architect repair`) |
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | Список моделей окружения с `effort` (`--models`) или запись модели роли в конфиг и `AGENTS.md` (`--set-model`, `/architect model`) |
 | `--check` | Проверка ОС, Node 22+, git 2.31+, подпапки скилла, копии `EXECUTOR.md`, хука `commit-msg`, итоговой модели Исполнителя и её источника, `PLAN.md`, параллельных задач, раннеров и allowlist |
 | `--check-task T-NNN [--base <ref>]` | Шлюз задачи `T-NNN` по `<base>:PLAN.md` и `git merge-base <base> HEAD` (`Change`, `Frozen`, обходы, коммиты, запрет squash и `Verify`-команды задачи) |

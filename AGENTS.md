@@ -21,7 +21,7 @@
 | `npm test` | запуск всех тестов оркестратора, скилла и `tests/*.test.mjs` |
 | `node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs tests/*.test.mjs` | полный набор тестов напрямую через `node --test` (совместимо с Node 22 и Node 24) |
 | `VERIFY_STEP_A1=1 npm test` | полная проверка упаковки скилла и синхронизации `README.*.md` (`MAINTAINING.md` Step A1) |
-| `npm run agents` | автоматический цикл по `PLAN.md` (Исполнитель → проверка механики → приёмка Архитектором). Флаги: `-- --init [--team]`, `-- --install-hooks`, `-- --update [--force]`, `-- --compact`, `-- --models`, `-- --set-model <executor\|architect> <id> [--local]`, `-- --check`, `-- --check-task T-NNN [--base <ref>]`, `-- --write-permissions` (только после явного «да» пользователя), `-- --dry-run`, `-- --self-check [--base <ref>]`, `-- --audit-plan`, `-- --background`, `-- --watch [мин] [--since N]`, `-- --status`, `-- --follow`, `-- --answer <1\|2\|3>`, `-- --pause`, `-- --only T-NNN` |
+| `npm run agents` | автоматический цикл по `PLAN.md` (Исполнитель → проверка механики → приёмка Архитектором). Флаги: `-- --init [--team]`, `-- --install-hooks`, `-- --update [--force]`, `-- --compact`, `-- --repair`, `-- --models`, `-- --set-model <executor\|architect> <id> [--local]`, `-- --check`, `-- --check-task T-NNN [--base <ref>]`, `-- --write-permissions` (только после явного «да» пользователя), `-- --dry-run`, `-- --self-check [--base <ref>]`, `-- --audit-plan`, `-- --background`, `-- --watch [мин] [--since N]`, `-- --status`, `-- --follow`, `-- --answer <1\|2\|3>`, `-- --pause`, `-- --only T-NNN` |
 
 ## 4. Инварианты и обходы проверок
 - Рабочие файлы правил (`SKILL.md`, `EXECUTOR.md`, `references/*.md`) — только на английском; единственная разрешённая `.ru.md` копия в папке скилла — `README.ru.md` (`ADR-032`).
@@ -34,7 +34,7 @@
   - пути кода — `.agents/skills/architect/orchestrator`; grep ретро по добавленным строкам: `git log -p --format='commit %h %s' <база>..HEAD -- .agents/skills/architect/orchestrator | grep -nE '^commit |^\+.*([:<,|=>&[(][[:space:]]*any\b|\bas[[:space:]]+any\b|as unknown as|@ts-(ignore|expect-error|nocheck)|eslint-disable|\.(skip|only)\(|(?:Object\.assign|(?:Object|Reflect)\.(?:defineProperty|defineProperties|setPrototypeOf))[[:space:]]*\([[:space:]]*(?:[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*prototype|globalThis)\b|\b(?:[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*prototype|globalThis)[[:space:]]*(?:\.[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*|\[[^]]+\])[[:space:]]*=[^=]|(^|[^A-Za-z0-9_$])__proto__[[:space:]]*(=[^=]| :))'`.
 
 ## 5. Зоны высокого риска
-`.agents/skills/architect/orchestrator/{guards,permissions,permissions-cli,runners,mechanics,selfcheck,evidence,audit,hooks,eval-fixtures}.mjs` · `.agents/skills/architect/orchestrator/adapters/` · `.agents/skills/architect/{SKILL,EXECUTOR}.md` и `.agents/skills/architect/references/` · `.agents/orchestrator.json`.
+`.agents/skills/architect/orchestrator/{guards,guards-recovery,permissions,permissions-cli,runners,mechanics,selfcheck,evidence,audit,hooks,eval-fixtures}.mjs` · `.agents/skills/architect/orchestrator/adapters/` · `.agents/skills/architect/{SKILL,EXECUTOR}.md` и `.agents/skills/architect/references/` · `.agents/orchestrator.json`.
 
 ## 6. Git и секреты
 - Коммиты — только с явными путями: `git add <пути>`, затем `git commit --only <те же пути>`, после — `git show --stat HEAD`. `git add .` и `git add -A` не использовать.

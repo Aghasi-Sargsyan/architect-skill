@@ -1,5 +1,5 @@
 // Self-update module: updates installed skill folder, syncs EXECUTOR.md, and refreshes git hooks.
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -36,11 +36,34 @@ export function readSkillVersion(skillDir) {
   return `${skillVer} / ${execVer}`;
 }
 
+function assertNoEscapingSymlinks(rootDir) {
+  const realRoot = realpathSync(rootDir);
+  const visit = (dir) => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      if (ent.name === '.git') continue;
+      const full = path.join(dir, ent.name);
+      const lst = lstatSync(full);
+      if (lst.isSymbolicLink()) {
+        let targetReal = '';
+        try { targetReal = realpathSync(full); } catch {
+          throw new Error(`cloned skill directory contains broken symlink: ${path.relative(rootDir, full)}`);
+        }
+        if (targetReal !== realRoot && !targetReal.startsWith(`${realRoot}${path.sep}`)) {
+          throw new Error(`cloned skill directory contains symlink escaping skill root: ${path.relative(rootDir, full)}`);
+        }
+      } else if (lst.isDirectory()) {
+        visit(full);
+      }
+    }
+  };
+  visit(rootDir);
+}
+
 /**
  * Updates the installed architect skill in workDir from repoUrl.
- * @param {{ workDir?: string, orchestratorDir?: string, repoUrl?: string, realGit?: string, force?: boolean }} param0
+ * @param {{ workDir?: string, orchestratorDir?: string, repoUrl?: string, ref?: string, realGit?: string, force?: boolean }} param0
  */
-export async function updateSkill({ workDir = process.cwd(), orchestratorDir, repoUrl, realGit, force = false } = {}) {
+export async function updateSkill({ workDir = process.cwd(), orchestratorDir, repoUrl, ref, realGit, force = false } = {}) {
   if (process.env.AGENT_LOOP === '1') {
     throw new Error('cannot update skill from inside the agent loop (AGENT_LOOP=1)');
   }
@@ -98,24 +121,29 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
   }
 
   const tmpDir = mkdtempSync(path.join(os.tmpdir(), 'architect-skill-update-'));
+  const targetRef = ref ?? process.env.ARCHITECT_UPDATE_REF ?? null;
   try {
     const cloneDir = path.join(tmpDir, 'repo');
-    execFileSync(g, ['clone', '--depth', '1', targetRepo, cloneDir], { stdio: 'pipe' });
+    if (targetRef) {
+      execFileSync(g, ['clone', targetRepo, cloneDir], { stdio: 'pipe' });
+      execFileSync(g, ['checkout', '--detach', targetRef], { cwd: cloneDir, stdio: 'pipe' });
+    } else {
+      execFileSync(g, ['clone', '--depth', '1', targetRepo, cloneDir], { stdio: 'pipe' });
+    }
     const commitSha = execFileSync(g, ['rev-parse', '--short', 'HEAD'], { cwd: cloneDir, encoding: 'utf8' }).trim();
+    if (!/^[0-9a-fA-F]{7,40}$/.test(commitSha)) {
+      throw new Error(`invalid commit SHA from cloned repository: "${commitSha}"`);
+    }
 
     let sourceSkillDir = path.join(cloneDir, '.agents', 'skills', 'architect');
-    if (!existsSync(sourceSkillDir)) {
-      sourceSkillDir = path.join(cloneDir, '.claude', 'skills', 'architect');
-    }
-    if (!existsSync(sourceSkillDir) && existsSync(path.join(cloneDir, 'SKILL.md'))) {
-      sourceSkillDir = cloneDir;
-    }
+    if (!existsSync(sourceSkillDir)) sourceSkillDir = path.join(cloneDir, '.claude', 'skills', 'architect');
+    if (!existsSync(sourceSkillDir) && existsSync(path.join(cloneDir, 'SKILL.md'))) sourceSkillDir = cloneDir;
 
-    const skillMd = path.join(sourceSkillDir, 'SKILL.md');
-    const execMd = path.join(sourceSkillDir, 'EXECUTOR.md');
+    const skillMd = path.join(sourceSkillDir, 'SKILL.md'), execMd = path.join(sourceSkillDir, 'EXECUTOR.md');
     if (!existsSync(skillMd) || !existsSync(execMd)) {
       throw new Error(`cloned skill repository is missing SKILL.md or EXECUTOR.md (looked in ${sourceSkillDir})`);
     }
+    assertNoEscapingSymlinks(sourceSkillDir);
 
     const afterVersion = readSkillVersion(sourceSkillDir);
 

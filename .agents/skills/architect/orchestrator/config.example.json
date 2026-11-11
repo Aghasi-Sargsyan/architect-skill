@@ -41,11 +41,13 @@
     "(?:^|/)[^/]+_test\\.(?:py|go)$"
   ],
   "testPatterns": [
-    "\\b(?:test|it)\\s*\\("
+    "\\b(?:test|it)\\s*\\(",
+    "^\\s*def\\s+test_"
   ],
   "assertPatterns": [
     "\\bassert\\.",
-    "\\bexpect\\s*\\("
+    "\\bexpect\\s*\\(",
+    "^\\s*assert\\s+\\S"
   ],
   "redCheckCommand": "node --test {file}",
   "maxFixRounds": 2,

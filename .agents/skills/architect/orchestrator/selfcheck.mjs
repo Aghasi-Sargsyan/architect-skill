@@ -6,6 +6,8 @@ import { git, commitsSince, findSquashViolations } from './git.mjs';
 import { DEFAULT_TEST_FILE_PATTERNS, isTestFile, findBypasses } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
 import { scanRangeCommitMessages, scanRangeProcessWarnings } from './hooks.mjs';
+import { commandProblem } from './permissions.mjs';
+import { effectiveBlockedScripts } from './runners.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -134,16 +136,13 @@ export function findTestTimers(diffText, testFilePatterns) {
   return result;
 }
 
-const DEFAULT_TEST_PATTERNS = ['\\b(?:test|it)\\s*\\('];
-const DEFAULT_ASSERT_PATTERNS = ['\\bassert\\.', '\\bexpect\\s*\\('];
+const DEFAULT_TEST_PATTERNS = ['\\b(?:test|it)\\s*\\(', '^\\s*def\\s+test_'];
+const DEFAULT_ASSERT_PATTERNS = ['\\bassert\\.', '\\bexpect\\s*\\(', '^\\s*assert\\s+\\S'];
 
 function countByPatterns(content, patterns, fallback) {
   const list = Array.isArray(patterns) && patterns.length > 0 ? patterns : fallback;
   let total = 0;
-  for (const p of list) {
-    const re = new RegExp(p instanceof RegExp ? p.source : String(p), 'gm');
-    total += (content.match(re) ?? []).length;
-  }
+  for (const p of list) total += (content.match(new RegExp(p instanceof RegExp ? p.source : String(p), 'gm')) ?? []).length;
   return total;
 }
 
@@ -184,9 +183,7 @@ function getModifiedOrDeletedFiles(realGit, cwd, sha) {
     if (!parents.length) return [];
     return git(realGit, cwd, ['diff-tree', '--no-commit-id', '--name-only', '-r', '--diff-filter=MD', parents[0], sha])
       .split('\n').map((f) => f.trim().replace(/\\/g, '/').replace(/^\.\//, '')).filter(Boolean);
-  } catch {
-    return [];
-  }
+  } catch { /* cleanup: abort diff-tree read */ return []; }
 }
 
 export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText = null, requireFixFrozen = false, orchestratorDir = here }) {
@@ -281,20 +278,18 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   // 2. Monotonicity checks
   const baseFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', baseSha]).split('\n').filter(Boolean);
   const baseTestFiles = baseFiles.filter((f) => isTestFile(f, config?.testFilePatterns) && isUnderScanPaths(f, config?.bypassScanPaths));
+  const monoWaivedFiles = new Set(allCommits.filter((c) => waivers.some((w) => /\bmonotonicity\b/i.test(w.rule) && c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))).flatMap((c) => c.files.map(norm)));
 
   for (const testFile of baseTestFiles) {
     if (!headFileSet.has(testFile)) {
-      if (!allCommits.some((c) => c.files.map(norm).includes(norm(testFile)) && /\bADR-\d+\b/.test(c.subject))) {
+      if (!allCommits.some((c) => c.files.map(norm).includes(norm(testFile)) && /\bADR-\d+\b/.test(c.subject)) && !monoWaivedFiles.has(norm(testFile))) {
         violations.push(`test file deleted without ADR in commit message: ${testFile}`);
       }
-    } else {
-      const baseContent = git(realGit, cwd, ['show', `${baseSha}:${testFile}`]);
-      const headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
-      const baseTests = countTests(baseContent, config);
-      const headTests = countTests(headContent, config);
+    } else if (!monoWaivedFiles.has(norm(testFile))) {
+      const baseContent = git(realGit, cwd, ['show', `${baseSha}:${testFile}`]), headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
+      const baseTests = countTests(baseContent, config), headTests = countTests(headContent, config);
       if (headTests < baseTests) violations.push(`monotonicity: in ${testFile} test/it count decreased from ${baseTests} to ${headTests}`);
-      const baseAsserts = countAsserts(baseContent, config);
-      const headAsserts = countAsserts(headContent, config);
+      const baseAsserts = countAsserts(baseContent, config), headAsserts = countAsserts(headContent, config);
       if (headAsserts < baseAsserts) violations.push(`monotonicity: in ${testFile} assert count decreased from ${baseAsserts} to ${headAsserts}`);
     }
   }
@@ -303,16 +298,21 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     if (!isTestFile(testFile, config?.testFilePatterns)) continue;
     if (!isUnderScanPaths(testFile, config?.bypassScanPaths) && !frozenTests.has(testFile)) continue;
     const headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
-    const headTests = countTests(headContent, config);
-    const headAsserts = countAsserts(headContent, config);
-    if (headAsserts === 0 && (headTests > 0 || frozenTests.has(testFile) || isNamedTestFile(testFile, config?.testFilePatterns))) {
+    if (countAsserts(headContent, config) === 0 && (countTests(headContent, config) > 0 || frozenTests.has(testFile) || isNamedTestFile(testFile, config?.testFilePatterns))) {
       notVerified.push(`test file ${testFile} has 0 recognized assertions (NOT VERIFIED)`);
     }
   }
 
   const protectedConfigFiles = resolveProtectedConfigFiles({ cwd, orchestratorDir, baseFiles, headFiles });
-
   for (const cfgFile of protectedConfigFiles) {
+    if (headFileSet.has(cfgFile)) {
+      let hCfg = {};
+      try { hCfg = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch { /* cleanup: abort head config parse */ hCfg = {}; }
+      if (typeof hCfg.fullTestCommand === 'string' && hCfg.fullTestCommand.trim()) {
+        const ftProb = commandProblem(hCfg.fullTestCommand, effectiveBlockedScripts(hCfg));
+        if (ftProb) violations.push(`config ${cfgFile} has unsafe fullTestCommand: ${ftProb}`);
+      }
+    }
     if (!baseFiles.includes(cfgFile)) continue;
     if (!headFileSet.has(cfgFile)) {
       violations.push(`monotonicity: config file ${cfgFile} deleted on HEAD`);
@@ -322,11 +322,8 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     try { baseJson = JSON.parse(git(realGit, cwd, ['show', `${baseSha}:${cfgFile}`])); } catch { /* cleanup: abort parse base config */ baseJson = {}; }
     try { headJson = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch { /* cleanup: abort parse head config */ headJson = {}; }
     for (const key of CONFIG_ARRAY_KEYS) {
-      const baseArr = Array.isArray(baseJson[key]) ? baseJson[key] : [];
-      const headArr = Array.isArray(headJson[key]) ? headJson[key] : [];
-      for (const item of baseArr) {
-        if (!headArr.includes(item)) violations.push(`monotonicity: in ${cfgFile} array ${key} missing element "${item}" present in base`);
-      }
+      const baseArr = Array.isArray(baseJson[key]) ? baseJson[key] : [], headArr = Array.isArray(headJson[key]) ? headJson[key] : [];
+      for (const item of baseArr) if (!headArr.includes(item)) violations.push(`monotonicity: in ${cfgFile} array ${key} missing element "${item}" present in base`);
     }
   }
 

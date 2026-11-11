@@ -236,8 +236,10 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
     } else {
       writeFileSync(toPath, readFileSync(fromPath));
     }
-    rmSync(fromPath, { force: true });
     moved.push({ from, to });
+  }
+  for (const { from } of moved) {
+    rmSync(path.join(workDir, from), { force: true });
   }
 
   for (const dirRel of ['docs/plans', 'docs']) {
@@ -258,8 +260,8 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
       const transformed = original
         .replace(/\.agents\/orchestrator\.local\.json/g, '.architect/config.local.json')
         .replace(/\.agents\/orchestrator\.json/g, '.architect/config.json')
-        .replace(/(?<!\/)EXECUTOR\.md/g, '.architect/EXECUTOR.md')
-        .replace(/(?<!\/)PLAN\.md/g, '.architect/PLAN.md');
+        .replace(/(?<![/\w.-])EXECUTOR\.md\b/g, '.architect/EXECUTOR.md')
+        .replace(/(?<![/\w.-])PLAN\.md\b/g, '.architect/PLAN.md');
       if (transformed !== original) {
         writeFileSync(p, transformed, 'utf8');
         updated.push(rel);

@@ -262,13 +262,13 @@ export function installCommitMsgHook({ workDir = process.cwd(), realGit }) {
 
 export function checkCommitMsgHook({ workDir = process.cwd(), realGit }) {
   const hooksPath = getCoreHooksPath({ realGit, workDir });
-  if (hooksPath) return { ok: false, name: 'commit-msg hook', detail: `core.hooksPath is configured (${hooksPath})` };
+  if (hooksPath) return { ok: false, skipped: true, name: 'commit-msg hook', detail: `core.hooksPath is configured (${hooksPath})` };
   const hookFile = path.join(workDir, '.git', 'hooks', 'commit-msg');
-  if (!existsSync(hookFile)) return { ok: false, name: 'commit-msg hook', detail: 'commit-msg hook is not installed (run with --install-hooks)' };
+  if (!existsSync(hookFile)) return { ok: false, skipped: false, name: 'commit-msg hook', detail: 'commit-msg hook is not installed (run with --install-hooks)' };
   if (!readFileSync(hookFile, 'utf8').includes(COMMIT_HOOK_MARKER)) {
-    return { ok: false, name: 'commit-msg hook', detail: 'existing custom .git/hooks/commit-msg without agent-loop marker' };
+    return { ok: false, skipped: true, name: 'commit-msg hook', detail: 'existing custom .git/hooks/commit-msg without agent-loop marker' };
   }
-  return { ok: true, name: 'commit-msg hook', detail: 'installed (.git/hooks/commit-msg)' };
+  return { ok: true, skipped: false, name: 'commit-msg hook', detail: 'installed (.git/hooks/commit-msg)' };
 }
 
 export function validateCommitMessage({ subject, commitLanguage = null, stagedFiles = [], planDiff = '', isMerge = false } = {}) {

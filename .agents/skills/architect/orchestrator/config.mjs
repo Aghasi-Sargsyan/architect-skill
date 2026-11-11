@@ -189,8 +189,13 @@ export function validateConfig(config) {
   if (config.team !== undefined && typeof config.team !== 'boolean') {
     problems.push('team — optional, true or false');
   }
-  if (config.fullTestCommand !== undefined && (typeof config.fullTestCommand !== 'string' || !config.fullTestCommand.trim())) {
-    problems.push('fullTestCommand — optional, non-empty string');
+  if (config.fullTestCommand !== undefined) {
+    if (typeof config.fullTestCommand !== 'string' || !config.fullTestCommand.trim()) {
+      problems.push('fullTestCommand — optional, non-empty string');
+    } else {
+      const problem = commandProblem(config.fullTestCommand, effectiveBlockedScripts(config));
+      if (problem) problems.push(`fullTestCommand: "${config.fullTestCommand}" — ${problem}`);
+    }
   }
   return problems;
 }
