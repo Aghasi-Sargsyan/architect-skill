@@ -67,7 +67,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/adapters/claude-models.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/adapters/claude.test.mjs .agents/skills/architect/orchestrator/adapters/index.test.mjs .agents/skills/architect/orchestrator/models.test.mjs .agents/skills/architect/orchestrator/check-task.test.mjs`
 
-- [ ] T-094: Claude Code setup in `--init` (runner choice and skill link) and non-blocking `--check` warnings
+- [x] T-094: Claude Code setup in `--init` (runner choice and skill link) and non-blocking `--check` warnings
   - Риск: high.
   - Зависит от: —
   - Читать: `.agents/skills/architect/orchestrator/claude-setup.test.mjs`, `.agents/skills/architect/orchestrator/claude-setup.mjs`, `.agents/skills/architect/orchestrator/config.mjs` (строки 300–335), `.agents/skills/architect/orchestrator/cli-dispatch.mjs` (строки 1–30, 85–105), `.agents/skills/architect/orchestrator/check.mjs` (строки 1–35, 336–364), `.agents/skills/architect/orchestrator/layout.mjs` (строки 84–104).
