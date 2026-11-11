@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,6 +16,15 @@ import {
 } from './models.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
+let prevAgentLoop;
+beforeEach(() => {
+  prevAgentLoop = process.env.AGENT_LOOP;
+  delete process.env.AGENT_LOOP;
+});
+afterEach(() => {
+  if (prevAgentLoop === undefined) delete process.env.AGENT_LOOP;
+  else process.env.AGENT_LOOP = prevAgentLoop;
+});
 
 test('T-082: parseArgs parses --models, --set-model <role> <model>, and --local with validation and mode mutual exclusion', () => {
   const m = parseArgs(['--models']);

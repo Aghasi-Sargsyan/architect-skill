@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,6 +13,15 @@ import { runCheckCommand } from './check.mjs';
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 const skillDir = path.dirname(orchDir);
 const repoRoot = path.resolve(skillDir, '../../..');
+let prevAgentLoop;
+beforeEach(() => {
+  prevAgentLoop = process.env.AGENT_LOOP;
+  delete process.env.AGENT_LOOP;
+});
+afterEach(() => {
+  if (prevAgentLoop === undefined) delete process.env.AGENT_LOOP;
+  else process.env.AGENT_LOOP = prevAgentLoop;
+});
 
 function initUpstreamRepo(dir, skillVer = 'v3.99', execVer = '1.9') {
   execFileSync('git', ['init', '-b', 'master'], { cwd: dir, stdio: 'ignore' });

@@ -35,18 +35,25 @@ for (const k of Object.keys(ENV)) {
 }
 
 let dir;
-const g = (...args) => execFileSync(realGit, args, { cwd: dir, encoding: 'utf8', env: ENV }).trim();
+let prevAgentLoop;
+const g = (...args) => execFileSync(realGit, args, { cwd: dir, encoding: 'utf8', env: { ...ENV, AGENT_LOOP: '' } }).trim();
 const write = (rel, text) => {
   mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
   writeFileSync(path.join(dir, rel), text);
 };
 
 beforeEach(() => {
+  prevAgentLoop = process.env.AGENT_LOOP;
+  delete process.env.AGENT_LOOP;
   dir = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orch-layout-s2-')));
   g('init', '-q', '-b', 'master');
 });
 
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => {
+  if (prevAgentLoop === undefined) delete process.env.AGENT_LOOP;
+  else process.env.AGENT_LOOP = prevAgentLoop;
+  rmSync(dir, { recursive: true, force: true });
+});
 
 test('T-021 (У1): DEFAULTS has no layout field; old config without layout resolves to classic, .architect/config.json resolves to compact', () => {
   assert.equal(DEFAULTS.layout, undefined, 'DEFAULTS must not hardcode layout so legacy configs are not silently switched to compact');

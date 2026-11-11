@@ -146,7 +146,7 @@ test('K2, В1, В2: rulesFor includes deny write_file(<workDir>/.claude); instal
 test('D2 (user requirement): when Executor turn fails without final JSON after making commits, orchestrator runs checkExecutorRun on those commits and logs the result before stopping', () => {
   writeFileSync(path.join(work, 'src.js'), 'export const x = 1;\n');
   writeFileSync(path.join(work, 'EXECUTOR.md'), '<!-- executor-policy-version: 1.6 -->\n');
-  writeFileSync(path.join(work, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n\n- [ ] T-025: test task\n  - Risk: высокий.\n  - Change: `src.js`\n');
+  writeFileSync(path.join(work, 'PLAN.md'), '# PLAN\n\n## Frozen\n- `EXECUTOR.md`\n\n## Tasks\n\n- [ ] T-025: test task\n  - Risk: высокий.\n  - Change: `src.js`\n  - Test cases: structural verification\n');
   writeFileSync(path.join(work, '.gitignore'), '.agent-runs/\n');
   g('add', '.');
   g('commit', '-q', '-m', 'init');

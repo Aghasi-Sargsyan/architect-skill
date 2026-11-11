@@ -37,10 +37,15 @@ const GIT_ENV = {
 };
 
 let tmpRoot;
+let prevAgentLoop;
 beforeEach(() => {
+  prevAgentLoop = process.env.AGENT_LOOP;
+  delete process.env.AGENT_LOOP;
   tmpRoot = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orch-audit-hardening-')));
 });
 afterEach(() => {
+  if (prevAgentLoop === undefined) delete process.env.AGENT_LOOP;
+  else process.env.AGENT_LOOP = prevAgentLoop;
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
