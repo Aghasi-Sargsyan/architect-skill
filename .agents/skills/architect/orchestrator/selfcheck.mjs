@@ -13,8 +13,10 @@ import { effectiveBlockedScripts } from './runners.mjs';
 import { resolveSelfCheckRange } from './selfcheck-base.mjs';
 import { readGitBlob } from './git-read.mjs';
 import { readCommittedWaivers, waiverCovers } from './waivers.mjs';
+import { splitDiffByFiles, findSilentCatches } from './catch-scan.mjs';
 
 export { resolveSelfCheckBase } from './selfcheck-base.mjs';
+export { splitDiffByFiles, findEmptyCatches } from './catch-scan.mjs';
 export { parseWaivers } from './waivers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -45,58 +47,6 @@ function resolveProtectedConfigFiles({ cwd, orchestratorDir = here, baseFiles = 
 const CONFIG_ARRAY_KEYS = ['bypassPatterns', 'bypassScanPaths', 'protectedConfigFiles', 'blockedNpmScripts', 'testFilePatterns', 'testPatterns', 'assertPatterns'];
 
 const TIMER_RE = /(?:performance\.now\(|Date\.now\(|process\.hrtime\b|console\.time\()/;
-const CATCH_RE = /(?:^|[^\w.])(catch\s*(?:\([^)]*\))?\s*\{([^}]*)\})/g;
-const PROMISE_CATCH_RE = /(\.catch\s*\(\s*(?:\([^)]*\)|[a-zA-Z0-9_$]+)?\s*(?:=>|function[^{]*)\s*\{([^}]*)\}\s*\))/g;
-const CLEANUP_RE = /\b(?:stop|abort|close)\b/i;
-
-export function splitDiffByFiles(diffText) {
-  if (!diffText || typeof diffText !== 'string') return [];
-  const files = [];
-  let cur = null, hunk = [], hunks = [];
-  const pushFile = () => {
-    if (!cur) return;
-    if (hunk.length) hunks.push(hunk);
-    files.push({ file: cur, hunks });
-    cur = null; hunk = []; hunks = [];
-  };
-  for (const line of diffText.split('\n')) {
-    if (line.startsWith('+++ b/')) {
-      pushFile();
-      const raw = line.slice(6).split('\t')[0].trim();
-      cur = raw.startsWith('"') && raw.endsWith('"') ? raw.slice(1, -1) : raw;
-    } else if (line.startsWith('@@')) {
-      if (hunk.length) { hunks.push(hunk); hunk = []; }
-    } else if (line.startsWith('+') && !line.startsWith('+++')) {
-      hunk.push(line.slice(1));
-    }
-  }
-  pushFile();
-  return files;
-}
-
-export function findEmptyCatches(diffText) {
-  const result = [];
-  const scan = (text, re, file) => {
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      const body = m[2];
-      const stripped = body.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '').trim();
-      if (stripped === '' && !CLEANUP_RE.test(body)) {
-        const lines = m[1].split('\n').map((l) => l.trim()).filter(Boolean);
-        result.push({ file, lines, line: m[1].trim() });
-      }
-    }
-  };
-  for (const { file, hunks } of splitDiffByFiles(diffText)) {
-    for (const hunk of hunks) {
-      const text = hunk.join('\n');
-      scan(text, CATCH_RE, file);
-      scan(text, PROMISE_CATCH_RE, file);
-    }
-  }
-  return result;
-}
 
 export function findTestTimers(diffText, testFilePatterns) {
   const result = [];
@@ -224,7 +174,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       for (const added of findBypasses(fileDiffText, bypassPatterns, config?.testFilePatterns)) {
         if (headContent.includes(added)) violations.push(`bypass in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${added.slice(0, 100)}`);
       }
-      for (const catchItem of findEmptyCatches(fileDiffText)) {
+      for (const catchItem of findSilentCatches(fileDiffText)) {
         if (catchItem.lines.length > 0 && catchItem.lines.every((l) => headContent.includes(l))) {
           violations.push(`empty catch in ${fileDiff.file} from commit ${c.sha.slice(0, 7)} still on HEAD: ${catchItem.lines.join(' ')}`);
         }

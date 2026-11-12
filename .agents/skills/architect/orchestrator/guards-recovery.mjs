@@ -9,6 +9,8 @@ const HOOK_MARKER = '# agent-loop guard hook';
 const RUNS_DIR = '.agent-runs';
 const JOURNAL_REL = path.join('info', 'agent-loop-guards.json');
 
+const errMessage = (err) => (err instanceof Error ? err.message : String(err));
+
 function resolveGitDir(workDir, realGit) {
   if (!workDir) return null;
   if (realGit) {
@@ -123,6 +125,7 @@ export function clearGuardsJournal(workDir, realGit = null) {
  */
 export function recoverCrashedGuards({ workDir = process.cwd(), realGit }) {
   const notes = [];
+  const problems = [];
   const gitDir = resolveGitDir(workDir, realGit);
   if (!gitDir || !realGit) {
     return { recovered: false, activePid: null, notes };
@@ -159,7 +162,7 @@ export function recoverCrashedGuards({ workDir = process.cwd(), realGit }) {
         let current = [];
         try { current = run(['config', '--get-all', key]).split('\n').filter(Boolean); } catch { current = []; }
         if (current.includes(DISABLED_PUSH_URL)) {
-          try { run(['config', '--unset-all', key]); } catch { /* cleanup: close unset-all */ }
+          try { run(['config', '--unset-all', key]); } catch (err) { problems.push(`could not unset ${key}: ${errMessage(err)}`); }
           for (const url of previous) {
             if (typeof url === 'string' && url && url !== DISABLED_PUSH_URL) run(['config', '--add', key, url]);
           }
@@ -173,7 +176,7 @@ export function recoverCrashedGuards({ workDir = process.cwd(), realGit }) {
       try { current = run(['config', '--get-all', key]).split('\n').filter(Boolean); } catch { current = []; }
       if (current.includes(DISABLED_PUSH_URL)) {
         const keep = current.filter((u) => u !== DISABLED_PUSH_URL);
-        try { run(['config', '--unset-all', key]); } catch { /* cleanup: close unset-all */ }
+        try { run(['config', '--unset-all', key]); } catch (err) { problems.push(`could not unset ${key}: ${errMessage(err)}`); }
         for (const url of keep) run(['config', '--add', key, url]);
         notes.push(`cleared leftover disabled pushurl on remote "${name}"`);
       }
@@ -190,15 +193,15 @@ export function recoverCrashedGuards({ workDir = process.cwd(), realGit }) {
       renameSync(saved, hook);
       notes.push('restored saved .git/hooks/pre-push');
     }
-  } catch {
-    /* cleanup: abort git guard recovery on unreadable repo */
+  } catch (err) {
+    problems.push(`git guard recovery stopped: ${errMessage(err)}`);
   }
 
   if (existsSync(jPath)) {
     rmSync(jPath, { force: true });
     if (!notes.length) notes.push('cleared stale .git/info/agent-loop-guards.json');
   }
-  return { recovered: notes.length > 0, activePid: null, notes };
+  return { recovered: notes.length > 0, activePid: null, notes: [...notes, ...problems] };
 }
 
 export function handleRepairCli({ workDir = process.cwd(), realGit, stdout = process.stdout, stderr = process.stderr }) {

@@ -248,8 +248,9 @@ export function formatWebhookBody(opts = {}) {
 export function notifyOperator({ title = 'Agent loop stopped', text = '' } = {}) {
   try {
     execFileSync('/usr/bin/osascript', ['-e', `display notification ${JSON.stringify(text)} with title ${JSON.stringify(title)}`]);
-  } catch {
-    /* cleanup: abort notification on failure */
+    return { sent: true, error: null };
+  } catch (err) {
+    return { sent: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 

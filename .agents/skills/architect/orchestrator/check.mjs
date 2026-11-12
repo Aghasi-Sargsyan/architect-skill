@@ -374,7 +374,9 @@ export function runCheck({ workDir = process.cwd(), home = os.homedir(), config 
   const checks = localChecks({ config: cfg, workDir, realGit: rGit });
   const repoCheck = checks.find((c) => (c.name === 'git repository' || c.name === 'git-репозиторий') && c.ok);
   if (repoCheck) {
-    try { checks.push(...runnerChecks({ config: cfg, workDir })); } catch { /* cleanup: close runner checks */ }
+    try { checks.push(...runnerChecks({ config: cfg, workDir })); } catch (err) {
+      checks.push({ ok: false, name: 'runner checks', detail: err instanceof Error ? err.message : String(err) });
+    }
   }
   return { ok: checks.every((c) => c.ok), checks };
 }

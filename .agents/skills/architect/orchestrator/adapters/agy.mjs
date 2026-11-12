@@ -57,7 +57,9 @@ export function deniedFromTranscript(conversationId, home = os.homedir()) {
         for (const tc of prev.tool_calls) {
           if (tc?.name !== 'run_command') continue;
           let a = tc?.args;
-          if (typeof a === 'string') try { a = JSON.parse(a); } catch { /* close */ }
+          if (typeof a === 'string') {
+            try { a = JSON.parse(a); } catch { a = tc.args; }
+          }
           if (unquote(a?.CommandLine) === m[1]) {
             cand = { step: prev, tc, args: a };
             break;
@@ -200,7 +202,9 @@ export function checkAgyEnv(agyBin = 'agy') {
       if (ps.status !== 0 || !ps.stdout.trim()) {
         issues.push('Antigravity server is not running (no language_server_macos* process). Open the Antigravity app before running the loop.');
       }
-    } catch { /* close */ }
+    } catch (err) {
+      issues.push(`Failed to check the Antigravity server: ${errText(err)}`);
+    }
   }
   return { ok: issues.length === 0, issues };
 }
@@ -380,18 +384,16 @@ function isNestedInUnclosedJson(trimmed, idx) {
 export function parseAgentResponse(rawResponse) {
   const trimmed = String(rawResponse ?? '').trim();
   if (!trimmed || !trimmed.endsWith('}')) throw new SyntaxError('Agent response must end with "}"');
-  try {
-    const whole = JSON.parse(trimmed);
-    if (isJsonObject(whole)) return { json: whole, discardedPrefixLength: 0 };
-  } catch { /* close */ }
+  let whole = null;
+  try { whole = JSON.parse(trimmed); } catch { whole = null; }
+  if (isJsonObject(whole)) return { json: whole, discardedPrefixLength: 0 };
   for (let idx = 1; idx < trimmed.length; idx++) {
     if (trimmed[idx] !== '{') continue;
-    try {
-      const parsed = JSON.parse(trimmed.slice(idx));
-      if (isJsonObject(parsed) && !isNestedInUnclosedJson(trimmed, idx)) {
-        return { json: parsed, discardedPrefixLength: idx };
-      }
-    } catch { /* close */ }
+    let parsed;
+    try { parsed = JSON.parse(trimmed.slice(idx)); } catch { continue; }
+    if (isJsonObject(parsed) && !isNestedInUnclosedJson(trimmed, idx)) {
+      return { json: parsed, discardedPrefixLength: idx };
+    }
   }
   throw new SyntaxError('No valid JSON object found at the end of agent response');
 }

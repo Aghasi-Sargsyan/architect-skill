@@ -218,6 +218,7 @@ export async function handleUpdateCli({ workDir = process.cwd(), orchestratorDir
  *   remoteSha?: string | null,
  *   notice: string | null,
  *   cached?: boolean,
+ *   cacheError?: string,
  * }}
  */
 export function checkSkillUpdateAvailable({
@@ -367,11 +368,12 @@ export function checkSkillUpdateAvailable({
     updateAvailable,
     notice,
   };
+  let cacheError = null;
   try {
     mkdirSync(path.dirname(cacheFile), { recursive: true });
     writeFileSync(cacheFile, JSON.stringify(cacheData, null, 2), 'utf8');
   } catch (err) {
-    /* cleanup: abort cache write on read-only fs */
+    cacheError = err instanceof Error ? err.message : String(err);
   }
 
   return {
@@ -380,5 +382,6 @@ export function checkSkillUpdateAvailable({
     remoteSha,
     notice,
     cached: false,
+    ...(cacheError ? { cacheError } : {}),
   };
 }

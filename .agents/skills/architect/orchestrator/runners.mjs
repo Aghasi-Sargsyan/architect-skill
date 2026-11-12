@@ -62,10 +62,8 @@ export function writePathShims({ shimDir, workDir, realBins = {}, exemptNodeScri
   mkdirSync(shimDir, { recursive: true });
   const workReal = workDir ? (() => { try { return realpathSync(workDir); } catch { return ''; } })() : '';
   const rawExempt = (exemptNodeScripts ?? []).filter((s) => typeof s === 'string' && s.length > 0);
-  for (const s of [...rawExempt]) {
-    try { rawExempt.push(realpathSync(s)); } catch { /* cleanup: close missing symlink target */ }
-  }
-  const exemptStr = [...new Set(rawExempt)].join('\n');
+  const realOrSelf = (s) => { try { return realpathSync(s); } catch { return s; } };
+  const exemptStr = [...new Set([...rawExempt, ...rawExempt.map(realOrSelf)])].join('\n');
 
   for (const tool of PATH_GUARDED_TOOLS) {
     const file = path.join(shimDir, tool);

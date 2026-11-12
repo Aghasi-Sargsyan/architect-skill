@@ -191,6 +191,7 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
     ['.agents/orchestrator.local.json', '.architect/config.local.json'],
   ];
 
+  const skipped = [];
   const docsPlansDir = path.join(workDir, 'docs', 'plans');
   if (existsSync(docsPlansDir)) {
     try {
@@ -199,7 +200,9 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
           pairs.push([`docs/plans/${entry.name}`, `.architect/plans/${entry.name}`]);
         }
       }
-    } catch { /* cleanup: abort reading docs/plans */ }
+    } catch (err) {
+      skipped.push(`could not read docs/plans: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   for (const [from, to] of pairs) {
@@ -247,7 +250,9 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
     if (existsSync(dirFull)) {
       try {
         if (readdirSync(dirFull).length === 0) rmSync(dirFull, { recursive: true, force: true });
-      } catch { /* cleanup: abort directory cleanup */ }
+      } catch (err) {
+        skipped.push(`could not remove empty ${dirRel}: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
   }
 
@@ -266,7 +271,9 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
         writeFileSync(p, transformed, 'utf8');
         updated.push(rel);
       }
-    } catch { /* cleanup: abort updating reference file */ }
+    } catch (err) {
+      skipped.push(`could not update references in ${rel}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   const notes = [];
@@ -276,6 +283,7 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
     for (const m of moved) notes.push(`moved ${m.from} -> ${m.to}`);
     for (const u of updated) notes.push(`updated references in ${u}`);
   }
+  notes.push(...skipped);
 
   return {
     ok: true,
