@@ -316,16 +316,21 @@ export function evaluateScenarioResult(scenarioId, state = {}) {
         const targetId = taskId || 'T-001';
         const task = plan.tasks.find((t) => t.id === targetId);
         if (!task) reasons.push(`task ${targetId} not found in PLAN.md`);
-        else if (!task.done) reasons.push(`task ${targetId} is not marked [x] in PLAN.md`);
+        else if (task.done) reasons.push(`task ${targetId} was marked [x] by the Architect (the orchestrator marks it)`);
       }
       if (baseSha) {
-        const log = runGit(realGit, workDir, ['log', '--format=%s', `${baseSha}..HEAD`]);
-        if (log === null) {
-          reasons.push('git log failed to run');
-        } else {
-          const commitSubjects = log.split('\n').map((s) => s.trim()).filter(Boolean);
-          if (!commitSubjects.some((s) => /^arch:\s+/i.test(s))) reasons.push('no arch: commit created after baseSha');
+        const headSha = runGit(realGit, workDir, ['rev-parse', 'HEAD']);
+        if (headSha === null) {
+          reasons.push('git rev-parse failed to run');
+        } else if (headSha !== baseSha) {
+          reasons.push(`Architect changed HEAD during read-only review (expected ${baseSha.slice(0, 7)}, got ${headSha.slice(0, 7)})`);
         }
+      }
+      const status = runGit(realGit, workDir, ['status', '--porcelain']);
+      if (status === null) {
+        reasons.push('git status failed to run');
+      } else if (status.length > 0) {
+        reasons.push('working tree is not clean after read-only review');
       }
       break;
     }
