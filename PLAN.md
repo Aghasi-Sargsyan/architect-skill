@@ -50,7 +50,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the `--background` test in `run.test.mjs` stays green (the first output line keeps its format); `run.mjs` has fewer than 369 lines; baseline run of the Verify commands in the project itself before the first edit (not in a worktree or a copy outside the project). The full suite is not part of this task's Verify: the T-119 reference tests stay red until T-119 (plan fix after the escalation `T-118-fix1`).
   - Verify: `node --test .agents/skills/architect/orchestrator/background.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/events.test.mjs .agents/skills/architect/orchestrator/events-en.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs`
 
-- [ ] T-119: `--dry-run` rejects files always frozen for the Executor in `Change`
+- [x] T-119: `--dry-run` rejects files always frozen for the Executor in `Change`
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/plan-validate-frozen-change.test.mjs`, `.agents/skills/architect/orchestrator/plan-validate.mjs` (`validatePlan`, lines 145–193), `.agents/skills/architect/orchestrator/layout.mjs` (`isAlwaysFrozenFile`, `alwaysFrozenFiles`, lines 105–175), `.agents/skills/architect/orchestrator/check.mjs` (`localChecks`, lines 140–160 — how `changeIssues` become a ✗ line).
