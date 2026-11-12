@@ -6,6 +6,7 @@ import { syncClaudeAgentFile } from './adapters/claude-models.mjs';
 import { resolveExecutorModelInfo } from './hooks.mjs';
 
 const EFFORT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/@-]*$/;
 
 /**
  * Extracts effort level ('low' | 'medium' | 'high' | 'xhigh' | 'max') from model name or id.
@@ -49,6 +50,9 @@ function validateModelName(model) {
   }
   if (s.toLowerCase() === 'inherit') {
     throw new Error('model must be a specific model name, not "inherit"');
+  }
+  if (!MODEL_ID_RE.test(s)) {
+    throw new Error(`model id must match ${MODEL_ID_RE} (letters, digits and . _ : / @ -, no spaces or quotes)`);
   }
   return s;
 }
@@ -183,18 +187,24 @@ export function setRoleModel({ workDir = process.cwd(), role, model, local = fal
   const fullTarget = path.join(workDir, targetRel);
   mkdirSync(path.dirname(fullTarget), { recursive: true });
   let raw = {};
+  let prevConfigText = null;
   if (existsSync(fullTarget)) {
     try {
-      raw = JSON.parse(readFileSync(fullTarget, 'utf8'));
+      prevConfigText = readFileSync(fullTarget, 'utf8');
+      raw = JSON.parse(prevConfigText);
     } catch (err) {
       if (err?.code !== 'ENOENT') throw err;
     }
   }
   raw[role] = { ...(raw[role] || {}), model: validModel };
-  writeFileSync(fullTarget, JSON.stringify(raw, null, 2) + '\n');
+  const nextConfigText = JSON.stringify(raw, null, 2) + '\n';
+  writeFileSync(fullTarget, nextConfigText);
   const updatedFiles = [targetRel];
+  let changed = nextConfigText !== prevConfigText;
 
   if (!local && role === 'executor') {
+    // The config is the source of truth; for the executor, ok also needs a synced doc line or agent file.
+    changed = false;
     for (const name of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
       const docPath = path.join(workDir, name);
       if (existsSync(docPath)) {
@@ -210,7 +220,7 @@ export function setRoleModel({ workDir = process.cwd(), role, model, local = fal
         );
         if (!replaced) {
           updatedText = updatedText.replace(
-            /(Исполнитель по умолчанию[ \t]*[—–-][ \t]*)(`?[^\r\n`.]*`?)/i,
+            /(Исполнитель по умолчанию[ \t]*[—–-][ \t]*)([^\r\n]+?)(?=\.(?:[ \t\r\n]|$))/i,
             (_, prefix, val) => {
               replaced = true;
               const hasBackticks = val.trim().startsWith('`') && val.trim().endsWith('`');
@@ -219,7 +229,10 @@ export function setRoleModel({ workDir = process.cwd(), role, model, local = fal
           );
         }
         if (replaced) {
-          writeFileSync(docPath, updatedText);
+          if (updatedText !== text) {
+            writeFileSync(docPath, updatedText);
+            changed = true;
+          }
           updatedFiles.push(name);
         }
       }
@@ -230,13 +243,16 @@ export function setRoleModel({ workDir = process.cwd(), role, model, local = fal
       const text = readFileSync(claudeAgent, 'utf8');
       const synced = syncClaudeAgentFile(text, validModel);
       if (synced !== null) {
-        writeFileSync(claudeAgent, synced);
+        if (synced !== text) {
+          writeFileSync(claudeAgent, synced);
+          changed = true;
+        }
         updatedFiles.push('.claude/agents/executor.md');
       }
     }
   }
 
-  return { ok: true, role, model: validModel, updatedFiles };
+  return { ok: changed, role, model: validModel, updatedFiles };
 }
 
 /**
@@ -255,7 +271,9 @@ export async function handleModelsCli({
   if (opts.setModel) {
     const { role, model } = opts.setModel;
     const res = setRoleModel({ workDir, role, model, local: Boolean(opts.local) });
-    print(`• ${res.role}.model set to ${res.model} (${res.updatedFiles.join(', ')})`);
+    print(res.ok
+      ? `• ${res.role}.model set to ${res.model} (${res.updatedFiles.join(', ')})`
+      : `• ${res.role}.model ${res.model}: nothing changed — no matching model line to update (${res.updatedFiles.join(', ')})`);
     return res;
   }
 

@@ -102,6 +102,73 @@ test('T-082: extractEffort, resolveArchitectModelInfo, and listAvailableModels r
   }
 });
 
+test('T-113: setRoleModel replaces the whole "Исполнитель по умолчанию" model phrase and keeps the rest of the file', () => {
+  const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'arch-models-phrase-')));
+  try {
+    const before = '# Rules\nИсполнитель по умолчанию — Gemini 3.8 Flash (High).\nСледующая строка.\n';
+    writeFileSync(path.join(tmp, 'AGENTS.md'), before);
+    const res = setRoleModel({ workDir: tmp, role: 'executor', model: 'claude-sonnet-4-5' });
+    assert.equal(res.ok, true);
+    assert.ok(res.updatedFiles.includes('AGENTS.md'));
+    assert.equal(
+      readFileSync(path.join(tmp, 'AGENTS.md'), 'utf8'),
+      '# Rules\nИсполнитель по умолчанию — claude-sonnet-4-5.\nСледующая строка.\n',
+    );
+
+    const realAgents = readFileSync(path.join(orchDir, '..', '..', '..', '..', 'AGENTS.md'), 'utf8');
+    const copyDir = path.join(tmp, 'copy');
+    mkdirSync(copyDir);
+    writeFileSync(path.join(copyDir, 'AGENTS.md'), realAgents);
+    const copyRes = setRoleModel({ workDir: copyDir, role: 'executor', model: 'claude-sonnet-4-5' });
+    assert.equal(copyRes.ok, true);
+    const modelLine = /Исполнитель по умолчанию — `[^`\r\n]*`\./;
+    assert.match(realAgents, modelLine);
+    assert.equal(
+      readFileSync(path.join(copyDir, 'AGENTS.md'), 'utf8'),
+      realAgents.replace(modelLine, 'Исполнитель по умолчанию — `claude-sonnet-4-5`.'),
+    );
+
+    const execLine = path.join(tmp, 'exec');
+    mkdirSync(execLine);
+    writeFileSync(path.join(execLine, 'AGENTS.md'), '- Executor model: `old-model` (see docs)\n');
+    assert.equal(setRoleModel({ workDir: execLine, role: 'executor', model: 'new-model' }).ok, true);
+    assert.equal(readFileSync(path.join(execLine, 'AGENTS.md'), 'utf8'), '- Executor model: `new-model` (see docs)\n');
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('T-113: setRoleModel rejects ids with spaces, quotes or backticks before writing; accepts vendor/model-1.5; no matching line is ok: false', () => {
+  const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'arch-models-valid-')));
+  try {
+    const agentsPath = path.join(tmp, 'AGENTS.md');
+    const before = 'Исполнитель по умолчанию — Gemini 3.8 Flash (High).\n';
+    writeFileSync(agentsPath, before);
+    for (const bad of ['bad id', 'x"y', 'x`y']) {
+      assert.throws(() => setRoleModel({ workDir: tmp, role: 'executor', model: bad }), /model id must match/);
+    }
+    assert.equal(readFileSync(agentsPath, 'utf8'), before);
+    assert.equal(existsSync(path.join(tmp, '.agents')), false);
+
+    const vendor = setRoleModel({ workDir: tmp, role: 'executor', model: 'vendor/model-1.5' });
+    assert.equal(vendor.ok, true);
+    assert.equal(readFileSync(agentsPath, 'utf8'), 'Исполнитель по умолчанию — vendor/model-1.5.\n');
+
+    const bare = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'arch-models-nomatch-')));
+    try {
+      const noMatch = '# Rules\nNo model line here.\n';
+      writeFileSync(path.join(bare, 'AGENTS.md'), noMatch);
+      const res = setRoleModel({ workDir: bare, role: 'executor', model: 'claude-sonnet-4-5' });
+      assert.equal(res.ok, false);
+      assert.equal(readFileSync(path.join(bare, 'AGENTS.md'), 'utf8'), noMatch);
+    } finally {
+      rmSync(bare, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('T-082: setRoleModel and handleModelsCli update shared or local configs and sync AGENTS.md / .claude/agents/executor.md', async () => {
   const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'arch-models-set-')));
   try {
