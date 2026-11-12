@@ -1,6 +1,6 @@
 // Orchestrator: Executor → mechanical checks → Architect review, one PLAN.md task at a time. Never pushes.
 // Usage: node run.mjs [config.json] [--init | --write-permissions | --check | --dry-run | --background] [--pause] [--only T-NNN]
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,7 +21,7 @@ import { getAdapter } from './adapters/index.mjs';
 import { appendEvent, sendNotification, writeStopReport } from './events.mjs';
 import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
 import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, safeLoadConfig } from './cli.mjs';
-import { parseWaivers } from './selfcheck.mjs';
+import { readCommittedWaivers } from './waivers.mjs';
 import { resolveTaskBase, checkTaskRange, checkResumedTask, formatRangeSummary } from './task-range.mjs';
 import { checkTestMonotonicity } from './monotonicity.mjs';
 import { commitAcceptance } from './accept.mjs';
@@ -323,7 +323,7 @@ async function main() {
           if (amech.violations.length) { stopReason = `${task.id}: post-review violation — ${amech.violations[0]}`; break outer; }
           if (verdict === 'accepted') {
             // The review is read-only: the orchestrator checks test monotonicity over the whole task range, then marks [x] and commits.
-            const mono = checkTestMonotonicity({ realGit, cwd: workDir, baseSha: taskBase.baseSha, config, commits: commitsSince(realGit, workDir, taskBase.baseSha), waivers: parseWaivers(readFileSync(path.join(workDir, layout.planPath), 'utf8')) });
+            const mono = checkTestMonotonicity({ realGit, cwd: workDir, baseSha: taskBase.baseSha, config, commits: commitsSince(realGit, workDir, taskBase.baseSha), waivers: readCommittedWaivers({ realGit, cwd: workDir, config }) });
             if (mono.length) { stopReason = `${task.id}: pre-acceptance violation — ${mono[0]}`; break outer; }
             const acc = commitAcceptance({ realGit, cwd: workDir, planPath: layout.planPath, taskId: task.id, expectedHead: reviewHead, commitLanguage: config.commitLanguage });
             if (!acc.ok) { stopReason = `${task.id}: acceptance commit failed — ${acc.error}`; break outer; }

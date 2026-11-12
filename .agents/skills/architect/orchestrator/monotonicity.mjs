@@ -2,6 +2,8 @@
 // pre-acceptance check from the task base.
 import { git } from './git.mjs';
 import { isTestFile } from './mechanics.mjs';
+import { readGitBlob } from './git-read.mjs';
+import { waiverCovers } from './waivers.mjs';
 
 const DEFAULT_TEST_PATTERNS = ['\\b(?:test|it)\\s*\\(', '^\\s*def\\s+test_'];
 const DEFAULT_ASSERT_PATTERNS = ['\\bassert\\.', '\\bexpect\\s*\\(', '^\\s*assert\\s+\\S'];
@@ -54,9 +56,10 @@ export function isUnderScanPaths(file, scanPaths) {
  * selfcheck.mjs block:
  *  - base test files = files of `git ls-tree -r --name-only <baseSha>` that are test files (isTestFile with
  *    config.testFilePatterns) and under config.bypassScanPaths;
- *  - a monotonicity waiver is a waiver whose `rule` matches /\bmonotonicity\b/i and whose sha7 prefixes a commit
- *    in `commits`; files touched by such commits are exempt;
- *  - deleted at HEAD without a touching commit whose subject contains `ADR-<digits>` and not exempt →
+ *  - a monotonicity waiver covers a commit in `commits` per waivers.mjs `waiverCovers`; the baseline of a file is
+ *    the last waived commit that touches it (else `baseSha`), a file absent at the baseline counts 0;
+ *  - deleted at HEAD without a touching commit whose subject contains `ADR-<digits>` and not exempt (exempt only
+ *    when the file is absent at its last waived commit) →
  *    `test file deleted without ADR in commit message: <file>`;
  *  - present and not exempt: count decrease →
  *    `monotonicity: in <file> test/it count decreased from <base> to <head>` and/or
@@ -71,15 +74,23 @@ export function checkTestMonotonicity({ realGit, cwd, baseSha, config, commits, 
   const lsTree = (ref) => git(realGit, cwd, ['ls-tree', '-r', '--name-only', ref]).split('\n').filter(Boolean);
   const headFileSet = new Set(lsTree('HEAD'));
   const baseTestFiles = lsTree(baseSha).filter((f) => isTestFile(f, config?.testFilePatterns) && isUnderScanPaths(f, config?.bypassScanPaths));
-  const monoWaivedFiles = new Set(commits.filter((c) => waivers.some((w) => /\bmonotonicity\b/i.test(w.rule) && c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))).flatMap((c) => c.files.map(norm)));
+  const waivedCommits = commits.filter((c) => waivers.some((w) => waiverCovers(w, c.sha, 'monotonicity')));
+  // A monotonicity WAIVER resets the baseline of the files its commit touches: counts are compared from the last waived commit.
+  const lastWaived = (file) => waivedCommits.filter((c) => c.files.map(norm).includes(norm(file))).at(-1);
+  const textAt = (ref, file) => {
+    const blob = readGitBlob(realGit, cwd, ref, file);
+    return blob.status === 'ok' ? blob.text : null;
+  };
 
   for (const testFile of baseTestFiles) {
+    const waived = lastWaived(testFile);
     if (!headFileSet.has(testFile)) {
-      if (!commits.some((c) => c.files.map(norm).includes(norm(testFile)) && /\bADR-\d+\b/.test(c.subject)) && !monoWaivedFiles.has(norm(testFile))) {
+      const exempt = waived !== undefined && textAt(waived.sha, testFile) === null;
+      if (!commits.some((c) => c.files.map(norm).includes(norm(testFile)) && /\bADR-\d+\b/.test(c.subject)) && !exempt) {
         violations.push(`test file deleted without ADR in commit message: ${testFile}`);
       }
-    } else if (!monoWaivedFiles.has(norm(testFile))) {
-      const baseContent = git(realGit, cwd, ['show', `${baseSha}:${testFile}`]), headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
+    } else {
+      const baseContent = (waived ? textAt(waived.sha, testFile) : textAt(baseSha, testFile)) ?? '', headContent = textAt('HEAD', testFile) ?? '';
       const baseTests = countTests(baseContent, config), headTests = countTests(headContent, config);
       if (headTests < baseTests) violations.push(`monotonicity: in ${testFile} test/it count decreased from ${baseTests} to ${headTests}`);
       const baseAsserts = countAsserts(baseContent, config), headAsserts = countAsserts(headContent, config);

@@ -1,5 +1,8 @@
-// WAIVER lines of PLAN.md (ADR-073, C-32, Р-10). Stub committed with the Cycle 37 plan: the Cycle 37 task moves
-// parseWaivers here from selfcheck.mjs and narrows every WAIVER to its rule and its commit.
+// WAIVER lines of PLAN.md (ADR-073, C-32, Р-10): read only from the committed plan, each WAIVER covers only its
+// own rule and its own commit.
+import { readGitBlob } from './git-read.mjs';
+
+const RULE_RES = { monotonicity: /\bmonotonicity\b/i, 'fix-frozen': /\bfix-frozen\b/i };
 
 /**
  * Moved verbatim from selfcheck.mjs: `- WAIVER <sha7+>: <rule> — <reason>` lines under `## Decisions` /
@@ -7,21 +10,33 @@
  * @param {string} planText
  * @returns {Array<{ sha7: string, rule: string, reason: string, raw: string }>}
  */
-export function parseWaivers(_planText) {
-  throw new Error('Not implemented');
+export function parseWaivers(planText) {
+  if (!planText || typeof planText !== 'string') return [];
+  const waivers = [];
+  let inDecisions = false;
+  for (const line of planText.split('\n')) {
+    if (line.startsWith('## ')) inDecisions = /^##\s+(?:decisions\b|решения\b)/i.test(line);
+    else if (inDecisions) {
+      const m = line.match(/^- WAIVER\s+([0-9a-fA-F]{7,})\s*:\s*(.+?)\s+(?:[—–]|--|-)\s+(.+)$/);
+      if (m) waivers.push({ sha7: m[1], rule: m[2].trim(), reason: m[3].trim(), raw: line.trim() });
+    }
+  }
+  return waivers;
 }
 
 /**
  * True when `waiver.rule` names `rule` as a whole word (case-insensitive: /\bmonotonicity\b/i,
  * /\bfix-frozen\b/i) AND `waiver.sha7` is a case-insensitive prefix of `sha`. A WAIVER never covers
- * another rule or another commit.
+ * another rule or another commit; an unknown `rule` is covered by nothing.
  * @param {{ sha7: string, rule: string }} waiver
  * @param {string} sha full commit SHA
  * @param {'monotonicity'|'fix-frozen'} rule
  * @returns {boolean}
  */
-export function waiverCovers(_waiver, _sha, _rule) {
-  throw new Error('Not implemented');
+export function waiverCovers(waiver, sha, rule) {
+  const ruleRe = RULE_RES[rule];
+  if (!ruleRe || !waiver || typeof waiver.sha7 !== 'string' || typeof waiver.rule !== 'string' || typeof sha !== 'string') return false;
+  return ruleRe.test(waiver.rule) && waiver.sha7 !== '' && sha.toLowerCase().startsWith(waiver.sha7.toLowerCase());
 }
 
 /**
@@ -31,6 +46,10 @@ export function waiverCovers(_waiver, _sha, _rule) {
  * @param {{ realGit: string, cwd: string, config?: object }} opts
  * @returns {Array<{ sha7: string, rule: string, reason: string, raw: string }>}
  */
-export function readCommittedWaivers(_opts = {}) {
-  throw new Error('Not implemented');
+export function readCommittedWaivers({ realGit, cwd, config } = {}) {
+  for (const rel of [config?.paths?.planPath, '.architect/PLAN.md', 'PLAN.md'].filter(Boolean)) {
+    const blob = readGitBlob(realGit, cwd, 'HEAD', rel);
+    if (blob.status === 'ok') return parseWaivers(blob.text);
+  }
+  return [];
 }

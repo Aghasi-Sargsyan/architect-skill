@@ -6,14 +6,16 @@ import { git, commitsSince, findSquashViolations } from './git.mjs';
 import { DEFAULT_TEST_FILE_PATTERNS, isTestFile, findBypasses } from './mechanics.mjs';
 import { countTests, countAsserts, isUnderScanPaths, checkTestMonotonicity } from './monotonicity.mjs';
 import { findTaskDirtyFiles } from './task-range.mjs';
-import { parsePlan } from './plan.mjs';
+import { parsePlan, matchesFrozenPath } from './plan.mjs';
 import { scanRangeCommitMessages, scanRangeProcessWarnings } from './hooks.mjs';
 import { commandProblem } from './permissions.mjs';
 import { effectiveBlockedScripts } from './runners.mjs';
 import { resolveSelfCheckRange } from './selfcheck-base.mjs';
 import { readGitBlob } from './git-read.mjs';
+import { readCommittedWaivers, waiverCovers } from './waivers.mjs';
 
 export { resolveSelfCheckBase } from './selfcheck-base.mjs';
+export { parseWaivers } from './waivers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -46,20 +48,6 @@ const TIMER_RE = /(?:performance\.now\(|Date\.now\(|process\.hrtime\b|console\.t
 const CATCH_RE = /(?:^|[^\w.])(catch\s*(?:\([^)]*\))?\s*\{([^}]*)\})/g;
 const PROMISE_CATCH_RE = /(\.catch\s*\(\s*(?:\([^)]*\)|[a-zA-Z0-9_$]+)?\s*(?:=>|function[^{]*)\s*\{([^}]*)\}\s*\))/g;
 const CLEANUP_RE = /\b(?:stop|abort|close)\b/i;
-
-export function parseWaivers(planText) {
-  if (!planText || typeof planText !== 'string') return [];
-  const waivers = [];
-  let inDecisions = false;
-  for (const line of planText.split('\n')) {
-    if (line.startsWith('## ')) inDecisions = /^##\s+(?:decisions\b|решения\b)/i.test(line);
-    else if (inDecisions) {
-      const m = line.match(/^- WAIVER\s+([0-9a-fA-F]{7,})\s*:\s*(.+?)\s+(?:[—–]|--|-)\s+(.+)$/);
-      if (m) waivers.push({ sha7: m[1], rule: m[2].trim(), reason: m[3].trim(), raw: line.trim() });
-    }
-  }
-  return waivers;
-}
 
 export function splitDiffByFiles(diffText) {
   if (!diffText || typeof diffText !== 'string') return [];
@@ -169,7 +157,10 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       if (blob.status === 'ok') { effectivePlanText = blob.text; break; }
     }
   }
-  const waivers = parseWaivers(effectivePlanText), notVerified = [];
+  // WAIVERs come only from the committed plan; the working-tree plan is a source of Frozen only.
+  let waivers = [];
+  try { waivers = readCommittedWaivers({ realGit, cwd, config }); } catch (err) { violations.push(`cannot read committed WAIVERs: ${errMessage(err)}`); }
+  const notVerified = [];
   if (baseSha === headSha) return { ok: violations.length === 0, baseSha, headSha, commitCount, empty, violations, warnings: [...range.warnings], waivers, notVerified };
 
   const warnings = scanRangeCommitMessages({ realGit, cwd, baseSha, headSha, commitLanguage: config?.commitLanguage });
@@ -202,13 +193,11 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     }
   }
   const planIdx = allCommits.findIndex((c) => PLAN_SUBJECT_RE.test(c.subject));
-  const frozenTests = new Set();
+  const frozenEntries = new Set();
   const collectFrozen = (txt) => {
-    for (const f of parsePlan(txt).frozen ?? []) {
-      const nf = norm(f);
-      if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
-    }
+    for (const f of parsePlan(txt).frozen ?? []) frozenEntries.add(norm(f));
   };
+  const isFrozenTest = (f) => isTestFile(f, config?.testFilePatterns) && matchesFrozenPath(f, frozenEntries);
   for (const c of allCommits) {
     if (PLAN_SUBJECT_RE.test(c.subject)) {
       for (const p of ['PLAN.md', '.architect/PLAN.md']) {
@@ -252,9 +241,10 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   for (const testFile of headFiles) {
     if (!isTestFile(testFile, config?.testFilePatterns)) continue;
-    if (!isUnderScanPaths(testFile, config?.bypassScanPaths) && !frozenTests.has(testFile)) continue;
+    const frozenTest = isFrozenTest(testFile);
+    if (!isUnderScanPaths(testFile, config?.bypassScanPaths) && !frozenTest) continue;
     const headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
-    if (countAsserts(headContent, config) === 0 && (countTests(headContent, config) > 0 || frozenTests.has(testFile) || isNamedTestFile(testFile, config?.testFilePatterns))) {
+    if (countAsserts(headContent, config) === 0 && (countTests(headContent, config) > 0 || frozenTest || isNamedTestFile(testFile, config?.testFilePatterns))) {
       notVerified.push(`test file ${testFile} has 0 recognized assertions (NOT VERIFIED)`);
     }
   }
@@ -316,12 +306,12 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
     const isProtected = (f) => {
       const nf = norm(f);
-      return frozenTests.has(nf) || nf.endsWith('/eval-fixtures.mjs') || nf === 'eval-fixtures.mjs' || protectedConfigFiles.has(nf) || nf === 'config.example.json' || nf.endsWith('/orchestrator/config.example.json');
+      return isFrozenTest(nf) || nf.endsWith('/eval-fixtures.mjs') || nf === 'eval-fixtures.mjs' || protectedConfigFiles.has(nf) || nf === 'config.example.json' || nf.endsWith('/orchestrator/config.example.json');
     };
 
     for (const c of commitsToCheck) {
       if (/^arch:\s*fix-frozen\s+(?:T-\d+|audit):\s+\S/i.test(c.subject) || cyclePlanShas.has(c.sha)) continue;
-      if (waivers.some((w) => c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))) continue;
+      if (waivers.some((w) => waiverCovers(w, c.sha, 'fix-frozen'))) continue;
       const mdFiles = getModifiedOrDeletedFiles(realGit, cwd, c.sha);
       const hit = mdFiles.find(isProtected);
       if (hit) violations.push(`commit ${c.sha.slice(0, 7)} touches frozen test / config / fixtures without arch: fix-frozen: "${c.subject}" (${hit})`);
@@ -329,7 +319,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
     const taskDirty = findTaskDirtyFiles({ realGit, cwd, baseSha, commits: allCommits, isTaskCommit: (c) => TASK_SUBJECT_RE.test(c.subject) });
     for (const { file, lastTaskCommit } of taskDirty) {
-      if (!isProtected(file) || waivers.some((w) => lastTaskCommit.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))) continue;
+      if (!isProtected(file) || waivers.some((w) => waiverCovers(w, lastTaskCommit.sha, 'fix-frozen'))) continue;
       violations.push(`task commit ${lastTaskCommit.sha.slice(0, 7)} touches frozen test / config / fixtures and the change is still on HEAD: "${lastTaskCommit.subject}" (${file})`);
     }
   }
