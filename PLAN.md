@@ -188,7 +188,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/escalation-resume.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/events.test.mjs`
 
-- [ ] T-100: Оценка eval-сценария `auto_refusal_git_c_retry` под приёмку только на чтение
+- [x] T-100: Оценка eval-сценария `auto_refusal_git_c_retry` под приёмку только на чтение
   - Риск: средний.
   - Зависит от: T-099.
   - Читать: `.agents/skills/architect/orchestrator/evals-scenarios.mjs` (строки 75–112, 300–335), `.agents/skills/architect/orchestrator/evals.test.mjs` (строки 160–200), `.agents/skills/architect/orchestrator/evals-fixtures.test.mjs` (строки 71–90).
