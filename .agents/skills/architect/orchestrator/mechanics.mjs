@@ -8,7 +8,7 @@ import { BASE_COMMANDS, commandProblem } from './permissions.mjs';
 import { matchesFrozenPath } from './plan.mjs';
 import { isHighRisk, isValidRisk } from './plan-validate.mjs';
 
-function matchesProtectedConfig(file, patterns) {
+export function matchesProtectedConfig(file, patterns) {
   if (!patterns || !patterns.length) return false;
   const normalized = file.replace(/\\/g, '/');
   const base = path.posix.basename(normalized);

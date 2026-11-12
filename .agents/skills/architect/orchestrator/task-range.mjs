@@ -1,6 +1,15 @@
 // Task-range checks (ADR-064, C-07/C-08/C-12): the task base comes from git history, and content rules
 // (Change, Frozen, PLAN.md, protected configs, bypasses) cover every commit of the task since that base.
-// Contract stub written by the Architect; the Executor implements it. Signatures and JSDoc are the contract.
+// Contract written by the Architect; signatures and JSDoc are the contract.
+import { git, gitRaw, commitsSince } from './git.mjs';
+import { isAlwaysFrozenFile } from './layout.mjs';
+import { matchesFrozenPath } from './plan.mjs';
+import { isHighRisk } from './plan-validate.mjs';
+import { findBypasses, matchesProtectedConfig } from './mechanics.mjs';
+
+const normPath = (p) => String(p ?? '').replace(/\\/g, '/').replace(/^\.\//, '');
+const isPlanFile = (f) => f === 'PLAN.md' || f === '.architect/PLAN.md';
+const byFile = (a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
 
 /**
  * Subject matcher for commits of one task: `T-NNN: …` and `T-NNN (fix N): …`.
@@ -8,7 +17,8 @@
  * @returns {RegExp} `^T-NNN(?: \(fix [0-9]+\))?: ` (anchored, no flags)
  */
 export function taskSubjectRe(taskId) {
-  throw new Error('Not implemented: taskSubjectRe');
+  const escaped = String(taskId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped}(?: \\(fix [0-9]+\\))?: `);
 }
 
 /**
@@ -25,7 +35,30 @@ export function taskSubjectRe(taskId) {
  *   (message contains `has no parent`).
  */
 export function resolveTaskBase({ realGit, cwd, taskId, headRef = 'HEAD' }) {
-  throw new Error('Not implemented: resolveTaskBase');
+  const re = taskSubjectRe(taskId);
+  const lines = git(realGit, cwd, ['log', '--first-parent', '--format=%H%x09%s', headRef, '--']).split('\n').filter(Boolean);
+  let firstTaskSha = null;
+  for (const line of lines) {
+    const tab = line.indexOf('\t');
+    if (re.test(line.slice(tab + 1))) firstTaskSha = line.slice(0, tab);
+  }
+  if (firstTaskSha === null) {
+    return { baseSha: git(realGit, cwd, ['rev-parse', headRef]), firstTaskSha: null };
+  }
+  const [parent] = git(realGit, cwd, ['show', '-s', '--format=%P', firstTaskSha]).split(/\s+/).filter(Boolean);
+  if (!parent) throw new Error(`first commit ${firstTaskSha.slice(0, 7)} of ${taskId} has no parent: task base cannot be resolved`);
+  return { baseSha: parent, firstTaskSha };
+}
+
+/** `git diff --quiet`: exit 0 → false, exit 1 → true, anything else (other exit, signal) throws. */
+function differs(realGit, cwd, refSha, headRef, file) {
+  try {
+    gitRaw(realGit, cwd, ['diff', '--quiet', refSha, headRef, '--', file]);
+    return false;
+  } catch (err) {
+    if (err instanceof Error && 'status' in err && err.status === 1 && !err.signal) return true;
+    throw err;
+  }
 }
 
 /**
@@ -46,7 +79,27 @@ export function resolveTaskBase({ realGit, cwd, taskId, headRef = 'HEAD' }) {
  *   task commit that touched the file.
  */
 export function findTaskDirtyFiles({ realGit, cwd, baseSha, headRef = 'HEAD', commits, isTaskCommit }) {
-  throw new Error('Not implemented: findTaskDirtyFiles');
+  const entries = new Map();
+  for (const c of commits) {
+    if (c.isMerge) continue;
+    const task = isTaskCommit(c);
+    for (const raw of c.files) {
+      const f = normPath(raw);
+      if (!entries.has(f)) entries.set(f, { refSha: baseSha, lastTask: null });
+      const entry = entries.get(f);
+      if (task) {
+        entry.lastTask = { sha: c.sha, subject: c.subject };
+      } else {
+        entry.refSha = c.sha;
+        entry.lastTask = null;
+      }
+    }
+  }
+  const dirty = [];
+  for (const [file, { refSha, lastTask }] of entries) {
+    if (lastTask && differs(realGit, cwd, refSha, headRef, file)) dirty.push({ file, refSha, lastTaskCommit: lastTask });
+  }
+  return dirty.sort(byFile);
 }
 
 /**
@@ -83,7 +136,66 @@ export function findTaskDirtyFiles({ realGit, cwd, baseSha, headRef = 'HEAD', co
  *   (dirtyFiles/scannedFiles sorted by path).
  */
 export function checkTaskRange(opts) {
-  throw new Error('Not implemented: checkTaskRange');
+  const {
+    realGit, cwd, task, baseSha, headRef = 'HEAD', frozen = [], scanPaths = [], bypassPatterns = [],
+    protectedConfigFiles = [], testFilePatterns, configPath = '', orchestratorDir,
+  } = opts;
+  if (headRef !== 'HEAD') throw new Error('checkTaskRange supports only headRef "HEAD"');
+
+  const headSha = git(realGit, cwd, ['rev-parse', headRef]);
+  const subjectRe = taskSubjectRe(task.id);
+  const isTaskCommit = (c) => subjectRe.test(c.subject);
+  const commits = commitsSince(realGit, cwd, baseSha);
+  const taskCommits = [];
+  const ownerCommits = [];
+  const violations = [];
+  if (!commits.some((c) => !c.isMerge && isTaskCommit(c))) {
+    violations.push(`no task commits found for ${task.id} in task range ${baseSha.slice(0, 7)}..${headSha.slice(0, 7)}`);
+  }
+  for (const c of commits) {
+    if (c.isMerge) continue;
+    const ref = { sha: c.sha, subject: c.subject };
+    if (isTaskCommit(c)) taskCommits.push(ref);
+    else if (c.subject.startsWith('arch: ')) ownerCommits.push(ref);
+    else violations.push(`foreign commit ${c.sha.slice(0, 7)} in task range: "${c.subject}" is neither ${task.id} nor arch:`);
+  }
+
+  const highRisk = isHighRisk(task.risk);
+  const change = new Set((task.change ?? []).map(normPath));
+  const scanDirs = scanPaths.map((p) => normPath(p).replace(/\/+$/, ''));
+  const scan = bypassPatterns.length > 0 && scanDirs.length > 0;
+  const dirty = findTaskDirtyFiles({ realGit, cwd, baseSha, headRef, commits, isTaskCommit });
+  const scannedFiles = [];
+  for (const { file: f, refSha, lastTaskCommit } of dirty) {
+    const short = lastTaskCommit.sha.slice(0, 7);
+    if (isPlanFile(f)) {
+      violations.push(`${short} modifies ${f}: task commits must not modify PLAN.md`);
+    } else if (matchesFrozenPath(f, frozen) || isAlwaysFrozenFile(f, { configPath, workDir: cwd, orchestratorDir })) {
+      violations.push(`${short} touches Frozen — touched Frozen: ${f}`);
+    } else if (!highRisk && matchesProtectedConfig(f, protectedConfigFiles)) {
+      violations.push(`${short} touches verification config outside high-risk task: ${f}`);
+    } else if (!change.has(f)) {
+      violations.push(`${short} touches file outside Change list — outside task "Change" list: ${f}`);
+    }
+    if (scan && scanDirs.some((p) => f === p || f.startsWith(`${p}/`))) {
+      scannedFiles.push(f);
+      const diff = gitRaw(realGit, cwd, ['diff', '-U0', refSha, headRef, '--', f]);
+      for (const added of findBypasses(diff, bypassPatterns, testFilePatterns)) {
+        violations.push(`check bypassing in task range (check bypass): ${f}: ${added.slice(0, 120)}`);
+      }
+    }
+  }
+
+  return {
+    ok: violations.length === 0,
+    violations,
+    baseSha,
+    headSha,
+    taskCommits,
+    ownerCommits,
+    dirtyFiles: dirty.map((d) => d.file),
+    scannedFiles,
+  };
 }
 
 /**
@@ -101,5 +213,16 @@ export function checkTaskRange(opts) {
  * @returns {string}
  */
 export function formatRangeSummary(range, { scanPaths = [], bypassPatterns = [] } = {}) {
-  throw new Error('Not implemented: formatRangeSummary');
+  const label = (c) => `${c.sha.slice(0, 7)} "${c.subject}"`;
+  let commitList = range.taskCommits.map(label).join(', ');
+  if (range.ownerCommits.length > 0) commitList += ` (owner commits: ${range.ownerCommits.map(label).join(', ')})`;
+  let bypassPart;
+  if (bypassPatterns.length === 0 || scanPaths.length === 0) {
+    bypassPart = 'automatic check bypass scan disabled in config — verify manually';
+  } else if (range.scannedFiles.length === 0) {
+    bypassPart = `bypass scan skipped: no changed task files under ${scanPaths.join(' ')}`;
+  } else {
+    bypassPart = `no check bypasses (config bypassPatterns) in ${range.scannedFiles.join(' ')}`;
+  }
+  return `task range ${range.baseSha.slice(0, 7)}..${range.headSha.slice(0, 7)}: commits ${commitList}; files only from Change; Frozen untouched; ${bypassPart}; clean tree`;
 }
