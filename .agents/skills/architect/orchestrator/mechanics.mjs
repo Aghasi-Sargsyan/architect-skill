@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { git, head, commitsSince, porcelain, resolveMergeBase, findSquashViolations } from './git.mjs';
 import { alwaysFrozenFiles, isAlwaysFrozenFile } from './layout.mjs';
 import { which } from './guards.mjs';
+import { bypassHit } from './bypass-scope.mjs';
 import { BASE_COMMANDS, commandProblem } from './permissions.mjs';
 import { matchesFrozenPath } from './plan.mjs';
 import { isHighRisk, isValidRisk } from './plan-validate.mjs';
@@ -39,11 +40,11 @@ export function isTestFile(filePath, patterns = DEFAULT_TEST_FILE_PATTERNS) {
 }
 
 const PROTO_BYPASS_RE = /(?:prototype|globalThis|__proto__)/;
-const TEST_SKIP_ONLY_RE = /\b(?:describe|it|test|suite|context|bench|t)(?:\s*\.\s*(?:concurrent|sequential|todo|shuffle|scoped|serial|each|for))*(?:\s*\([^)]*\))?\s*\.\s*(?:skip|only)\s*\(/;
 
 /**
  * Added lines of a unified diff that match any bypass pattern (config.bypassPatterns).
  * Patterns see the line without its leading "+"; file headers ("+++ b/...") are skipped.
+ * Known patterns are scoped per file kind and ignore comments/strings (bypass-scope.mjs).
  * Prototype/globalThis/__proto__ mutation patterns are skipped for test files.
  * @param {string} diffText
  * @param {RegExp[]} patterns
@@ -55,17 +56,20 @@ export function findBypasses(diffText, patterns, testFilePatterns) {
   const nonProtoPatterns = patterns.filter((re) => !PROTO_BYPASS_RE.test(re.source));
 
   let activePatterns = patterns;
+  let currentFile = null;
+  let currentIsTest = false;
   const result = [];
 
   for (const line of diffText.split('\n')) {
     if (line.startsWith('+++ b/')) {
       const raw = line.slice(6);
       const tabIdx = raw.indexOf('\t');
-      let currentFile = (tabIdx === -1 ? raw : raw.slice(0, tabIdx)).trim();
+      currentFile = (tabIdx === -1 ? raw : raw.slice(0, tabIdx)).trim();
       if (currentFile.startsWith('"') && currentFile.endsWith('"')) {
         currentFile = currentFile.slice(1, -1);
       }
-      activePatterns = isTestFile(currentFile, testFilePatterns) ? nonProtoPatterns : patterns;
+      currentIsTest = isTestFile(currentFile, testFilePatterns);
+      activePatterns = currentIsTest ? nonProtoPatterns : patterns;
       continue;
     }
     if (line.startsWith('+++')) {
@@ -73,7 +77,7 @@ export function findBypasses(diffText, patterns, testFilePatterns) {
     }
     if (line.startsWith('+')) {
       const added = line.slice(1);
-      if (activePatterns.some((re) => (re.source === '\\.(skip|only)\\(' ? TEST_SKIP_ONLY_RE.test(added) : re.test(added)))) {
+      if (activePatterns.some((re) => bypassHit(re, currentFile, added, currentIsTest))) {
         result.push(added);
       }
     }
