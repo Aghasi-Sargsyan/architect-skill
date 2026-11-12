@@ -49,7 +49,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-101: Протокол вопроса: случайный `id`, вопрос только живого цикла
+- [x] T-101: Протокол вопроса: случайный `id`, вопрос только живого цикла
   - Риск: высокий.
   - Зависит от: —.
   - Читать: `.agents/skills/architect/orchestrator/ask.mjs` (контракты `readPendingQuestion`, `submitAnswer` — JSDoc в конце файла), `.agents/skills/architect/orchestrator/ask-question.test.mjs`, `.agents/skills/architect/orchestrator/ask.test.mjs`, `.agents/skills/architect/orchestrator/feed.mjs` (строки 165–240 и 286–335: `statusText`, `printStatus`, `watch`), `.agents/skills/architect/orchestrator/feed.test.mjs` (строки 55–125), `.agents/skills/architect/orchestrator/cli-dispatch.mjs` (строки 140–152), `.agents/skills/architect/orchestrator/guards.mjs` (символ `lockHolder`).
