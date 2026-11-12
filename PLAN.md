@@ -136,7 +136,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/evidence.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/commit-hooks.test.mjs`
 
-- [ ] T-098: Детерминированная приёмка `accept.mjs`
+- [x] T-098: Детерминированная приёмка `accept.mjs`
   - Риск: высокий.
   - Зависит от: —.
   - Читать: `.agents/skills/architect/orchestrator/accept.mjs` (контракт), `.agents/skills/architect/orchestrator/accept.test.mjs`, `.agents/skills/architect/orchestrator/git.mjs`, `.agents/skills/architect/orchestrator/plan.mjs` (символ `TASK_RE`), `.agents/skills/architect/orchestrator/hooks.mjs` (символ `validateCommitMessage`).
