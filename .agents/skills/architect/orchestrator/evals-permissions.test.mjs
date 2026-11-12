@@ -113,9 +113,7 @@ test('T-035 (П4): permission denials continue the same session via proposeRules
           deniedActions: [{ tool_name: 'Bash', tool_input: { command: 'npm run lint' } }],
         };
       }
-      writeFileSync(path.join(workDir, 'PLAN.md'), readFileSync(path.join(workDir, 'PLAN.md'), 'utf8').replace('- [ ] T-001:', '- [x] T-001:'));
-      execFileSync(realGit, ['add', 'PLAN.md'], { cwd: workDir, env: GIT_ENV });
-      execFileSync(realGit, ['commit', '--only', 'PLAN.md', '-q', '-m', 'arch: accept T-001'], { cwd: workDir, env: GIT_ENV });
+      // ADR-064: the review is read-only — the mock Architect accepts without editing PLAN.md or committing.
       return {
         ok: true,
         conversationId: 'conv-session-1',
