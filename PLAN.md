@@ -7,6 +7,7 @@
 - `--watch`, запущенный сразу после `--answer`, повторно показывает уже отвеченный вопрос (`T-128`).
 - `plan.mjs`: `/^(tasks\b|задачи\b)/i` — ASCII-`\b` после кириллицы (сейчас спасает `seenTaskInSection`).
 - `C-45`: мёртвая ветка `report` в `checkExecutorRun`, поля `task.testFiles` / `task.requireTests`, имена `edit_file` / `write_file` в подсказке для раннера `claude`.
+- `WAIVER` читается только из текущего `PLAN.md`: после закрытия цикла он пропадает для `--self-check --base @{u}` по неотправленным коммитам (Цикл 38 перенёс его вручную).
 - Индекс решений 19 КБ: до порога 20 КБ около цикла — пометки `superseded` или пересмотр `ADR-074`.
 
 Перенесено из предыдущих циклов (`NOT VERIFIED`):
@@ -21,6 +22,7 @@
 
 ## Решения
 См. `docs/decisions.md` (индекс `ADR-008`…`ADR-079`; полный текст — `docs/decisions-full.md`).
+- WAIVER 8e128b7: monotonicity — --audit-plan tests removed with the feature by user decision (ADR-075); перенесён из плана Цикла 38, чтобы `--self-check --base @{u}` видел его до push
 
 ## Заморожено (Frozen — Исполнителю не трогать)
 - `EXECUTOR.md`
