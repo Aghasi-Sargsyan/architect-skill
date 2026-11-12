@@ -108,7 +108,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/adapters/claude.test.mjs .agents/skills/architect/orchestrator/adapters/claude-transcript.test.mjs .agents/skills/architect/orchestrator/adapters/claude-models.test.mjs .agents/skills/architect/orchestrator/adapters/index.test.mjs .agents/skills/architect/orchestrator/claude-setup.test.mjs .agents/skills/architect/orchestrator/permissions-paths.test.mjs .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/feed-en.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/run-acceptance.test.mjs .agents/skills/architect/orchestrator/evals-permissions.test.mjs`
 
-- [ ] T-108: Общий файл настроек `agy`: слияние без удаления правил, правила других проектов — пометка
+- [x] T-108: Общий файл настроек `agy`: слияние без удаления правил, правила других проектов — пометка
   - Риск: высокий.
   - Зависит от: T-107.
   - Читать: `.agents/skills/architect/orchestrator/agy-shared-settings.test.mjs`, `.agents/skills/architect/orchestrator/write-permissions-prune.test.mjs`, `.agents/skills/architect/orchestrator/audit-hardening.test.mjs` (строки 184–255), `.agents/skills/architect/orchestrator/agy-settings.mjs` (контракт `foreignProjectRule`), `.agents/skills/architect/orchestrator/permissions.mjs` (строки 1–80 и 226–393), `.agents/skills/architect/orchestrator/permissions-cli.mjs`.
