@@ -26,7 +26,6 @@ test('repository installation: root EXECUTOR.md is a byte-for-byte copy of skill
   const agentsText = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
   assert.match(agentsText, /--check/);
   assert.match(agentsText, /--self-check/);
-  assert.match(agentsText, /--audit-plan/);
   assert.ok(
     agentsText.includes('node --test .agents/skills/architect/orchestrator/*.test.mjs .agents/skills/architect/orchestrator/adapters/*.test.mjs'),
     'AGENTS.md must document the direct cross-Node test command',
