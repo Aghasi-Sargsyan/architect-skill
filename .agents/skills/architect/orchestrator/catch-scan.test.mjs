@@ -1,5 +1,5 @@
 // Reference tests for T-124 (ADR-073, C-33): a word in a comment no longer exempts a silent catch; only the
-// cleanup shape `try { <one cleanup call>; } catch { /* cleanup: <reason> */ }` is allowed, the self-check
+// cleanup shape (one cleanup call in `try`, a `cleanup: <reason>` comment as the catch body) is allowed, the self-check
 // uses the strict scanner, and every production module of the orchestrator passes it. Frozen for T-124.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
