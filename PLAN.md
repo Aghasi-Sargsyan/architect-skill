@@ -128,7 +128,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the six cases pass; the listed tests stay green.
   - Verify: `node --test .agents/skills/architect/orchestrator/evals-rubrics.test.mjs .agents/skills/architect/orchestrator/evals.test.mjs .agents/skills/architect/orchestrator/evals-fixtures.test.mjs .agents/skills/architect/orchestrator/evals-runner.test.mjs .agents/skills/architect/orchestrator/evals-integrity.test.mjs .agents/skills/architect/orchestrator/evals-permissions.test.mjs .agents/skills/architect/orchestrator/plan-reference-tests.test.mjs .agents/skills/architect/orchestrator/prompts-en.test.mjs`
 
-- [ ] T-131: Self-check warns about long lines added to the ADR index
+- [x] T-131: Self-check warns about long lines added to the ADR index
   - Risk: high.
   - Depends on: T-128
   - Read: `.agents/skills/architect/orchestrator/decisions-lint.test.mjs`, `.agents/skills/architect/orchestrator/decisions-lint.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/cli.mjs` (`runFastSelfCheck`), `.agents/skills/architect/orchestrator/git-read.mjs` (how git reads fail closed).
