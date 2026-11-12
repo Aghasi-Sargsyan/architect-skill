@@ -55,6 +55,7 @@
     "^\\s*assert\\s+\\S"
   ],
   "redCheckCommand": "node --test {file}",
+  "redCheckConfirmPattern": "",
   "maxFixRounds": 2,
   "maxPermissionPrompts": 5,
   "answerTimeoutMinutes": 60,
