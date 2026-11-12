@@ -39,7 +39,7 @@
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-- [ ] T-118: `--background` returns only after the loop has confirmed its start and prints the next `--watch`
+- [x] T-118: `--background` returns only after the loop has confirmed its start and prints the next `--watch`
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/background.mjs` (the contract stub), `.agents/skills/architect/orchestrator/background.test.mjs`, `.agents/skills/architect/orchestrator/run.mjs` (imports, lines 1–30; the `--background` block, lines 88–103), `.agents/skills/architect/orchestrator/run-lock.mjs` (`readLockOwner`; `stopLoop` — the counted-steps pattern, lines 158–180), `.agents/skills/architect/orchestrator/events.mjs` (`resolveWebhookUrl`, `sendNotification`, lines 144–305), `.agents/skills/architect/orchestrator/run.test.mjs` (the `--background` test, lines 56–82).
