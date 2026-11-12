@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.51 / 1.9 -->
-# Architect + Executor Skill (`v3.51 / 1.9`)
+<!-- skill-readme-sync: v3.52 / 1.9 -->
+# Architect + Executor Skill (`v3.52 / 1.9`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
@@ -48,8 +48,8 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 ### Threat Model
 - **Guardrails, not a security boundary:** the checks above stop model mistakes and rule bypasses. Only the runner's OS sandbox is a security boundary: the `claude` runner runs with it enabled, the `agy` runner runs without one.
 - **Untrusted content** (third-party code, issue text, web data): run the loop in a container, a VM, or a separate clone without network access or cloud keys.
-- **Data, not instructions:** the rules of both agents treat file contents, command output, and reports as data (`EXECUTOR.md` `1.9`, `SKILL.md` `v3.51`).
-- **Known limits:** `Verify` commands run with the orchestrator's own rights outside the runner sandbox; changes to git-ignored files (e.g. `node_modules/`) are invisible to the clean-tree check; a background process that outlives an agent turn is not tracked.
+- **Data, not instructions:** the rules of both agents treat file contents, command output, and reports as data (`EXECUTOR.md` `1.9`, `SKILL.md` `v3.52`).
+- **Known limits:** `Verify` commands run with the orchestrator's own rights outside the runner sandbox; changes to git-ignored files (e.g. `node_modules/`) are invisible to the clean-tree check; a background process that outlives an agent turn is not tracked; a `Verify` timeout (default 600 s) stops the loop as an environment problem instead of spending a rework round.
 
 ---
 
@@ -149,15 +149,16 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 | `--compact` | Migrate an existing `classic` project (root `PLAN.md`/`EXECUTOR.md`/`docs/`) into the `.architect/` compact layout (`/architect compact`) |
 | `--repair` | Restore leftover `remote.<name>.pushurl`, `.git/hooks/pre-push`, and stale `.agent-runs/.lock` after a crashed run (`/architect repair`) |
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | List current `executor` / `architect` models and all available environment models with effort tiers (`--models`), or set the chosen role model in shared/local config and sync `AGENTS.md` / `.claude/agents/executor.md` (`--set-model`, `/architect model`) |
-| `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, resolved Executor model and its source, `PLAN.md`, parallel task boundaries, runner binaries, and allowlists |
+| `--check` | Verify OS, Node.js 22+, git 2.31+, skill subfolder layout, `EXECUTOR.md` parity, `commit-msg` hook, resolved Executor model and its source, `PLAN.md`, parallel task boundaries, runner binaries, and allowlists; no live model call unless `--probe` is passed (end-to-end permission probe) |
 | `--check-task T-NNN [--base <ref>]` | Mechanically verify task `T-NNN` against `<base>:PLAN.md` and `git merge-base <base> HEAD` (`Change` boundaries, `Frozen`, bypasses, commit messages, no-squash, and task `Verify` commands) |
 | `--write-permissions` | Write safe command/file allowlists: `claude` prunes unsafe `allow` rules (archived to `*.pruned.json`); the shared `agy` file is only added to, unsafe rules stay and keep `--check` red (only after explicit user confirmation) |
 | `--dry-run` | Validate readiness, run `--self-check` (including `red-check`), and preview the next task prompt without calling any LLM |
 | `--self-check [--base <ref>]` | Run deterministic Architect self-check (bypasses, empty `catch`, test timers, monotonicity, `fix-frozen`, `eval` evidence, audit coverage, parallel task overlaps, and `red-check`) |
 | `--audit-plan` | Run advisory read-only cross-model plan audit (`references/plan-audit.md`) via `config.auditor` (paid live call, max 1 re-run per cycle base) |
 | `--background` | Start the detached background loop (`PID` lock in `.agent-runs/.lock`) |
-| `--watch [min] [--since N]` | Wait for a permission prompt (exit `2`), loop stop (exit `3`), or task milestone (exit `4`) |
-| `--status` | Print compact current loop status and task progress |
+| `--stop` | Stop a running loop: the agent first, then guards, then the lock (exit `0`; `1` when no loop is running) |
+| `--watch [min] [--since N]` | Wait for a permission prompt (exit `2`), loop stop (exit `3`), or task milestone (exit `4`); the output ends with `(milestones: N)` |
+| `--status` | Print compact current loop status (with `(milestones: N)` while running) and task progress |
 | `--follow` | Live terminal stream of agent thoughts, tool calls, commands, and verdicts (read-only) |
 | `--answer <1\|2\|3>` | Answer a pending permission request (`1` prefix, `2` exact command, `3` deny) |
 | `--pause` | Stop after each accepted task for interactive confirmation |

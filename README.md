@@ -1,4 +1,4 @@
-# Architect + Executor Skill (`v3.51 / 1.9`)
+# Architect + Executor Skill (`v3.52 / 1.9`)
 
 A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator.
 
@@ -32,7 +32,7 @@ To update an already installed skill in your project (updates `.agents/skills/ar
 node .agents/skills/architect/orchestrator/run.mjs --update
 # or: npm run agents -- --update
 ```
-`--check`, `--dry-run`, `--self-check`, and loop startup automatically check for new upstream commits once every 24 hours (cached in `.agent-runs/.update-check.json`, non-blocking offline) and print `! skill update available: ...` when an update is ready.
+`--check` makes no live model call unless you pass `--probe`; `--stop` stops a running loop. `--check`, `--dry-run`, `--self-check`, and loop startup automatically check for new upstream commits once every 24 hours (cached in `.agent-runs/.update-check.json`, non-blocking offline) and print `! skill update available: ...` when an update is ready.
 
 ## Manual Installation
 
