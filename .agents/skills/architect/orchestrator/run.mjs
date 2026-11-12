@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readPlan, nextTask } from './plan.mjs';
-import { git, gitRaw, head, commitsSince } from './git.mjs';
+import { git, head, commitsSince } from './git.mjs';
 import { checkExecutorRun, checkArchitectRun, inspectFailedExecutorTurn, runTaskVerification } from './mechanics.mjs';
 import { acquireLock, installGuards, which } from './guards.mjs';
 import { RUNS_DIR } from './config.mjs';
@@ -18,11 +18,11 @@ import { handleWritePermissionsCli } from './permissions-cli.mjs';
 import { dispatchCliSubcommand } from './cli-dispatch.mjs';
 import { askPermission, clearQuestion } from './ask.mjs';
 import { getAdapter } from './adapters/index.mjs';
-import { appendEvent, classifyStopReason, sendNotification } from './events.mjs';
+import { appendEvent, sendNotification, writeStopReport } from './events.mjs';
 import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
 import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, safeLoadConfig } from './cli.mjs';
 import { parseWaivers } from './selfcheck.mjs';
-import { resolveTaskBase, checkTaskRange, formatRangeSummary } from './task-range.mjs';
+import { resolveTaskBase, checkTaskRange, checkResumedTask, formatRangeSummary } from './task-range.mjs';
 import { checkTestMonotonicity } from './monotonicity.mjs';
 import { commitAcceptance } from './accept.mjs';
 
@@ -232,14 +232,11 @@ async function main() {
         }
         // The task range (ADR-064) is shared by the resume check, the post-Executor check and the reviewer summary.
         const rangeOpts = { realGit, cwd: workDir, task, frozen: plan.frozen, scanPaths, bypassPatterns: config.bypassRegexps, protectedConfigFiles: config.protectedConfigFiles, testFilePatterns: config.testFilePatterns, configPath, orchestratorDir: here };
-        const resumed = resolveTaskBase({ realGit, cwd: workDir, taskId: task.id });
-        if (resumed.firstTaskSha) {
-          const pre = checkTaskRange({ ...rangeOpts, baseSha: resumed.baseSha });
-          if (pre.violations.length) {
-            writeFileSync(path.join(runDir, `${task.id}-resume.violations.txt`), pre.violations.join('\n'));
-            stopReason = `${task.id}: resumed task has unresolved violations in task range ${pre.baseSha.slice(0, 7)}..${pre.headSha.slice(0, 7)}: ${pre.violations.join('; ')} — resolve them per references/auto-review.md "Task recovery" before restarting`;
-            break outer;
-          }
+        const resumeStop = checkResumedTask(rangeOpts);
+        if (resumeStop) {
+          writeFileSync(path.join(runDir, `${task.id}-resume.violations.txt`), resumeStop.violations.join('\n'));
+          stopReason = resumeStop.text;
+          break outer;
         }
         log(`▶ ${task.id} (${task.risk}): ${task.title}; Executor ${executorModel}`);
         appendEvent(runDir, { type: 'task_started', taskId: task.id, risk: task.risk, title: task.title, model: executorModel });
@@ -357,26 +354,7 @@ async function main() {
   } finally {
     rl?.close();
     try {
-      // What the agents left behind, so a stop never needs a manual `git diff` to see the state.
-      let state = '';
-      try {
-        state = gitRaw(realGit, workDir, ['status', '--porcelain', '--untracked-files=all']);
-        if (state.trim()) {
-          writeFileSync(path.join(runDir, 'stop.status.txt'), state.endsWith('\n') ? state : `${state}\n`);
-          const rawDiff = gitRaw(realGit, workDir, ['diff', 'HEAD']);
-          writeFileSync(path.join(runDir, 'stop.diff'), rawDiff.endsWith('\n') || !rawDiff ? rawDiff : `${rawDiff}\n`);
-        }
-      } catch (err) {
-        log(`working tree state not saved: ${err instanceof Error ? err.message : String(err)}`);
-      }
-      const classified = classifyStopReason(stopReason);
-      const category = typeof classified === 'object' && classified ? classified.category : classified;
-      const status = typeof classified === 'object' && classified ? classified.status : (category === 'all_accepted' || stopReason.includes('accepted') ? 'ok' : 'stopped');
-      const taskId = typeof classified === 'object' && classified ? classified.taskId : (stopReason.match(/^(T-\d+)/)?.[1] ?? 'none');
-      appendEvent(runDir, { type: 'run_stopped', category, status, taskId, stopReason, summary, dirty: Boolean(state) });
-      const text = `■ Stop: ${stopReason}\nSummary: ${summary.join('; ') || '—'}${state ? '\nWorking tree dirty: stop.status.txt and stop.diff in run directory' : ''}\nLog: ${runDir}`;
-      log(text);
-      writeFileSync(path.join(runDir, 'summary.md'), `${text}\n`);
+      writeStopReport({ realGit, workDir, runDir, stopReason, summary, log });
     } finally {
       // The lock goes last: --watch and --follow read a released lock as «feed.log and summary.md are complete».
       cleanup();

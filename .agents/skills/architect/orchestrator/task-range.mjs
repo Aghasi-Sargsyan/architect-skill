@@ -226,3 +226,21 @@ export function formatRangeSummary(range, { scanPaths = [], bypassPatterns = [] 
   }
   return `task range ${range.baseSha.slice(0, 7)}..${range.headSha.slice(0, 7)}: commits ${commitList}; files only from Change; Frozen untouched; ${bypassPart}; clean tree`;
 }
+
+/**
+ * Resume check (ADR-064 recovery invariant): when the task already has commits, checks its whole range before
+ * any agent call, so a restart never hides an earlier violation and never spends an agent run on it.
+ * @param {Parameters<typeof checkTaskRange>[0]} rangeOpts checkTaskRange options without `baseSha`
+ * @returns {null | { violations: string[], text: string }} `text` is the loop stop reason; null — nothing to stop for.
+ */
+export function checkResumedTask(rangeOpts) {
+  const { baseSha, firstTaskSha } = resolveTaskBase({ realGit: rangeOpts.realGit, cwd: rangeOpts.cwd, taskId: rangeOpts.task.id });
+  if (!firstTaskSha) return null;
+  const pre = checkTaskRange({ ...rangeOpts, baseSha });
+  if (pre.violations.length === 0) return null;
+  const range = `${pre.baseSha.slice(0, 7)}..${pre.headSha.slice(0, 7)}`;
+  return {
+    violations: pre.violations,
+    text: `${rangeOpts.task.id}: resumed task has unresolved violations in task range ${range}: ${pre.violations.join('; ')} — resolve them per references/auto-review.md "Task recovery" before restarting`,
+  };
+}

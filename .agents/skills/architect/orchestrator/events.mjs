@@ -1,8 +1,9 @@
 // Structured event log (.agent-runs/<run>/events.jsonl), cross-platform binary lookup, and privacy-safe notifications.
-import { appendFileSync, closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { gitRaw } from './git.mjs';
 
 export const EVENTS_FILE = 'events.jsonl';
 export const WEBHOOK_ENV_VAR = 'AGENT_LOOP_WEBHOOK_URL';
@@ -275,4 +276,32 @@ export async function sendNotification({
     }
   }
   return { osascriptSent, webhookSent, webhookBody };
+}
+
+/**
+ * Writes the stop report of a loop run: the working-tree state the agents left (stop.status.txt, stop.diff),
+ * the `run_stopped` event and summary.md, and logs the stop text. Moved from run.mjs without behavior change.
+ * @param {{ realGit: string, workDir: string, runDir: string, stopReason: string, summary: string[], log: (msg: string) => void }} opts
+ */
+export function writeStopReport({ realGit, workDir, runDir, stopReason, summary, log }) {
+  // What the agents left behind, so a stop never needs a manual `git diff` to see the state.
+  let state = '';
+  try {
+    state = gitRaw(realGit, workDir, ['status', '--porcelain', '--untracked-files=all']);
+    if (state.trim()) {
+      writeFileSync(path.join(runDir, 'stop.status.txt'), state.endsWith('\n') ? state : `${state}\n`);
+      const rawDiff = gitRaw(realGit, workDir, ['diff', 'HEAD']);
+      writeFileSync(path.join(runDir, 'stop.diff'), rawDiff.endsWith('\n') || !rawDiff ? rawDiff : `${rawDiff}\n`);
+    }
+  } catch (err) {
+    log(`working tree state not saved: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  const classified = classifyStopReason(stopReason);
+  const category = typeof classified === 'object' && classified ? classified.category : classified;
+  const status = typeof classified === 'object' && classified ? classified.status : (category === 'all_accepted' || stopReason.includes('accepted') ? 'ok' : 'stopped');
+  const taskId = typeof classified === 'object' && classified ? classified.taskId : (stopReason.match(/^(T-\d+)/)?.[1] ?? 'none');
+  appendEvent(runDir, { type: 'run_stopped', category, status, taskId, stopReason, summary, dirty: Boolean(state) });
+  const text = `■ Stop: ${stopReason}\nSummary: ${summary.join('; ') || '—'}${state ? '\nWorking tree dirty: stop.status.txt and stop.diff in run directory' : ''}\nLog: ${runDir}`;
+  log(text);
+  writeFileSync(path.join(runDir, 'summary.md'), `${text}\n`);
 }
