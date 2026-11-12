@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.52 / 1.9 -->
-# Скилл «Архитектор + Исполнитель» (`v3.52 / 1.9`)
+<!-- skill-readme-sync: v3.51 / 1.9 -->
+# Скилл «Архитектор + Исполнитель» (`v3.51 / 1.9`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
@@ -12,7 +12,7 @@
 
 ## 1. Быстрый старт (2 шага)
 
-1. **Установите или обновите скилл одной командой** (либо попросите агента установить скилл из `https://github.com/Aghasi-Sargsyan/architect-skill`):
+1. **Установите или обновите скилл одной командой** (либо попросите агента: *«Установи скилл `architect` из `https://github.com/Aghasi-Sargsyan/architect-skill` в `.agents/skills/architect`»*):
    - **Antigravity, Gemini CLI, Codex, Cursor (`.agents/skills/`):**
      ```bash
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/.agents/skills/architect" .agents/skills/ && rm -rf "$tmp"
@@ -22,7 +22,7 @@
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
      ```
    - **Обновление установленного скилла:** **`/architect update`** в чате или `--update` (раздел 3, пункт D).
-2. **Откройте агента и напишите `/architect`** (или прочитайте `.agents/skills/architect/SKILL.md`):
+2. **Откройте агента и напишите `/architect`** (или *«прочитай `.agents/skills/architect/SKILL.md`»*):
    - **Первый запуск в новом проекте:** в Фазе 1 Архитектор только читает, спрашивает **модель Исполнителя** и предлагает блок ролей в `AGENTS.md`. В Фазе 2 создаёт `.architect/EXECUTOR.md` и `.architect/PLAN.md` в коммите `arch: plan ...`, сам запускает `--init`, `--check` и `--dry-run` и спрашивает «да» только перед `--write-permissions` (перенос `classic`-проекта в `.architect/`: **`/architect compact`**).
 
 ---
@@ -42,21 +42,21 @@
 - **Вся задача:** проверки охватывают все коммиты задачи; ревью в цикле только читает, приёмку коммитит оркестратор.
 
 ### Модель угроз
-- **Ограждение, а не граница безопасности:** проверки ловят ошибки модели. Граница — только ОС-песочница раннера: у `claude` она включена, у `agy` её нет.
+- **Ограждение, а не граница безопасности:** проверки выше ловят ошибки модели и обходы правил. Граница — только ОС-песочница раннера: у `claude` она включена, у `agy` её нет.
 - **Недоверенные данные** (чужой код, текст задач, веб): цикл — в контейнере, ВМ или клоне без сети и облачных ключей.
 - **Данные, а не инструкции:** по правилам обоих агентов файлы, вывод команд и отчёты — данные (`EXECUTOR.md` `1.9`).
-- **Пределы:** `Verify` идёт с правами оркестратора вне песочницы; правки игнорируемых файлов (`node_modules/`) не видны проверке чистого дерева; фоновый процесс, переживший ход агента, не отслеживается; таймаут `Verify` (600 с) останавливает цикл как проблему окружения.
+- **Пределы:** `Verify` идёт с правами оркестратора вне песочницы; правки игнорируемых файлов (`node_modules/`) не видны проверке чистого дерева; фоновый процесс, переживший ход агента, не отслеживается.
 
 ---
 
 ## 3. Ручная установка и обновление по средам
 
 ### Ручная установка (по шагам)
-1. **Скопируйте папку скилла в подпапку проекта** (`.agents/skills/architect/`; для Claude Code — копия или ссылка `.claude/skills/architect`). Не распаковывайте скилл прямо в корень репозитория (`--check` отклоняет корневую раскладку).
+1. **Скопируйте папку скилла в подпапку проекта** (например, `.agents/skills/architect/`; для Claude Code — копия или ссылка `.claude/skills/architect`). Не распаковывайте скилл прямо в корень репозитория (`--check` отклоняет корневую раскладку).
 2. **Скопируйте `EXECUTOR.md`** в корень проекта (`cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md`, либо в `.architect/EXECUTOR.md` при компактной раскладке).
 3. **Задайте модель Исполнителя один раз на проект:**
    - **С оркестратором (`agy` или `claude`):** укажите `executor.model` в `.architect/config.json` или `.agents/orchestrator.json`.
-   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md`, `CLAUDE.md` или `GEMINI.md` проекта (врезка — раздел 4).
+   - **Без оркестратора:** добавьте строку `Executor model: <Модель / Уровень>` в `AGENTS.md`, `CLAUDE.md` или `GEMINI.md` проекта (см. врезку в разделе 4). Для субагента Claude Code см. пункт B ниже.
 4. **Проверьте настройку и запускайте задачи (`T-NNN`):**
    ```bash
    node .agents/skills/architect/orchestrator/run.mjs --check
@@ -92,12 +92,12 @@
    node .agents/skills/architect/orchestrator/run.mjs --update
    # или: npm run agents -- --update
    ```
-   Клонирует свежий коммит, обновляет папки скилла и `EXECUTOR.md`, пишет SHA в `.version`, не трогая конфиги и историю. `--check`, `--dry-run`, `--self-check` и старт цикла раз в 24 часа сообщают о новых коммитах (`! skill update available:`).
+   Клонирует свежий коммит, обновляет папки скилла, пишет SHA в `.version`, синхронизирует `EXECUTOR.md` и хуки, не трогая конфиги и историю. `--check`, `--dry-run`, `--self-check` и старт цикла раз в 24 часа сообщают о новых коммитах (`! skill update available:`).
 2. **Без Node.js:** однострочник из раздела 1 с `mktemp -d` (`rm -rf` перед `cp -R`), затем:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
    ```
-3. Проверьте синхронизацию: `node .agents/skills/architect/orchestrator/run.mjs --check`.
+3. Выполните `node .agents/skills/architect/orchestrator/run.mjs --check` для проверки синхронизации.
 
 ---
 
@@ -140,14 +140,14 @@
 | `--compact` | Миграция проекта из `classic` (корень / `docs/`) в компактную раскладку `.architect/` (`/architect compact`) |
 | `--repair` | Восстановление `pushurl`, `.git/hooks/pre-push` и очистка stale `.lock` после аварийного завершения (`/architect repair`) |
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | Список моделей окружения с `effort` (`--models`) или запись модели роли в конфиг и `AGENTS.md` (`--set-model`, `/architect model`) |
-| `--check` | Проверка ОС, Node 22+, git 2.31+, подпапки скилла, копии `EXECUTOR.md`, хука `commit-msg`, итоговой модели Исполнителя и её источника, `PLAN.md`, параллельных задач, раннеров и allowlist; живой вызов модели только с `--probe` |
+| `--check` | Проверка ОС, Node 22+, git 2.31+, подпапки скилла, копии `EXECUTOR.md`, хука `commit-msg`, итоговой модели Исполнителя и её источника, `PLAN.md`, параллельных задач, раннеров и allowlist |
 | `--check-task T-NNN [--base <ref>]` | Шлюз задачи `T-NNN` по `<base>:PLAN.md` и `git merge-base <base> HEAD` (`Change`, `Frozen`, обходы, коммиты, запрет squash и `Verify`-команды задачи) |
 | `--write-permissions` | Запись allowlist: у `claude` опасные правила удаляются (архив `*.pruned.json`), общий файл `agy` только дополняется (после явного согласия) |
 | `--dry-run` | Проверка готовности, `--self-check` (`red-check`) и показ промпта следующей задачи без вызова LLM |
 | `--self-check [--base <ref>]` | Самопроверка Архитектора (обходы, пустой `catch`, таймеры, монотонность, `fix-frozen`, `eval`, аудит, параллельные задачи и `red-check`) |
 | `--audit-plan` | Read-only аудит плана другой моделью (`references/plan-audit.md`) через `config.auditor` (до 1 повтора на базу цикла) |
-| `--background` / `--stop` | Запуск цикла в фоне (`.agent-runs/.lock`) / остановка (агент, защита, блокировка) |
-| `--watch [мин] [--since N]` | Ожидание запроса разрешения (`2`), остановки (`3`) или вехи (`4`); вывод кончается `(milestones: N)` |
+| `--background` | Запуск цикла в фоне (`.agent-runs/.lock`) |
+| `--watch [мин] [--since N]` | Ожидание запроса разрешения (`2`), остановки (`3`) или вехи задачи (`4`) |
 | `--status` / `--follow` | Сводка состояния цикла (`--status`) или живая лента в терминале (`--follow`) |
 | `--answer <1\|2\|3>` / `--pause` / `--only T-NNN` | Ответ на запрос разрешения, пауза после задачи или прогон одной задачи `T-NNN` |
 
