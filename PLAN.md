@@ -116,7 +116,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed tests stay green; `run.mjs` stays ≤ 370 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/runner-hygiene.test.mjs .agents/skills/architect/orchestrator/adapters/claude.test.mjs .agents/skills/architect/orchestrator/adapters/index.test.mjs .agents/skills/architect/orchestrator/feed-en.test.mjs .agents/skills/architect/orchestrator/feed.test.mjs .agents/skills/architect/orchestrator/prompts.test.mjs .agents/skills/architect/orchestrator/prompts-en.test.mjs .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/evals-fixtures.test.mjs .agents/skills/architect/orchestrator/evals-permissions.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/install-check.test.mjs`
 
-- [ ] T-130: Eval rubrics fail on empty answers and self-selected Executor models
+- [x] T-130: Eval rubrics fail on empty answers and self-selected Executor models
   - Risk: medium.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/evals-scenarios.mjs` (`EVAL_SCENARIOS` `phase1_no_write` and `first_run_no_executor_model`, `evaluateScenarioResult`), `.agents/skills/architect/orchestrator/evals-fixtures.test.mjs`.
