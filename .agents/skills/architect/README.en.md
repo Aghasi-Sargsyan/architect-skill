@@ -1,4 +1,4 @@
-<!-- skill-readme-sync: v3.53 / 1.9 -->
+<!-- skill-readme-sync: v3.54 / 1.9 -->
 # Architect + Executor Skill (`v3.53 / 1.9`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
@@ -133,7 +133,7 @@ Every task `T-NNN` in `PLAN.md` uses explicit fields parsed by `plan.mjs` (both 
 - `Task and invariants` (`Задача и инварианты`), `Edge cases` (`Граничные случаи`), `Test cases` (`Тест-кейсы`), `Done when` (`Готово, когда`), `Check` (`Проверка`).
 
 ### Multi-Stack Configuration (`config.json` / `orchestrator.json`)
-For non-Node stacks (Python/`pytest`, Go/`go test`, Rust/`cargo test`, Vitest/Jest), configure `testFilePatterns`, `testPatterns`, `assertPatterns` (`assert.` and `expect(` are included by default), and `redCheckCommand` (e.g. `"pytest {file}"` or `"npx vitest run {file}"`). If a `Frozen` reference test has no matching `redCheckCommand` or a test file has `0` recognized assertions, `--self-check` reports a loud `NOT VERIFIED` with the file name instead of passing silently.
+For non-Node stacks (Python/`pytest`, Go/`go test`, Rust/`cargo test`, Vitest/Jest), configure `testFilePatterns`, `testPatterns`, `assertPatterns` (`assert.` and `expect(` are included by default), `redCheckCommand` and `redCheckConfirmPattern` (e.g. `"pytest {file}"` with `"^FAILED .+::"`, or `"npx vitest run {file}"` with `"AssertionError"`): without the pattern a custom runner cannot confirm red and the high-risk task is blocked. If a `Frozen` reference test has no matching `redCheckCommand` or a test file has `0` recognized assertions, `--self-check` reports a loud `NOT VERIFIED` with the file name instead of passing silently.
 
 ---
 

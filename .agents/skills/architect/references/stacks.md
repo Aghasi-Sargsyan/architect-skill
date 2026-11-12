@@ -12,6 +12,8 @@ In tasks, specify only commands that actually exist in the project. Sources:
 - Rust — `Cargo.toml` (`cargo test`, `cargo clippy`).
 - Any stack — `Makefile` / `justfile` and CI config (`.github/workflows/`, `.gitlab-ci.yml`, and equivalents).
 
+Orchestrator red-check with a custom `redCheckCommand`: red is confirmed only when `redCheckConfirmPattern` (a JavaScript RegExp, flag `m`, matched against the last 40 output lines) shows that a test case failed; without it the high-risk task is blocked. Starting points: pytest `^FAILED .+::`, Vitest `AssertionError`, Jest `expect\(received\)`, `go test` `^\s*--- FAIL: `, `cargo test` `^test .+ \.\.\. FAILED$`.
+
 ## 2. Compact Test Output in Interactive Chat
 
 Redirect full output to a temporary file, and print only the exit code, summary lines, and errors in chat. General form: `<command> > "${TMPDIR:-/tmp}/t.log" 2>&1; s=$?; echo "exit=$s"; grep -E '<pattern>' "${TMPDIR:-/tmp}/t.log"; (exit $s)`. `grep -E` patterns for summary lines:

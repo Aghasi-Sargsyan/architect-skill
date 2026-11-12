@@ -1,9 +1,9 @@
-<!-- skill-readme-sync: v3.53 / 1.9 -->
+<!-- skill-readme-sync: v3.54 / 1.9 -->
 # Скилл «Архитектор + Исполнитель» (`v3.53 / 1.9`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
-2. **Автоматический оркестратор (`orchestrator/run.mjs`):** CLI на чистом Node.js без npm-зависимостей; требует **Node.js 22+** и **git 2.31+**. **Детерминированные проверки (`--check`, `--check-task`, `--self-check`) официально поддерживаются на macOS и Linux (`ubuntu-latest`); цикл запуска агентов поддерживается только на macOS (Windows не поддерживается).** Поддерживает раннеры **`agy`** (Antigravity) и **`claude`** (Claude Code); системные уведомления работают на **macOS** (`osascript`), также поддерживается вебхук `AGENT_LOOP_WEBHOOK_URL`.
+2. **Автоматический оркестратор (`orchestrator/run.mjs`):** CLI на чистом Node.js без npm-зависимостей; требует **Node.js 22+** и **git 2.31+**. **Детерминированные проверки (`--check`, `--check-task`, `--self-check`) официально поддерживаются на macOS и Linux (`ubuntu-latest`); цикл запуска агентов поддерживается только на macOS (Windows не поддерживается).** Поддерживает раннеры **`agy`** (Antigravity) и **`claude`** (Claude Code); уведомления — **macOS** (`osascript`) и вебхук `AGENT_LOOP_WEBHOOK_URL`.
 
 - **Рабочие промпты (единый источник правил на английском):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks,team}.md`.
 - **Руководства для человека (`<= 25 КБ` каждое):** `README.ru.md` (на русском) и `README.en.md` (на английском).
@@ -124,7 +124,7 @@
 - `Читать` (`Read`), `Менять` (`Change`, `<= 3–5` файлов), `Задача и инварианты` (`Task and invariants`), `Граничные случаи` (`Edge cases`), `Тест-кейсы` (`Test cases`), `Готово, когда` (`Done when`), `Проверка` (`Check`).
 
 ### Настройка под свой стек (`config.json` / `orchestrator.json`)
-Для стеков вне `node:test` (`pytest`, `go test`, `cargo test`, Vitest/Jest) задайте `testFilePatterns`, `testPatterns`, `assertPatterns` (`assert.` и `expect(` по умолчанию) и `redCheckCommand` (например, `"pytest {file}"`). При отсутствии подходящей `redCheckCommand` или 0 утверждений в тесте `--self-check` выдаёт явный `NOT VERIFIED`.
+Для стеков вне `node:test` (`pytest`, `go test`, `cargo test`, Vitest/Jest) задайте `testFilePatterns`, `testPatterns`, `assertPatterns` (`assert.` и `expect(` по умолчанию), `redCheckCommand` и `redCheckConfirmPattern` (например, `"pytest {file}"` и `"^FAILED .+::"`), иначе red не подтверждён и high-risk задача блокируется. Без `redCheckCommand` или при 0 утверждений `--self-check` даёт `NOT VERIFIED`.
 
 ---
 
