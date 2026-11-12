@@ -80,7 +80,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed tests stay green; `update.mjs` ≤ 400 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/update-swap.test.mjs .agents/skills/architect/orchestrator/update-tags.test.mjs .agents/skills/architect/orchestrator/update.test.mjs .agents/skills/architect/orchestrator/skill-targets.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs`
 
-- [ ] T-127: --compact migrates all or nothing with path-boundary rewrites
+- [x] T-127: --compact migrates all or nothing with path-boundary rewrites
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/layout-atomic.test.mjs`, `.agents/skills/architect/orchestrator/layout.mjs` (`migrateToCompact`, lines 176–295), `.agents/skills/architect/orchestrator/layout.test.mjs`, `.agents/skills/architect/orchestrator/audit-hardening.test.mjs` (F-11).
