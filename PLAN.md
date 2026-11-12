@@ -13,8 +13,16 @@
 - `agy --settings` и `agy --sandbox` вживую не проверялись по решению пользователя; `agy` работает без ОС-песочницы.
 - Отложено в Цикл 7: adversarial eval-сценарий (`C-20` → `C-42`), уведомление об обновлении (`C-22` → `C-39`).
 
+Цикл 35 (`NOT VERIFIED`):
+- `T-110`: остановка цикла по таймауту `Verify` в `run.mjs` не покрыта тестом (покрыт только `kind: "timeout"` в `mechanics.mjs`).
+- `T-112`: `--stop` вживую на настоящем цикле не запускался (проверен эталонным тестом с дочерним процессом); `killTrackedChildren` завершает только прямой процесс агента, его внуки — нет.
+
 ## Решения
 См. `docs/decisions.md` (`ADR-001`…`ADR-069`); для цикла главные — `ADR-068` (контракты `C-24`…`C-30`) и `ADR-069` (новые модули вместо роста перегруженных файлов). В плановом коммите Архитектор уже: добавил в `config.example.json` пять шаблонов обходов (индексы 10..14) и поднял `verifyTimeoutMs` до 600000; обновил ожидания `T-042` (длина `bypassPatterns` 15) и `T-043a` (`verifyTimeoutMs` 600000).
+
+Решения по ходу цикла (эскалации):
+- `T-110`: эталонные тесты запускали `node script.mjs`, а `commandProblem()` пропускает только `node --test <файл>` — тест переписан (`arch: fix-frozen T-110`).
+- `T-112`: (1) `guards.test.mjs` ждал старый формат блокировки (голый PID) — сверяет `pid` из JSON (`arch: fix-frozen T-112`); (2) песочница `claude` (Seatbelt) не даёт запускать setuid `/bin/ps`: без времени старта JSON-блокировка с живым PID считается живой, но `verified: false`, и `--stop` её не сигналит (безопасная сторона); `run-lock.test.mjs` проверяет обе ветки (с `ps` и без). `readLockOwner` возвращает `{pid, alive, legacy, verified}` — принятое отступление Исполнителя от контракта.
 
 ## Заморожено (Frozen — Исполнителю не трогать)
 - `EXECUTOR.md`
@@ -63,7 +71,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: all cases above are green; existing `models.test.mjs` cases stay green.
   - Verify: `node --test .agents/skills/architect/orchestrator/models.test.mjs`
 
-- [ ] T-112: Atomic loop lock, owner check beyond the PID, and `--stop`
+- [x] T-112: Atomic loop lock, owner check beyond the PID, and `--stop`
   - Risk: high.
   - Depends on: T-110
   - Read: `.agents/skills/architect/orchestrator/run-lock.test.mjs` (the contract), `.agents/skills/architect/orchestrator/guards.mjs` (`lockHolder`, `acquireLock`, lines ~145–170), `.agents/skills/architect/orchestrator/guards-recovery.mjs` (`activeLoopPid`, lines ~60–80 and ~135–150), `.agents/skills/architect/orchestrator/adapters/agy.mjs` (spawn promise ~107–130), `.agents/skills/architect/orchestrator/adapters/claude.mjs` (~70–95), `.agents/skills/architect/orchestrator/run.mjs` (line ~127, signal handler), `.agents/skills/architect/orchestrator/cli.mjs` (`parseArgs`), `.agents/skills/architect/orchestrator/cli-dispatch.mjs`.
