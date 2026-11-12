@@ -4,6 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { git, commitsSince, findSquashViolations } from './git.mjs';
 import { DEFAULT_TEST_FILE_PATTERNS, isTestFile, findBypasses } from './mechanics.mjs';
+import { countTests, countAsserts, isUnderScanPaths, checkTestMonotonicity } from './monotonicity.mjs';
+import { findTaskDirtyFiles } from './task-range.mjs';
 import { parsePlan } from './plan.mjs';
 import { scanRangeCommitMessages, scanRangeProcessWarnings } from './hooks.mjs';
 import { commandProblem } from './permissions.mjs';
@@ -136,18 +138,8 @@ export function findTestTimers(diffText, testFilePatterns) {
   return result;
 }
 
-const DEFAULT_TEST_PATTERNS = ['\\b(?:test|it)\\s*\\(', '^\\s*def\\s+test_'];
-const DEFAULT_ASSERT_PATTERNS = ['\\bassert\\.', '\\bexpect\\s*\\(', '^\\s*assert\\s+\\S'];
-
-function countByPatterns(content, patterns, fallback) {
-  const list = Array.isArray(patterns) && patterns.length > 0 ? patterns : fallback;
-  let total = 0;
-  for (const p of list) total += (content.match(new RegExp(p instanceof RegExp ? p.source : String(p), 'gm')) ?? []).length;
-  return total;
-}
-
-const countTests = (content, config) => countByPatterns(content, config?.testPatterns, DEFAULT_TEST_PATTERNS);
-const countAsserts = (content, config) => countByPatterns(content, config?.assertPatterns, DEFAULT_ASSERT_PATTERNS);
+const TASK_SUBJECT_RE = /^T-\d+(?:\s*\(fix\s+\d+\))?:/;
+const PLAN_SUBJECT_RE = /^arch:\s*(?:plan|план)\b/i;
 
 function isVersionGreater(vHead, vBase) {
   if (!vHead) return false;
@@ -166,15 +158,6 @@ function isNamedTestFile(filePath, patterns = DEFAULT_TEST_FILE_PATTERNS) {
   const list = (Array.isArray(patterns) && patterns.length > 0 ? patterns : DEFAULT_TEST_FILE_PATTERNS)
     .filter((p) => String(p) !== '(?:^|/)tests/' && !String(p).endsWith('/'));
   return list.some((p) => (p instanceof RegExp ? p : new RegExp(p)).test(normalized));
-}
-
-function isUnderScanPaths(file, scanPaths) {
-  if (!scanPaths || !scanPaths.length) return true;
-  const norm = file.replace(/\\/g, '/').replace(/^\.\//, '');
-  return scanPaths.some((p) => {
-    const np = p.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
-    return norm === np || norm.startsWith(np + '/');
-  });
 }
 
 function getModifiedOrDeletedFiles(realGit, cwd, sha) {
@@ -206,7 +189,8 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   const warnings = scanRangeCommitMessages({ realGit, cwd, baseSha, headSha, commitLanguage: config?.commitLanguage });
   if (config?.team === true && warnings.length > 0) violations.push(...warnings);
   const allCommits = commitsSince(realGit, cwd, baseSha);
-  const nonExecCommits = allCommits.filter((c) => !c.isMerge && !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
+  const nonMergeCommits = allCommits.filter((c) => !c.isMerge);
+  const nonExecCommits = nonMergeCommits.filter((c) => !TASK_SUBJECT_RE.test(c.subject));
   violations.push(...findSquashViolations({ realGit, cwd, baseSha, headSha, commits: allCommits }));
   const bypassPatterns = config?.bypassRegexps ?? (config?.bypassPatterns ?? []).map((p) => new RegExp(p));
   const headFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', 'HEAD']).split('\n').filter(Boolean), headFileSet = new Set(headFiles);
@@ -229,7 +213,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       }
     }
   }
-  const planIdx = allCommits.findIndex((c) => /^arch:\s*(?:plan|план)\b/i.test(c.subject));
+  const planIdx = allCommits.findIndex((c) => PLAN_SUBJECT_RE.test(c.subject));
   const frozenTests = new Set();
   const collectFrozen = (txt) => {
     try {
@@ -240,7 +224,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     } catch { /* cleanup: abort plan parsing */ }
   };
   for (const c of allCommits) {
-    if (/^arch:\s*(?:plan|план)\b/i.test(c.subject)) {
+    if (PLAN_SUBJECT_RE.test(c.subject)) {
       for (const p of ['PLAN.md', '.architect/PLAN.md']) {
         try { collectFrozen(git(realGit, cwd, ['show', `${c.sha}:${p}`])); } catch { /* cleanup: abort plan reading */ }
       }
@@ -248,8 +232,8 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   }
   if (effectivePlanText) collectFrozen(effectivePlanText);
 
-  // 1. Content scans over non-executor commits (remediability check on HEAD)
-  for (const c of nonExecCommits) {
+  // 1. Content scans over all non-merge commits, task commits included (remediability check on HEAD)
+  for (const c of nonMergeCommits) {
     const diff = git(realGit, cwd, ['show', c.sha]);
     for (const fileDiff of splitDiffByFiles(diff)) {
       if (!isUnderScanPaths(fileDiff.file, config?.bypassScanPaths)) continue;
@@ -277,22 +261,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   // 2. Monotonicity checks
   const baseFiles = git(realGit, cwd, ['ls-tree', '-r', '--name-only', baseSha]).split('\n').filter(Boolean);
-  const baseTestFiles = baseFiles.filter((f) => isTestFile(f, config?.testFilePatterns) && isUnderScanPaths(f, config?.bypassScanPaths));
-  const monoWaivedFiles = new Set(allCommits.filter((c) => waivers.some((w) => /\bmonotonicity\b/i.test(w.rule) && c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))).flatMap((c) => c.files.map(norm)));
-
-  for (const testFile of baseTestFiles) {
-    if (!headFileSet.has(testFile)) {
-      if (!allCommits.some((c) => c.files.map(norm).includes(norm(testFile)) && /\bADR-\d+\b/.test(c.subject)) && !monoWaivedFiles.has(norm(testFile))) {
-        violations.push(`test file deleted without ADR in commit message: ${testFile}`);
-      }
-    } else if (!monoWaivedFiles.has(norm(testFile))) {
-      const baseContent = git(realGit, cwd, ['show', `${baseSha}:${testFile}`]), headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
-      const baseTests = countTests(baseContent, config), headTests = countTests(headContent, config);
-      if (headTests < baseTests) violations.push(`monotonicity: in ${testFile} test/it count decreased from ${baseTests} to ${headTests}`);
-      const baseAsserts = countAsserts(baseContent, config), headAsserts = countAsserts(headContent, config);
-      if (headAsserts < baseAsserts) violations.push(`monotonicity: in ${testFile} assert count decreased from ${baseAsserts} to ${headAsserts}`);
-    }
-  }
+  violations.push(...checkTestMonotonicity({ realGit, cwd, baseSha, config, commits: allCommits, waivers }));
 
   for (const testFile of headFiles) {
     if (!isTestFile(testFile, config?.testFilePatterns)) continue;
@@ -337,7 +306,15 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   // 3. Fix-frozen check after plan commit
   if (requireFixFrozen || planIdx !== -1) {
-    const commitsToCheck = requireFixFrozen ? nonExecCommits : allCommits.slice(planIdx + 1).filter((c) => !c.isMerge && !/^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
+    const commitsToCheck = requireFixFrozen ? nonExecCommits : allCommits.slice(planIdx + 1).filter((c) => !c.isMerge && !TASK_SUBJECT_RE.test(c.subject));
+
+    // Only the first `arch: plan` commit of each cycle (range start or after `arch: close cycle`) is exempt.
+    const cyclePlanShas = new Set();
+    let planSeenInCycle = false;
+    for (const c of nonMergeCommits) {
+      if (CLOSE_CYCLE_RE.test(c.subject)) planSeenInCycle = false;
+      else if (PLAN_SUBJECT_RE.test(c.subject) && !planSeenInCycle) { cyclePlanShas.add(c.sha); planSeenInCycle = true; }
+    }
 
     const isProtected = (f) => {
       const nf = norm(f);
@@ -345,11 +322,17 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     };
 
     for (const c of commitsToCheck) {
-      if (/^arch:\s*(?:fix-frozen\s+(?:T-\d+|audit):\s+\S|(?:plan|план)\b)/i.test(c.subject)) continue;
+      if (/^arch:\s*fix-frozen\s+(?:T-\d+|audit):\s+\S/i.test(c.subject) || cyclePlanShas.has(c.sha)) continue;
       if (waivers.some((w) => c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))) continue;
       const mdFiles = getModifiedOrDeletedFiles(realGit, cwd, c.sha);
       const hit = mdFiles.find(isProtected);
       if (hit) violations.push(`commit ${c.sha.slice(0, 7)} touches frozen test / config / fixtures without arch: fix-frozen: "${c.subject}" (${hit})`);
+    }
+
+    const taskDirty = findTaskDirtyFiles({ realGit, cwd, baseSha, commits: allCommits, isTaskCommit: (c) => TASK_SUBJECT_RE.test(c.subject) });
+    for (const { file, lastTaskCommit } of taskDirty) {
+      if (!isProtected(file) || waivers.some((w) => lastTaskCommit.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))) continue;
+      violations.push(`task commit ${lastTaskCommit.sha.slice(0, 7)} touches frozen test / config / fixtures and the change is still on HEAD: "${lastTaskCommit.subject}" (${file})`);
     }
   }
 

@@ -1,7 +1,12 @@
 // Test monotonicity over a commit range (ADR-064, C-10): shared by the self-check and by the loop's
 // pre-acceptance check from the task base.
-// Contract stub written by the Architect; the Executor implements it by MOVING the existing logic out of
-// selfcheck.mjs (runSelfCheckGit, block "2. Monotonicity checks", test-file part) without changing behavior.
+import { git } from './git.mjs';
+import { isTestFile } from './mechanics.mjs';
+
+const DEFAULT_TEST_PATTERNS = ['\\b(?:test|it)\\s*\\(', '^\\s*def\\s+test_'];
+const DEFAULT_ASSERT_PATTERNS = ['\\bassert\\.', '\\bexpect\\s*\\(', '^\\s*assert\\s+\\S'];
+
+const norm = (p) => p.replace(/\\/g, '/').replace(/^\.\//, '');
 
 /**
  * Counts matches of `patterns` (or `fallback` when patterns is empty/not an array) in `content`
@@ -12,17 +17,20 @@
  * @returns {number}
  */
 export function countByPatterns(content, patterns, fallback) {
-  throw new Error('Not implemented: countByPatterns');
+  const list = Array.isArray(patterns) && patterns.length > 0 ? patterns : fallback;
+  let total = 0;
+  for (const p of list) total += (content.match(new RegExp(p instanceof RegExp ? p.source : String(p), 'gm')) ?? []).length;
+  return total;
 }
 
 /** Test-call count with `config.testPatterns` or the selfcheck.mjs DEFAULT_TEST_PATTERNS (moved here). */
 export function countTests(content, config) {
-  throw new Error('Not implemented: countTests');
+  return countByPatterns(content, config?.testPatterns, DEFAULT_TEST_PATTERNS);
 }
 
 /** Assertion count with `config.assertPatterns` or the selfcheck.mjs DEFAULT_ASSERT_PATTERNS (moved here). */
 export function countAsserts(content, config) {
-  throw new Error('Not implemented: countAsserts');
+  return countByPatterns(content, config?.assertPatterns, DEFAULT_ASSERT_PATTERNS);
 }
 
 /**
@@ -33,7 +41,12 @@ export function countAsserts(content, config) {
  * @returns {boolean}
  */
 export function isUnderScanPaths(file, scanPaths) {
-  throw new Error('Not implemented: isUnderScanPaths');
+  if (!scanPaths || !scanPaths.length) return true;
+  const n = norm(file);
+  return scanPaths.some((p) => {
+    const np = norm(p).replace(/\/+$/, '');
+    return n === np || n.startsWith(np + '/');
+  });
 }
 
 /**
@@ -54,5 +67,24 @@ export function isUnderScanPaths(file, scanPaths) {
  * @returns {string[]} violations in base-file order
  */
 export function checkTestMonotonicity({ realGit, cwd, baseSha, config, commits, waivers = [] }) {
-  throw new Error('Not implemented: checkTestMonotonicity');
+  const violations = [];
+  const lsTree = (ref) => git(realGit, cwd, ['ls-tree', '-r', '--name-only', ref]).split('\n').filter(Boolean);
+  const headFileSet = new Set(lsTree('HEAD'));
+  const baseTestFiles = lsTree(baseSha).filter((f) => isTestFile(f, config?.testFilePatterns) && isUnderScanPaths(f, config?.bypassScanPaths));
+  const monoWaivedFiles = new Set(commits.filter((c) => waivers.some((w) => /\bmonotonicity\b/i.test(w.rule) && c.sha.toLowerCase().startsWith(w.sha7.toLowerCase()))).flatMap((c) => c.files.map(norm)));
+
+  for (const testFile of baseTestFiles) {
+    if (!headFileSet.has(testFile)) {
+      if (!commits.some((c) => c.files.map(norm).includes(norm(testFile)) && /\bADR-\d+\b/.test(c.subject)) && !monoWaivedFiles.has(norm(testFile))) {
+        violations.push(`test file deleted without ADR in commit message: ${testFile}`);
+      }
+    } else if (!monoWaivedFiles.has(norm(testFile))) {
+      const baseContent = git(realGit, cwd, ['show', `${baseSha}:${testFile}`]), headContent = git(realGit, cwd, ['show', `HEAD:${testFile}`]);
+      const baseTests = countTests(baseContent, config), headTests = countTests(headContent, config);
+      if (headTests < baseTests) violations.push(`monotonicity: in ${testFile} test/it count decreased from ${baseTests} to ${headTests}`);
+      const baseAsserts = countAsserts(baseContent, config), headAsserts = countAsserts(headContent, config);
+      if (headAsserts < baseAsserts) violations.push(`monotonicity: in ${testFile} assert count decreased from ${baseAsserts} to ${headAsserts}`);
+    }
+  }
+  return violations;
 }
