@@ -1,4 +1,5 @@
 // Orchestrator prompts, auto-refusal hints, and review prompt routing.
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +34,7 @@ export function autoRefusalPrompt(role, { command, reason = null, suggestedComma
 
   if (suggestedCommand) {
     hint = ` In the project working directory, run the allowed form without the leading flag: ${suggestedCommand} ("${suggestedCommand}").`;
-    extra = ' The restriction applies only to the command form, not to git itself: run other allowed commands (`git status`, `git add`, `git commit`, etc.) without a leading flag as well, from the project working directory. The restriction applies only to the form of the command, not git itself: other allowed commands also work without the leading path flag.';
+    extra = ' The restriction applies only to the command form, not to git itself: run other allowed commands (`git status`, `git add`, `git commit`, etc.) without a leading flag as well, from the project working directory.';
     cont = ` Do not bypass the restriction: continue from where you stopped or escalate. Do not repeat the rejected command. Continue the task (${roleLabel}) using allowed commands and return the final JSON block.`;
   } else if (/already in allowlist/i.test(why)) {
     hint = ' Pass a directory path or explicit file path instead of an unquoted glob (e.g. use a directory path instead of *.css / *.js), or use built-in file tools.';
@@ -62,11 +63,20 @@ export function resumePrompt(role, { command, rule = null, ruleText = null, reas
   if (rule || ruleText) {
     const roleLabel = role === 'architect' ? 'review' : 'executor';
     const added = ruleText ?? `command(${rule})`;
-    const head = `The user allowed the command (added rule: ${added}) — was allowed (rule ${added}). Execute the needed action and finish the task (${roleLabel}), returning the final JSON block.`;
+    const head = `The user allowed the command (added rule: ${added}). Execute the needed action and finish the task (${roleLabel}), returning the final JSON block.`;
     const tail = typeof ANSWER_FORMAT[role] === 'function' ? ANSWER_FORMAT[role]() : (ANSWER_FORMAT[role] ?? '');
     return tail ? `${head}\n\n${tail}` : head;
   }
   return autoRefusalPrompt(role, { command, reason, suggestedCommand });
+}
+
+// --dry-run keeps the full prompt in a file instead of the terminal (ADR-079).
+export function writeDryRunPrompt({ workDir, taskId, text }) {
+  if (!/^T-\d{3,}$/.test(String(taskId))) throw new Error(`invalid task id: ${taskId}`);
+  const relPath = `.agent-runs/dry-run-prompt-${taskId}.md`;
+  mkdirSync(path.join(workDir, '.agent-runs'), { recursive: true });
+  writeFileSync(path.join(workDir, relPath), text);
+  return { relPath, chars: text.length };
 }
 
 export function executorPrompt(task, reworkOrLayout, modelOrLayout, layoutArg) {

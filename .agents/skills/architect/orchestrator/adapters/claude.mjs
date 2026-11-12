@@ -114,6 +114,13 @@ export function parseClaudeOutput(stdout, stderr = '', code = 0) {
   return json ? { ok: true, json, raw: parsed } : { ok: false, error: 'Response does not contain a final JSON block {...}', raw: parsed };
 }
 
+// The flags runClaudeAgent passes besides -p, the model and --dangerously-skip-permissions (ADR-079).
+export const REQUIRED_CLAUDE_FLAGS = [
+  '--output-format', '--json-schema', '--setting-sources', '--settings', '--permission-mode', '--permission-prompts', '--session-id', '--resume',
+];
+
+const flagListed = (help, flag) => new RegExp(`(?<![\\w-])${flag}(?=[\\s,=<[]|$)`, 'm').test(help);
+
 export function checkClaudeEnv(claudeBin = 'claude') {
   const issues = [];
   const resolved = claudeBin.includes(path.sep) ? (existsSync(claudeBin) ? claudeBin : null) : findExecutable(claudeBin);
@@ -123,6 +130,18 @@ export function checkClaudeEnv(claudeBin = 'claude') {
     if (r.error || r.status !== 0) issues.push(`Failed to run "${claudeBin} --version": ${r.error ? r.error.message : `exit ${r.status}`}`);
   } catch (err) {
     issues.push(`Failed to run "${claudeBin} --version": ${err.message}`);
+  }
+  try {
+    const r = spawnSync(resolved, ['--help'], { encoding: 'utf8', timeout: 5000 });
+    if (r.error || r.status !== 0) {
+      issues.push(`Failed to run "${claudeBin} --help": ${r.error ? r.error.message : `exit ${r.status}`}`);
+    } else {
+      const help = `${r.stdout ?? ''}\n${r.stderr ?? ''}`;
+      const missing = REQUIRED_CLAUDE_FLAGS.filter((f) => !flagListed(help, f));
+      if (missing.length) issues.push(`Claude Code CLI does not support ${missing.join(', ')} (checked "${claudeBin} --help") — update Claude Code`);
+    }
+  } catch (err) {
+    issues.push(`Failed to run "${claudeBin} --help": ${err.message}`);
   }
   return { ok: issues.length === 0, issues };
 }

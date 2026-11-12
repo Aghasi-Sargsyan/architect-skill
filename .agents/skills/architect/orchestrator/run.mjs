@@ -19,7 +19,7 @@ import { dispatchCliSubcommand } from './cli-dispatch.mjs';
 import { askPermission, clearQuestion } from './ask.mjs';
 import { getAdapter } from './adapters/index.mjs';
 import { appendEvent, sendNotification, writeStopReport } from './events.mjs';
-import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
+import { architectPrompt, executorPrompt, resumePrompt, writeDryRunPrompt } from './prompts.mjs';
 import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, safeLoadConfig } from './cli.mjs';
 import { readCommittedWaivers } from './waivers.mjs';
 import { resolveTaskBase, checkTaskRange, checkResumedTask, formatRangeSummary } from './task-range.mjs';
@@ -79,7 +79,8 @@ async function main() {
     if (task) {
       let chosen;
       try { chosen = executorModelFor(task); } catch (err) { chosen = { error: err instanceof Error ? err.message : String(err) }; }
-      console.log(`\n--- Executor prompt for ${task.id} ---\n${executorPrompt(task, null, chosen.model ?? '<undefined>', layout)}`);
+      const written = writeDryRunPrompt({ workDir, taskId: task.id, text: executorPrompt(task, null, chosen.model ?? '<undefined>', layout) });
+      console.log(`\n--- Executor prompt for ${task.id}: ${written.relPath} (${written.chars} chars) ---`);
     }
     return;
   }
