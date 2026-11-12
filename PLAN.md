@@ -83,7 +83,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/mechanics-bypass.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/field-bypass-frozen.test.mjs`
 
-- [ ] T-096: `--check-task` от базы задачи и запрет `PLAN.md` в `Change` для `--check`
+- [x] T-096: `--check-task` от базы задачи и запрет `PLAN.md` в `Change` для `--check`
   - Риск: высокий.
   - Зависит от: T-095.
   - Читать: `.agents/skills/architect/orchestrator/task-range.mjs`, `.agents/skills/architect/orchestrator/check-task-range.test.mjs`, `.agents/skills/architect/orchestrator/check-task.test.mjs` (строки 41–113), `.agents/skills/architect/orchestrator/team-gate.test.mjs` (строки 140–215), `.agents/skills/architect/orchestrator/team-config.test.mjs` (строки 124–170), `.agents/skills/architect/orchestrator/cli.mjs` (строки 1–40, 115–135, 295–395), `.agents/skills/architect/orchestrator/hooks.mjs` (строки 118–160), `.agents/skills/architect/orchestrator/plan-validate.mjs` (строки 140–184), `.agents/skills/architect/orchestrator/check.mjs` (строки 140–160), `.agents/skills/architect/orchestrator/cli-dispatch.mjs` (строки 1–25, 60–80), `.agents/skills/architect/orchestrator/mechanics.mjs` (символ `formatMechanicsReport`).
