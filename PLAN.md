@@ -15,6 +15,8 @@
 
 Остаётся Архитектору при закрытии цикла: описать поведение Цикла 34 (управляющий каталог, `agy` без удаления правил, маркеры отчёта) в `CHANGELOG.md`, `README.{en,ru}.md` (строка `--write-permissions` в §6, `README.ru.md` — 25 387 байт из 25 600) и `references/orchestrator.md` (строка про `--write-permissions` и `*.pruned.json` в §1); полный набор тестов на Node 22 и Node 24.
 
+Существующие тесты с переданным `home` (`ask-question`, `ask`, `feed`, `run`, `guards-shim-speed`, `skill-path`) и `control-dir.test.mjs` зелёные до задач и не входят ни в одно поле `Менять`: Исполнитель их не меняет; в `Frozen` — только красные до реализации эталонные тесты (`red-check`).
+
 Окружение Исполнителя (раннер `claude`, ОС-песочница): до `T-105` тесты через `installGuards` падают с `EPERM` на каталоге из `PATH` в домашней папке — и до правок тоже. Базовый прогон снимать в самом проекте до первой правки (не через `git worktree` и не во внешнем каталоге), в отчёте сравнивать «до/после» по именам тестов; оркестратор повторяет `Проверка` вне песочницы.
 
 Работающий цикл держит модули, загруженные при старте: перенос shim и вопроса действует со следующего запуска цикла. После цикла настройки `claude` нужно переписать `--write-permissions` (новое правило чтения каталога shim) — только с согласия пользователя.
@@ -38,8 +40,6 @@
 - `.agents/skills/architect/orchestrator/write-permissions-prune.test.mjs`
 - `.agents/skills/architect/orchestrator/audit-hardening.test.mjs`
 - `.agents/skills/architect/orchestrator/prompts-untrusted.test.mjs`
-
-Существующие тесты с переданным `home` (`ask-question`, `ask`, `feed`, `run`, `guards-shim-speed`, `skill-path`) и `control-dir.test.mjs` зелёные до задач и не входят ни в одно поле `Менять`: Исполнитель их не меняет; в `Frozen` — только красные до реализации эталонные тесты (`red-check`).
 
 ## Rules
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
