@@ -315,7 +315,7 @@ function extractOutputTail(stdout, stderr) {
  * Runs task verification commands with shell:false and timeout.
  * Rejects disallowed commands, env prefixes, and shell operators.
  */
-export function runTaskVerification({ task, workDir = process.cwd(), env = process.env, config = {}, timeoutMs = config?.verifyTimeoutMs ?? 120000, validateOnly = false }) {
+export function runTaskVerification({ task, workDir = process.cwd(), env = process.env, config = {}, timeoutMs = config?.verifyTimeoutMs ?? 600000, validateOnly = false }) {
   const commands = task?.verifyCommands ?? [];
   if (!commands.length) return { ok: true, kind: 'passed', results: [] };
   const blockedScripts = config.blockedScripts ?? config.blockedNpmScripts ?? [];
@@ -339,13 +339,13 @@ export function runTaskVerification({ task, workDir = process.cwd(), env = proce
   for (const rawCmd of commands) {
     const tokens = splitCommandArgs(rawCmd);
     const start = Date.now();
-    const res = spawnSync(tokens[0], tokens.slice(1), { cwd: workDir, env: childEnv, shell: false, encoding: 'utf8', timeout: timeoutMs });
+    const res = spawnSync(tokens[0], tokens.slice(1), { cwd: workDir, env: childEnv, shell: false, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 256 * 1024 * 1024 });
     const durationMs = Date.now() - start;
-    const timedOut = Boolean(res.error?.code === 'ETIMEDOUT' || (res.signal === 'SIGTERM' && res.status === null));
+    const timedOut = res.error?.code === 'ETIMEDOUT';
     const outputTail = extractOutputTail(res.stdout, res.stderr || (res.error ? String(res.error) : ''));
     if (timedOut) {
       results.push({ command: rawCmd, exitCode: null, durationMs, timedOut: true });
-      return { ok: false, kind: 'timeout', failedCommand: rawCmd, exitCode: null, timedOut: true, outputTail, results };
+      return { ok: false, kind: 'timeout', failedCommand: rawCmd, exitCode: null, timedOut: true, environment: true, outputTail, results };
     }
     if (res.status !== 0) {
       const exitCode = res.status ?? 1;

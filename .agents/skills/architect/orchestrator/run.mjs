@@ -299,13 +299,12 @@ async function main() {
           if (verifyRes.kind === 'failed' || verifyRes.kind === 'timeout') {
             log(`  Verify: ${verifyRes.kind} — ${verifyRes.failedCommand}${verifyRes.timedOut ? ' (timeout)' : ` (exit ${verifyRes.exitCode})`}`);
             appendEvent(runDir, { type: 'verify_checked', taskId: task.id, round, ok: false, kind: verifyRes.kind, command: verifyRes.failedCommand, exitCode: verifyRes.exitCode, timedOut: verifyRes.timedOut });
+            if (verifyRes.kind === 'timeout') { stopReason = `${task.id}: Verify timed out (environment): ${verifyRes.failedCommand}`; break outer; }
             if (round + 1 > config.maxFixRounds) {
               stopReason = `${task.id}: rework limit (${config.maxFixRounds}) exhausted`;
               break outer;
             }
-            const failDetail = verifyRes.timedOut
-              ? `Verification command timed out: \`${verifyRes.failedCommand}\``
-              : `Verification command failed with exit code ${verifyRes.exitCode}: \`${verifyRes.failedCommand}\``;
+            const failDetail = `Verification command failed with exit code ${verifyRes.exitCode}: \`${verifyRes.failedCommand}\``;
             rework = { round: round + 1, instructions: `${failDetail}\nOutput:\n${verifyRes.outputTail}` };
             continue;
           }
