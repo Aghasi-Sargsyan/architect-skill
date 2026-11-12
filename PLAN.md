@@ -43,7 +43,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-120: Honest red-check — red only on a confirmed test-case failure
+- [x] T-120: Honest red-check — red only on a confirmed test-case failure
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/red-check.test.mjs`, `.agents/skills/architect/orchestrator/red-check.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/red-check-reporter.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/evidence.mjs` (`isFileNewOrModifiedSince` lines 28–51, `runRedCheck` lines 195–331), `.agents/skills/architect/orchestrator/mechanics.mjs` (`runTaskVerification`, `extractOutputTail`, lines 312–360), `.agents/skills/architect/orchestrator/config.mjs` (`validateConfig`, `redCheckCommand` lines 147–156), `.agents/skills/architect/orchestrator/evidence.test.mjs` (T-047, lines 115–228), `.agents/skills/architect/orchestrator/stack-config.test.mjs` (T-053, lines 114–175).
