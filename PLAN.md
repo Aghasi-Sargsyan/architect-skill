@@ -91,7 +91,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed tests stay green; `layout.mjs` ≤ 400 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/layout-atomic.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs`
 
-- [ ] T-128: Remove --audit-plan; ignore a legacy auditor key with a note
+- [x] T-128: Remove --audit-plan; ignore a legacy auditor key with a note
   - Risk: high.
   - Depends on: T-125
   - Read: `.agents/skills/architect/orchestrator/audit-removal.test.mjs`, `.agents/skills/architect/orchestrator/cli.mjs` (`parseArgs`, `runFastSelfCheck`, `formatSelfCheckReport`, `formatStartupNotices`, the `--audit-plan` handler near line 285), `.agents/skills/architect/orchestrator/cli-dispatch.mjs` (line 171), `.agents/skills/architect/orchestrator/check.mjs` (lines 213–215, `runCheckCommand`), `.agents/skills/architect/orchestrator/config.mjs` (lines 21–40, 77–87, 182–192, 226–229), `AGENTS.md` §3 and §5.
