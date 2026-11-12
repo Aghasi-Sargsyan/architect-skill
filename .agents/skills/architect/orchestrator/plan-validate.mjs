@@ -144,7 +144,7 @@ export function validateFrozenEntries(plan, opts = {}) {
  * Runs all structural and readiness validations on a parsed PLAN.md object.
  * @param {object} plan
  * @param {{ workDir?: string, layout?: object, config?: object }} [opts]
- * @returns {{ ok: boolean, parseIssues: string[], riskIssues: string[], frozenIssues: string[], highRiskTestIssues: string[] }}
+ * @returns {{ ok: boolean, parseIssues: string[], riskIssues: string[], frozenIssues: string[], highRiskTestIssues: string[], changeIssues: string[] }}
  */
 export function validatePlan(plan, opts = {}) {
   const parseIssues = (plan?.parseErrors ?? []).map(
@@ -153,9 +153,17 @@ export function validatePlan(plan, opts = {}) {
   const frozenIssues = validateFrozenEntries(plan, opts);
   const riskIssues = [];
   const highRiskTestIssues = [];
+  const changeIssues = [];
 
   for (const t of plan?.tasks ?? []) {
     if (t.done) continue;
+
+    for (const f of t.change ?? []) {
+      const norm = String(f).replace(/\\/g, '/').replace(/^\.\//, '');
+      if (norm === 'PLAN.md' || norm === '.architect/PLAN.md') {
+        changeIssues.push(`task ${t.id}: ${norm} must not be listed in Change (plan edits belong to the Architect)`);
+      }
+    }
 
     if (!isValidRisk(t.risk)) {
       riskIssues.push(`task ${t.id}: invalid or empty Risk "${t.risk ?? ''}"`);
@@ -178,7 +186,8 @@ export function validatePlan(plan, opts = {}) {
     parseIssues.length === 0 &&
     riskIssues.length === 0 &&
     frozenIssues.length === 0 &&
-    highRiskTestIssues.length === 0;
+    highRiskTestIssues.length === 0 &&
+    changeIssues.length === 0;
 
-  return { ok, parseIssues, riskIssues, frozenIssues, highRiskTestIssues };
+  return { ok, parseIssues, riskIssues, frozenIssues, highRiskTestIssues, changeIssues };
 }

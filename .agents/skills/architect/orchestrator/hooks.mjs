@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git } from './git.mjs';
+import { resolveTaskBase } from './task-range.mjs';
 
 /**
  * Checks whether the Executor model is properly configured.
@@ -118,7 +119,8 @@ export function checkExecutorModelConfig({ workDir = process.cwd(), config = nul
 /**
  * Resolves the base commit SHA for checking a task's commits outside the orchestrator loop.
  * If baseRef is provided, resolves it directly.
- * Otherwise, finds the last `^arch:\s` commit before HEAD, or parent of the first task commit, or HEAD.
+ * Otherwise, takes the task base from git history (parent of the first task commit, or HEAD when the task has
+ * no commits), so `arch:` commits made after the task started do not move it (ADR-064).
  * @param {{ realGit: string, workDir: string, taskId: string, baseRef?: string|null }} param0
  * @returns {string} resolved commit SHA
  */
@@ -130,32 +132,7 @@ export function resolveBaseShaForTask({ realGit, workDir, taskId, baseRef = null
       throw new Error(`Cannot resolve --base "${baseRef}" to a commit — ensure the branch/ref is fetched (e.g. fetch-depth: 0)`);
     }
   }
-  let logOutput = '';
-  try {
-    logOutput = git(realGit, workDir, ['log', '--format=%H %s']);
-  } catch {
-    logOutput = '';
-  }
-  const lines = logOutput.split('\n').map((l) => l.trim()).filter(Boolean);
-  const commits = lines.map((l) => {
-    const idx = l.indexOf(' ');
-    return idx === -1 ? { sha: l, subject: '' } : { sha: l.slice(0, idx), subject: l.slice(idx + 1) };
-  });
-
-  if (commits.length > 0 && /^arch:\s/i.test(commits[0].subject)) return commits[0].sha;
-  const archCommit = commits.slice(1).find((c) => /^arch:\s/i.test(c.subject));
-  if (archCommit) return archCommit.sha;
-  const taskCommitRe = new RegExp(`^${taskId}(?:\\s|\\(fix|:)`);
-  const taskCommits = commits.filter((c) => taskCommitRe.test(c.subject));
-  const firstTaskCommit = taskCommits.at(-1);
-  if (firstTaskCommit) {
-    try {
-      return git(realGit, workDir, ['rev-parse', `${firstTaskCommit.sha}^`]).trim();
-    } catch {
-      return commits[0]?.sha ?? 'HEAD';
-    }
-  }
-  return commits[0]?.sha ?? 'HEAD';
+  return resolveTaskBase({ realGit, cwd: workDir, taskId }).baseSha;
 }
 
 export const COMMIT_HOOK_MARKER = '// agent-loop commit-msg hook';

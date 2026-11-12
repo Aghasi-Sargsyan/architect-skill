@@ -153,6 +153,7 @@ export function localChecks({ config, workDir, realGit, platform = process.platf
     if (pv.riskIssues.length > 0) add(false, 'Risk field', pv.riskIssues.join('; '));
     if (pv.frozenIssues.length > 0) add(false, 'Frozen', pv.frozenIssues.join('; '));
     if (pv.highRiskTestIssues.length > 0) add(false, 'Reference tests', pv.highRiskTestIssues.join('; '));
+    if (pv.changeIssues.length > 0) add(false, 'Change («Менять») field', pv.changeIssues.join('; '));
     const noChange = open.filter((t) => t.change.length === 0).map((t) => t.id);
     if (open.length) add(noChange.length === 0, 'Change («Менять») field', noChange.length ? `empty for ${noChange.join(', ')}` : 'present for all open tasks');
     const badVerify = open.filter((t) => t.unparsedVerify).map((t) => t.id);

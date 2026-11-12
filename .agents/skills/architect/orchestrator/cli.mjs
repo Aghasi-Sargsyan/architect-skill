@@ -12,9 +12,8 @@ import { checkAuditCoverage, runPlanAudit } from './audit.mjs';
 import { checkSkillInstallation } from './check.mjs';
 import { checkParallelTasks, parsePlan } from './plan.mjs';
 import { validatePlan } from './plan-validate.mjs';
-import { git, resolveMergeBase } from './git.mjs';
-import { checkExecutorRun, formatMechanicsReport, runTaskVerification } from './mechanics.mjs';
-import { resolveBaseShaForTask, scanRangeCommitMessages } from './hooks.mjs';
+import { formatMechanicsReport } from './mechanics.mjs';
+import { checkTaskCommits } from './check-task.mjs';
 import { checkSkillUpdateAvailable } from './update.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
@@ -301,83 +300,7 @@ export async function handleAuditPlanCli({ opts = {}, config, workDir = process.
 export function runCheckTask({ realGit, workDir = process.cwd(), config = null, taskId, baseRef = null, orchestratorDir = orchDir }) {
   const g = realGit ?? which('git');
   const cfg = config ?? loadConfigOrDefaults(null, workDir);
-  let layout = cfg.paths ?? resolveLayout({ config: cfg });
-
-  let baseSha;
-  try {
-    baseSha = resolveBaseShaForTask({ realGit: g, workDir, taskId, baseRef });
-  } catch (err) {
-    return { ok: false, violations: [err instanceof Error ? err.message : String(err)], commits: [], headSha: '', headSubject: '', changedFiles: [] };
-  }
-
-  const mergeBase = resolveMergeBase(g, workDir, baseSha, 'HEAD');
-
-  let planText = null;
-  for (const ref of [baseSha, mergeBase]) {
-    for (const rel of [layout.planPath, 'PLAN.md', '.architect/PLAN.md']) {
-      try {
-        planText = git(g, workDir, ['show', `${ref}:${rel}`]);
-        if (planText) {
-          layout = resolveLayout({ config: { ...cfg, layout: rel.startsWith('.architect') ? 'compact' : 'classic' } });
-          break;
-        }
-      } catch { /* try next */ }
-    }
-    if (planText) break;
-  }
-  const planFile = path.join(workDir, layout.planPath);
-  if (!planText && existsSync(planFile)) planText = readFileSync(planFile, 'utf8');
-  if (!planText) {
-    return { ok: false, violations: [`${layout.planPath} not found in base ${baseSha}`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
-  }
-
-  const plan = parsePlan(planText);
-  const task = plan.tasks.find((t) => t.id === taskId);
-  if (!task) {
-    return { ok: false, violations: [`task ${taskId} not found in base ${layout.planPath}`], commits: [], headSha: '', headSubject: '', changedFiles: [] };
-  }
-
-  const bypassRegexps = cfg.bypassRegexps ?? (cfg.bypassPatterns ?? []).map((p) => (p instanceof RegExp ? p : new RegExp(p)));
-
-  const mechRes = checkExecutorRun({
-    realGit: g,
-    cwd: workDir,
-    baseSha: mergeBase,
-    task,
-    frozen: plan.frozen,
-    scanPaths: cfg.bypassScanPaths,
-    bypassPatterns: bypassRegexps,
-    protectedConfigFiles: cfg.protectedConfigFiles,
-    testFilePatterns: cfg.testFilePatterns,
-    configPath: '',
-    orchestratorDir,
-    config: cfg,
-  });
-
-  try {
-    const rangeFiles = git(g, workDir, ['diff', '--name-only', mergeBase, 'HEAD']).split('\n').map((f) => f.trim()).filter(Boolean);
-    if (rangeFiles.some((f) => f === 'PLAN.md' || f === '.architect/PLAN.md' || f.endsWith('/PLAN.md'))) {
-      if (!mechRes.violations.some((v) => v.includes('PLAN.md'))) {
-        mechRes.violations.push('task commits must not modify PLAN.md');
-      }
-    }
-  } catch { /* ignore */ }
-
-  if (task.unparsedVerify) {
-    mechRes.violations.push(`${taskId}: Verify field has text without backticks (commands must be in backticks)`);
-  }
-  mechRes.violations.push(...checkParallelTasks(plan));
-  const msgWarnings = scanRangeCommitMessages({ realGit: g, cwd: workDir, baseSha: mergeBase, headSha: 'HEAD', commitLanguage: cfg?.commitLanguage });
-  mechRes.violations.push(...msgWarnings);
-
-  if (mechRes.commits.length > 0 && mechRes.violations.length === 0 && (task.verifyCommands ?? []).length > 0) {
-    const vRes = runTaskVerification({ task, workDir, config: cfg });
-    if (!vRes.ok) {
-      mechRes.violations.push(`verification failed: ${vRes.failedCommand ?? vRes.command ?? 'command'} (${vRes.kind}: ${vRes.outputTail || vRes.reason || 'exit ' + vRes.exitCode})`);
-    }
-  }
-  mechRes.ok = mechRes.violations.length === 0;
-  return mechRes;
+  return checkTaskCommits({ realGit: g, workDir, config: cfg, taskId, baseRef, orchestratorDir });
 }
 
 export async function handleCheckTaskCli({ opts = {}, config, configPath, workDir = process.cwd(), realGit, orchestratorDir = orchDir } = {}) {
