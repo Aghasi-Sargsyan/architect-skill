@@ -1,10 +1,11 @@
 {
+  "runner": "claude",
   "agyBin": "agy",
   "executor": {
-    "model": "gemini-3.8-flash-high"
+    "model": "sonnet-high"
   },
   "architect": {
-    "model": "gemini-4-carbon-high"
+    "model": "opus-xhigh"
   },
   "commitLanguage": "en",
   "permissions": "allowlist",
