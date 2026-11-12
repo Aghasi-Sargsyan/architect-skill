@@ -93,7 +93,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; `check.test.mjs`, `cli*.test.mjs`, `install-check.test.mjs` stay green.
   - Verify: `node --test .agents/skills/architect/orchestrator/check-probe.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/install-check.test.mjs`
 
-- [ ] T-114: `--watch` / `--status` protocol matches the documentation
+- [x] T-114: `--watch` / `--status` protocol matches the documentation
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/feed-protocol.test.mjs`, `.agents/skills/architect/orchestrator/events.mjs` (`milestonesFromEvents`, lines 64–115), `.agents/skills/architect/orchestrator/feed.mjs` (`statusText`, `milestones`, `watch`, lines 170–195, 250–345), `.agents/skills/architect/orchestrator/feed.test.mjs`, `.agents/skills/architect/orchestrator/events.test.mjs`.
