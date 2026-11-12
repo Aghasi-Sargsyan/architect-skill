@@ -1,5 +1,5 @@
 // Self-update module: updates installed skill folder, syncs EXECUTOR.md, and refreshes git hooks.
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { lockHolder, which } from './guards.mjs';
 import { resolveSkillUpdateTargets } from './skill-targets.mjs';
 import { installCommitMsgHook } from './hooks.mjs';
+import { findUntrackedSkillFiles, installSkillAtomically } from './update-swap.mjs';
 import { DEFAULT_SKILL_REPO_URL, readSkillVersion, resolveLatestReleaseTag } from './update-tags.mjs';
 
 export { DEFAULT_SKILL_REPO_URL, UPDATE_CACHE_TTL_MS, readSkillVersion, checkSkillUpdateAvailable } from './update-tags.mjs';
@@ -84,6 +85,13 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
     }
   }
 
+  if (!force && g) {
+    const untracked = findUntrackedSkillFiles({ realGit: g, workDir, targets: targetDirs });
+    if (untracked.length > 0) {
+      throw new Error(`untracked files in the skill folder (${untracked.join(', ')}); move them out of the skill folder or re-run with --update --force`);
+    }
+  }
+
   const targetRef = ref ?? process.env.ARCHITECT_UPDATE_REF ?? null;
   let tag = null;
   if (!targetRef) {
@@ -122,24 +130,15 @@ export async function updateSkill({ workDir = process.cwd(), orchestratorDir, re
 
     const afterVersion = readSkillVersion(sourceSkillDir);
 
-    for (const dir of targetDirs) {
-      rmSync(dir, { recursive: true, force: true });
-      mkdirSync(path.dirname(dir), { recursive: true });
-      cpSync(sourceSkillDir, dir, {
-        recursive: true,
-        filter: (src) => !src.split(path.sep).includes('.git'),
-      });
-      writeFileSync(path.join(dir, '.version'), `${afterVersion} (${commitSha})\n`);
-    }
-
-    const rootExec = path.join(workDir, 'EXECUTOR.md');
-    if (existsSync(rootExec)) {
-      cpSync(execMd, rootExec);
-    }
-    const compactExec = path.join(workDir, '.architect', 'EXECUTOR.md');
-    if (existsSync(compactExec)) {
-      cpSync(execMd, compactExec);
-    }
+    const execCopies = [path.join(workDir, 'EXECUTOR.md'), path.join(workDir, '.architect', 'EXECUTOR.md')]
+      .filter((p) => existsSync(p))
+      .map((to) => ({ from: execMd, to }));
+    installSkillAtomically({
+      sourceDir: sourceSkillDir,
+      targets: targetDirs,
+      versionLine: `${afterVersion} (${commitSha})`,
+      files: execCopies,
+    });
 
     const hookResult = installCommitMsgHook({ workDir, realGit: g });
 
