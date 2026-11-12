@@ -51,7 +51,7 @@ test('askPermission writes the question into the control directory (mode 0700); 
   assert.equal(existsSync(path.join(runs, 'question.json')), false, 'no question file in the working tree');
   const pending = readPendingQuestion(workDir, home);
   assert.equal(pending.question.id, JSON.parse(readFileSync(qFile, 'utf8')).id);
-  assert.match(statusText(workDir, Date.now(), home), /waiting for an answer to a permission question/);
+  assert.match(statusText(workDir, Date.parse('2026-11-12T10:05:00.000Z'), home), /waiting for an answer to a permission question/);
   writeAnswer({ workDir, home, answer: '2' });
   assert.ok(existsSync(answerPath(workDir, home)), 'writeAnswer writes into the control directory');
   assert.equal(existsSync(path.join(runs, 'answer.json')), false);
