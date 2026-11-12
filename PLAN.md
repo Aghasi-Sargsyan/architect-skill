@@ -128,7 +128,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `isRecognizedCommand` — строго по JSDoc; пустая команда → `false` без исключения.
     - `questionText`: если `!isRecognizedCommand(question.command)`, сразу после строки `**Command:**` — пустая строка и `**Note:** the orchestrator does not recognize this command — check what it does before allowing it`; для распознанных команд текст побайтно прежний.
     - Прежние сообщения отказов не меняются; `permissions.mjs` ≤ 400 строк.
-  - Граничные случаи: обёртки перед `KEY=VALUE` (`nice`, `timeout 5`); `python3.12 -m pytest` разрешён, `python3.12 -c` — отказ; пустая команда в `isRecognizedCommand`; цикл импортов `ask.mjs` → `permissions.mjs` недопустим в обратную сторону.
+  - Граничные случаи: обёртки перед `KEY=VALUE` (`nice`, `timeout 5`); `python3.12 -m pytest` разрешён, `python3.12 -c` — отказ; пустая команда в `isRecognizedCommand`; цикл импортов `ask.mjs` → `permissions.mjs` недопустим в обратную сторону. Окружение: в песочнице раннера тесты через `installGuards` (`guards-runners`, `run`, `run-acceptance`, `adapters/index`, часть `audit-hardening` и `audit`) падают с `EPERM` на каталоге из `PATH` в домашней папке — и до правок тоже (так было в `T-101`…`T-103`). Снять базовый прогон в самом проекте до первой правки (не через `git worktree`), в отчёте сравнить «до/после» по именам тестов и закоммитить, если новых падений нет; оркестратор повторяет `Проверка` вне песочницы.
   - Тест-кейсы: `.agents/skills/architect/orchestrator/permissions-launchers.test.mjs`.
   - Готово, когда: все тесты `permissions-launchers.test.mjs` зелёные; регрессионные тесты из `Проверка` зелёные; модули ≤ 400 строк; нет пустых `catch` и обходов проверок.
   - Проверка:
