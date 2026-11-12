@@ -82,7 +82,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; `guards*.test.mjs`, `cli*.test.mjs`, `run.test.mjs`, `layout.test.mjs` stay green; `run.mjs` ≤ 370 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/run-lock.test.mjs .agents/skills/architect/orchestrator/guards.test.mjs .agents/skills/architect/orchestrator/guards-recovery.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs`
 
-- [ ] T-115: `--check` makes no live model call without `--probe`
+- [x] T-115: `--check` makes no live model call without `--probe`
   - Risk: high.
   - Depends on: T-112
   - Read: `.agents/skills/architect/orchestrator/check-probe.test.mjs`, `.agents/skills/architect/orchestrator/check.mjs` (`runCheckCommand`, lines ~346–372), `.agents/skills/architect/orchestrator/cli.mjs` (`parseArgs`, flag list at line ~42), `.agents/skills/architect/orchestrator/cli-dispatch.mjs` (lines ~150–160).
