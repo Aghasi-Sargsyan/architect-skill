@@ -39,7 +39,7 @@ test('T-037 (D5, S5): prompts.mjs generates English prompts without Cyrillic', (
   assert.doesNotMatch(autoRefusal, CYRILLIC_RE);
   assert.match(autoRefusal, /automatically rejected/i);
   assert.match(autoRefusal, /without the leading flag: git status/i);
-  assert.match(autoRefusal, /form of the command, not git itself/i);
+  assert.match(autoRefusal, /the command form, not to git itself/i); // C-45 (ADR-079): the repeated second sentence is gone
 
   const resumedAllowed = resumePrompt('executor', {
     command: 'git status',

@@ -155,7 +155,7 @@ else process.stdout.write(JSON.stringify({ status: 'SUCCESS', conversation_id: '
   assert.ok(!calls[0].includes('--conversation'));
   assert.deepEqual(calls.slice(1).map((a) => a[a.indexOf('--conversation') + 1]), ['conv-1', 'conv-1']);
   assert.match(calls[1][calls[1].indexOf('-p') + 1], /«cat a\.txt» в терминале запрещена|Terminal command "cat a\.txt" is denied/);
-  assert.match(calls[2][calls[2].indexOf('-p') + 1], /разрешили \(правило command\(npm run lint\)\)|was allowed \(rule command\(npm run lint\)\)/);
+  assert.match(calls[2][calls[2].indexOf('-p') + 1], /The user allowed the command \(added rule: command\(npm run lint\)\)/);
   const settings = JSON.parse(readFileSync(agySettingsPath(env.HOME), 'utf8'));
   assert.ok(settings.permissions.allow.includes('command(npm run lint)'));
   assert.ok(!settings.permissions.allow.some((r) => r.startsWith('command(cat')), 'cat is never added');
