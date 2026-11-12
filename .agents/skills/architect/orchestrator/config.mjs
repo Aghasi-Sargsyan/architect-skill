@@ -154,6 +154,17 @@ export function validateConfig(config) {
     const problem = commandProblem(expanded, blocked);
     if (problem) problems.push(`redCheckCommand: "${config.redCheckCommand}" — ${problem}`);
   }
+  if (config.redCheckConfirmPattern !== undefined) {
+    if (typeof config.redCheckConfirmPattern !== 'string') {
+      problems.push('Field redCheckConfirmPattern must be a string (JavaScript regular expression, empty = not set)');
+    } else if (config.redCheckConfirmPattern) {
+      try {
+        new RegExp(config.redCheckConfirmPattern, 'm');
+      } catch (err) {
+        problems.push(`redCheckConfirmPattern: "${config.redCheckConfirmPattern}" — not a regular expression (${errText(err)})`);
+      }
+    }
+  }
   if (!Number.isInteger(config.maxFixRounds) || config.maxFixRounds < 0) problems.push('maxFixRounds — integer ≥ 0');
   if (!Number.isInteger(config.maxPermissionPrompts) || config.maxPermissionPrompts < 0) {
     problems.push('maxPermissionPrompts — integer ≥ 0');

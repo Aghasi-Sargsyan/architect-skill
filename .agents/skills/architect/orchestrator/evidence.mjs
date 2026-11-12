@@ -2,11 +2,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, commitsSince } from './git.mjs';
-import { runTaskVerification } from './mechanics.mjs';
-import { parsePlan } from './plan.mjs';
 import { splitDiffByFiles } from './selfcheck.mjs';
-import { resolveEscalationResume } from './check.mjs';
-import { isHighRisk, isExecutableCodeFile, hasStructuralVerificationMarker } from './plan-validate.mjs';
+
+export { runRedCheck } from './red-check.mjs';
 
 const COUNTER_RE = /\b\d+\/\d+\s+PASS\b/;
 const EVAL_KEYWORD_RE = /(?:\b(?:evals?|live)\b|замер)/i;
@@ -23,31 +21,6 @@ function hasUnanchoredEvalCounter(str) {
   if (!COUNTER_RE.test(str) || !EVAL_KEYWORD_RE.test(str)) return false;
   const stripped = str.replace(new RegExp(VALID_EVAL_RE.source, 'g'), '');
   return COUNTER_RE.test(stripped) && EVAL_KEYWORD_RE.test(stripped);
-}
-
-function isFileNewOrModifiedSince(realGit, cwd, baseSha, file) {
-  const normFile = file.replace(/\\/g, '/').replace(/^\.\//, '');
-  const fullPath = path.join(cwd, normFile);
-  if (!existsSync(fullPath)) return false;
-
-  let existedAtBase = false;
-  try {
-    const treeOut = git(realGit, cwd, ['ls-tree', baseSha, normFile]);
-    existedAtBase = treeOut.trim().length > 0;
-  } catch {
-    existedAtBase = false;
-  }
-
-  if (!existedAtBase) {
-    return true;
-  }
-
-  try {
-    const diff = git(realGit, cwd, ['diff', '--name-only', baseSha, '--', normFile]);
-    return diff.trim().length > 0;
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -189,143 +162,5 @@ export function checkEvalEvidence({ realGit, cwd = process.cwd(), baseSha }) {
     ok: violations.length === 0,
     violations,
     notVerified,
-  };
-}
-
-/**
- * Runs reference tests for open high-risk tasks before Executor runs (red-check).
- */
-export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, config = {}, env = process.env }) {
-  const commits = commitsSince(realGit, cwd, baseSha);
-  const execCommit = commits.find((c) => /^T-\d+(?:\s*\(fix\s+\d+\))?:/.test(c.subject));
-  if (execCommit) {
-    return {
-      ok: true,
-      skipped: true,
-      reason: `Executor commit present in range (${execCommit.subject}): red-check skipped`,
-      violations: [],
-      notVerified: [],
-      checked: [],
-    };
-  }
-
-  let parsedPlan = plan;
-  if (!parsedPlan) {
-    const planCandidates = [config?.paths?.planPath, '.architect/PLAN.md', 'PLAN.md'].filter(Boolean);
-    for (const rel of planCandidates) {
-      const fullPath = path.join(cwd, rel);
-      if (existsSync(fullPath)) {
-        try {
-          parsedPlan = parsePlan(readFileSync(fullPath, 'utf8'));
-          break;
-        } catch (err) {
-          parsedPlan = null;
-          void err;
-        }
-      }
-      try {
-        parsedPlan = parsePlan(git(realGit, cwd, ['show', `HEAD:${rel}`]));
-        break;
-      } catch (err) {
-        parsedPlan = null;
-        void err;
-      }
-    }
-    if (!parsedPlan) {
-      parsedPlan = { tasks: [], frozen: [] };
-    }
-  }
-
-  for (const t of (parsedPlan.tasks ?? []).filter((task) => !task.done)) {
-    const resume = resolveEscalationResume({ realGit, workDir: cwd, task: t, layout: config?.paths });
-    if (resume.ok) {
-      return {
-        ok: true,
-        skipped: true,
-        reason: `resuming ${t.id} after escalation on dirty working tree: red-check skipped`,
-        violations: [],
-        notVerified: [],
-        checked: [],
-      };
-    }
-  }
-
-  const highRiskTasks = (parsedPlan.tasks ?? []).filter((t) => !t.done && isHighRisk(t.risk));
-
-  const checked = [];
-  const violations = [];
-  const notVerified = [];
-  const seenFiles = new Set();
-  const rawCmdTemplate = config?.redCheckCommand ?? 'node --test {file}';
-  const cmdTpl = typeof rawCmdTemplate === 'string' ? rawCmdTemplate.trim() : '';
-  const isDefaultNodeTest = /^node\s+--test(?:\s+\{file\})?$/.test(cmdTpl);
-
-  for (const task of highRiskTasks) {
-    if ((task.referenceTests ?? []).length === 0) {
-      if ((task.change ?? []).some(isExecutableCodeFile) && !hasStructuralVerificationMarker(task)) {
-        notVerified.push(`high-risk task ${task.id} has no frozen referenceTests in PLAN.md (NOT VERIFIED)`);
-        violations.push(`high-risk task ${task.id} with executable code in Change has no frozen referenceTests in PLAN.md`);
-      }
-      continue;
-    }
-    for (const file of task.referenceTests ?? []) {
-      const normFile = file.replace(/\\/g, '/').replace(/^\.\//, '');
-      if (seenFiles.has(normFile)) continue;
-      seenFiles.add(normFile);
-
-      if (!isFileNewOrModifiedSince(realGit, cwd, baseSha, normFile)) {
-        continue;
-      }
-
-      if (!cmdTpl || (isDefaultNodeTest && !/\.(?:m|c)?js$/i.test(normFile))) {
-        notVerified.push(`reference test ${normFile} red-check skipped: no suitable redCheckCommand configured (NOT VERIFIED)`);
-        continue;
-      }
-
-      const verifyCmd = cmdTpl.includes('{file}')
-        ? cmdTpl.replaceAll('{file}', normFile)
-        : `${cmdTpl} ${normFile}`;
-
-      const synthTask = {
-        id: task.id,
-        verifyCommands: [verifyCmd],
-      };
-      const res = runTaskVerification({
-        task: synthTask,
-        workDir: cwd,
-        env,
-        config,
-      });
-
-      if (res.kind === 'disallowed') {
-        violations.push(`reference test ${normFile} command disallowed: ${res.reason}`);
-      } else if (res.kind === 'timeout') {
-        violations.push(`reference test ${normFile} timed out`);
-      } else if (res.ok || res.kind === 'passed') {
-        violations.push(`reference test ${normFile} passed with exit 0 (green before implementation) — expected red`);
-      } else {
-        const output = res.outputTail ?? '';
-        if (/ERR_MODULE_NOT_FOUND/.test(output)) {
-          violations.push(`reference test ${normFile} failed to load (ERR_MODULE_NOT_FOUND): ${output.slice(-200)}`);
-        } else if (/SyntaxError/.test(output)) {
-          violations.push(`reference test ${normFile} has syntax error (SyntaxError): ${output.slice(-200)}`);
-        } else {
-          checked.push({
-            file,
-            status: 'red',
-            exitCode: res.exitCode ?? 1,
-            outputTail: res.outputTail,
-          });
-        }
-      }
-    }
-  }
-
-  return {
-    ok: violations.length === 0,
-    skipped: false,
-    violations,
-    notVerified,
-    checked,
   };
 }

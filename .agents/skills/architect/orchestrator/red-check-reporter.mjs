@@ -1,4 +1,6 @@
-// node --test reporter for the red-check (ADR-073, C-34). Stub committed with the Cycle 37 plan.
+// node --test reporter for the red-check (ADR-073, C-34): separates failed test cases from failures of the whole file.
+
+const MAX_MESSAGE = 200;
 
 /**
  * Custom `node --test` reporter (async generator over test-runner events, no dependencies).
@@ -14,6 +16,26 @@
  * @param {AsyncIterable<{ type: string, data: object }>} source
  * @returns {AsyncGenerator<string>}
  */
-export default async function* redCheckReporter(_source) {
-  throw new Error('Not implemented');
+export default async function* redCheckReporter(source) {
+  const caseFailures = [];
+  const otherFailures = [];
+  for await (const event of source) {
+    if (event.type !== 'test:fail') continue;
+    const error = event.data?.details?.error;
+    const failureType = error?.failureType;
+    if (failureType === 'subtestsFailed') continue;
+    const name = event.data?.name;
+    const cause = error?.cause;
+    if (failureType === 'testCodeFailure' && typeof cause === 'object' && cause !== null) {
+      caseFailures.push({
+        name,
+        errorName: cause.name ?? 'Error',
+        code: cause.code ?? null,
+        message: String(cause.message ?? error.message ?? '').slice(0, MAX_MESSAGE),
+      });
+    } else {
+      otherFailures.push({ name, failureType, message: String(error?.message ?? '').slice(0, MAX_MESSAGE) });
+    }
+  }
+  yield `ARCHITECT_RED_CHECK ${JSON.stringify({ caseFailures, otherFailures })}\n`;
 }
