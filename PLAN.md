@@ -76,7 +76,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed existing tests and the `T-120` / `T-121` reference tests stay green.
   - Verify: `node --test .agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs .agents/skills/architect/orchestrator/red-check.test.mjs .agents/skills/architect/orchestrator/selfcheck-base.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/selfcheck-range.test.mjs .agents/skills/architect/orchestrator/evidence.test.mjs .agents/skills/architect/orchestrator/stack-config.test.mjs .agents/skills/architect/orchestrator/plan-gates.test.mjs .agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs`
 
-- [ ] T-123: WAIVER narrowed to its rule and commit; Frozen masks in the self-check
+- [x] T-123: WAIVER narrowed to its rule and commit; Frozen masks in the self-check
   - Risk: high.
   - Depends on: T-122
   - Read: `.agents/skills/architect/orchestrator/waivers.test.mjs`, `.agents/skills/architect/orchestrator/waivers.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`parseWaivers`, `collectFrozen`, `isProtected`, fix-frozen section), `.agents/skills/architect/orchestrator/monotonicity.mjs` (`checkTestMonotonicity`), `.agents/skills/architect/orchestrator/plan.mjs` (`matchesFrozenPath`, lines 18–34), `.agents/skills/architect/orchestrator/run.mjs` (lines 24 and 326), `.agents/skills/architect/orchestrator/selfcheck-range.test.mjs` (C-10, lines 105–133).
