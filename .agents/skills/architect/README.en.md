@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.48 / 1.8 -->
-# Architect + Executor Skill (`v3.47 / 1.8`)
+<!-- skill-readme-sync: v3.49 / 1.8 -->
+# Architect + Executor Skill (`v3.49 / 1.8`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
@@ -43,6 +43,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 - **Frozen Files (`## Frozen`):** Top-level backticked paths (`- \`path\`` or globs `dir/*`, `dir/**`), reference tests (`*.test.*`) for high-risk code tasks, `EXECUTOR.md`, and the skill's own markdown files (`SKILL*.md`, `references/**`) cannot be modified by the Executor — enforced by prompt rules, `plan-validate.mjs`, and `mechanics.mjs`.
 - **Four-Layer Push & Path Guards (`guards.mjs`, `runners.mjs`):** While `AGENT_LOOP=1`, `PATH` shims, `.git/hooks/pre-push`, and `remote.<name>.pushurl` block `git push`, forbidden scripts, history rewrites, and reading files outside `workDir`.
 - **Zero Tolerance for Check Bypassing:** `mechanics.mjs` and `--self-check` scan diffs for `: any`, `as any`, `@ts-ignore`, `@ts-expect-error`, `.skip(`, `.only(`, deleted tests, `git commit --no-verify`, global prototype mutations, or silent `catch {}`.
+- **Whole-Task Checks & Orchestrator Acceptance (`task-range.mjs`, `accept.mjs`):** Checks cover every commit of a task since its base, so a restart never hides an earlier violation; in the loop the Architect review is read-only, and the orchestrator itself marks `[x]` and commits `arch: accept T-NNN`.
 
 ---
 
