@@ -340,7 +340,7 @@ export function readiness({ config, workDir, realGit, only = null, settingsPath 
 }
 
 /** Runs every check and prints ✓ / ✗ lines. @returns {Promise<boolean>} true when all passed */
-export async function runCheckCommand({ config, workDir, realGit, settingsPath = null, print = console.log }) {
+export async function runCheckCommand({ config, workDir, realGit, settingsPath = null, probe = false, print = console.log }) {
   const adapter = getAdapter(config);
   const resolvedSettings = settingsPath ?? adapter.permissions.settingsPath(os.homedir(), workDir);
   const results = [...localChecks({ config, workDir, realGit })];
@@ -358,12 +358,13 @@ export async function runCheckCommand({ config, workDir, realGit, settingsPath =
   const allOk = results.every((r) => r.ok);
   if (config.permissions !== 'allowlist') print('– permission probe: skipped (permissions is not "allowlist")');
   else if (!allOk) print('– permission probe: skipped — fix the ✗ items above first');
+  else if (!probe) print('– permission probe: skipped (a live model call; run --check --probe to check the permissions end to end)');
   else {
     print('… permission probe: one short Executor run (git status, git rev-parse, file write and edit in .agent-runs/)');
-    const probe = await probePermissions({ config, workDir, realGit });
-    for (const note of probe.notes) print(`– ${note}`);
-    print(`${probe.ok ? '✓' : '✗'} ${probe.name}: ${probe.detail}`);
-    return probe.ok;
+    const res = await probePermissions({ config, workDir, realGit });
+    for (const note of res.notes) print(`– ${note}`);
+    print(`${res.ok ? '✓' : '✗'} ${res.name}: ${res.detail}`);
+    return res.ok;
   }
   return allOk;
 }

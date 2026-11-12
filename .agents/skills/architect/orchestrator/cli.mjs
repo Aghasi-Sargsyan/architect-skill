@@ -34,12 +34,12 @@ export function parseArgs(argv) {
     configPath: null, pause: false, only: null, dryRun: false, init: false, check: false, writePermissions: false,
     background: false, answer: null, watch: null, since: null, status: false, follow: false, selfCheck: false, base: null,
     auditPlan: false, checkTask: null, installHooks: false, team: false, update: false, force: false,
-    models: false, setModel: null, local: false, compact: false, repair: false, stop: false,
+    models: false, setModel: null, local: false, compact: false, repair: false, stop: false, probe: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update', '--models', '--compact', '--repair', '--stop'].includes(a)) {
+    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update', '--models', '--compact', '--repair', '--stop', '--probe'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
     } else if (a === '--team') { opts.team = true; } else if (a === '--force') { opts.force = true; } else if (a === '--local') { opts.local = true;
     } else if (a === '--set-model') {

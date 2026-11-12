@@ -161,7 +161,7 @@ export async function dispatchCliSubcommand({
   }
 
   if (opts.check) {
-    const ok = await runCheckCommand({ config, workDir, realGit });
+    const ok = await runCheckCommand({ config, workDir, realGit, probe: opts.probe });
     if (!ok) {
       process.exitCode = 1;
     }
