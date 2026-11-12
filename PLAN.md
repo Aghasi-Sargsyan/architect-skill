@@ -87,7 +87,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/check-en.test.mjs .agents/skills/architect/orchestrator/skill-path.test.mjs .agents/skills/architect/orchestrator/guards-shim-speed.test.mjs .agents/skills/architect/orchestrator/permissions-launchers.test.mjs .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
 
-- [ ] T-107: Shim-файлы в управляющем каталоге, их хэши, оверлеи в слепке; чтение каталога shim для `claude`
+- [x] T-107: Shim-файлы в управляющем каталоге, их хэши, оверлеи в слепке; чтение каталога shim для `claude`
   - Риск: высокий.
   - Зависит от: T-106.
   - Читать: `.agents/skills/architect/orchestrator/guards-control-dir.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude-permissions.test.mjs`, `.agents/skills/architect/orchestrator/control-dir.mjs`, `.agents/skills/architect/orchestrator/guards.mjs` (символы `GUARDED_UNTRACKED_FILES`, `installGuards`, `verifyGuards`), `.agents/skills/architect/orchestrator/run.mjs` (строки 100–126), `.agents/skills/architect/orchestrator/adapters/claude.mjs` (строки 1–200 и 385–397), `.agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs` (проверка `<= 400` строк для `adapters/claude.mjs`).
