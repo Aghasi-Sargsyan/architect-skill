@@ -90,7 +90,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/audit-hardening.test.mjs .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/escalation-resume.test.mjs .agents/skills/architect/orchestrator/evals-fixtures.test.mjs .agents/skills/architect/orchestrator/mechanics-verify.test.mjs .agents/skills/architect/orchestrator/audit.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/guards-runners.test.mjs .agents/skills/architect/orchestrator/adapters/index.test.mjs .agents/skills/architect/orchestrator/run-acceptance.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
 
-- [ ] T-103: Git-shim на git-политике: модуль `git-shim.mjs`
+- [x] T-103: Git-shim на git-политике: модуль `git-shim.mjs`
   - Риск: высокий.
   - Зависит от: T-102.
   - Читать: `.agents/skills/architect/orchestrator/git-shim-policy.test.mjs`, `.agents/skills/architect/orchestrator/guards.mjs` (строки 1–185 и 296–347), `.agents/skills/architect/orchestrator/runners.mjs` (символ `pathCheckSnippet`), `.agents/skills/architect/orchestrator/events.mjs` (символ `isGuardShimFile`), `.agents/skills/architect/orchestrator/git-policy.mjs` (JSDoc `runGitPolicyCli`).
