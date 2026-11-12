@@ -1,11 +1,9 @@
-// CLI handler for --write-permissions: writes allowlist and prunes unsafe or cross-project rules.
+// CLI handler for --write-permissions: writes the allowlist; claude prunes unsafe rules (archived), agy never removes any.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getAdapter } from './adapters/index.mjs';
 import { maskPaths, realOrResolved } from './permissions.mjs';
-
-const FILE_RULE_RE = /^(?:write_file|read_file|Edit|Write|Read)\(/;
 
 export function handleWritePermissionsCli({ config, workDir, home = os.homedir(), log = console.log }) {
   const adapter = getAdapter(config);
@@ -29,8 +27,7 @@ export function handleWritePermissionsCli({ config, workDir, home = os.homedir()
   const added = [...addedAllow, ...addedDeny.map((r) => `deny ${r}`)];
 
   let prunedArchivePath = null;
-  const prunedFileRules = removedAllow.filter((r) => FILE_RULE_RE.test(r));
-  if (prunedFileRules.length > 0) {
+  if (removedAllow.length > 0) {
     prunedArchivePath = `${settingsPath}.pruned.json`;
     let prevRules = [];
     if (existsSync(prunedArchivePath)) {
@@ -42,7 +39,7 @@ export function handleWritePermissionsCli({ config, workDir, home = os.homedir()
         prevRules = [];
       }
     }
-    const mergedRules = [...new Set([...prevRules, ...prunedFileRules])];
+    const mergedRules = [...new Set([...prevRules, ...removedAllow])];
     writeFileSync(prunedArchivePath, `${JSON.stringify({ rules: mergedRules }, null, 2)}\n`, { mode: 0o600 });
   }
 
@@ -57,7 +54,7 @@ export function handleWritePermissionsCli({ config, workDir, home = os.homedir()
     log(`• ${adapter.permissions.settingsShown}: ${summary.join(', ')}${backupNotice}${origNotice}`);
     for (const rule of added) log(`    ${maskPaths(rule, ctx)}`);
     for (const rule of removedAllow) log(`    - ${maskPaths(rule, ctx)}`);
-    if (prunedArchivePath) log(`  archived cross-project file rules to ${maskPaths(prunedArchivePath, ctx)}`);
+    if (prunedArchivePath) log(`  archived removed rules to ${maskPaths(prunedArchivePath, ctx)}`);
   }
 
   const perm = adapter.permissions.check({ config, settingsPath, workDir: realWork, home: realHome });
