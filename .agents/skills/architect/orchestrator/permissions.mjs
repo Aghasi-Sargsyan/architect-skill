@@ -134,6 +134,17 @@ export function commandProblem(command, blockedScripts = []) {
 export const SUBCOMMAND_TOOLS = new Set(['git', 'npm', 'npx', 'pnpm', 'yarn', 'bun', 'make', 'just', 'cargo', 'go', 'uv', 'poetry', 'pipenv', 'dotnet', 'composer', 'bundle', 'mix', 'gradle', 'mvn']);
 export const STANDALONE_TOOLS = new Set(['pytest', 'ruff', 'mypy', 'flake8', 'black', 'isort', 'pyright', 'eslint', 'prettier', 'tsc', 'vitest', 'jest', 'playwright', 'golangci-lint', 'clippy', 'ls', 'grep']);
 
+/**
+ * CONTRACT: does the orchestrator know this kind of command? After unwrapTokens, the binary (binName) is
+ * in SUBCOMMAND_TOOLS or STANDALONE_TOOLS, is the first word of a BASE_COMMANDS entry, or is python / python3.
+ * Used by questionText (ask.mjs) to mark a permission question about an unknown command.
+ * @param {string} command
+ * @returns {boolean}
+ */
+export function isRecognizedCommand(command) {
+  throw new Error('Not implemented');
+}
+
 export function suggestAllowedCommand(command, blockedScripts = [], optsOrWorkDir = {}) {
   const workDir = typeof optsOrWorkDir === 'string' ? optsOrWorkDir : (optsOrWorkDir?.workDir ?? null);
   if (!workDir) return null;

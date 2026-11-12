@@ -249,3 +249,31 @@ export function writeAnswer({ workDir, answer }) {
   writeAtomic(answerPath(workDir), `${JSON.stringify({ id: question.id, answer, at: new Date().toISOString() })}\n`);
   return question;
 }
+
+/**
+ * CONTRACT: the permission question the running loop waits on. Read-only.
+ * - no `<workDir>/.agent-runs/question.json` → `{ question: null, stale: false }`;
+ * - the file exists but lockHolder(`<workDir>/.agent-runs`) is null (no lock or a dead PID) →
+ *   `{ question: null, stale: true }` — the file is left in place;
+ * - live holder, but the file is not JSON, or not an object with a string `id`, a string `command` and an
+ *   `options` array whose every item is an object with a string `answer` →
+ *   `{ question: null, stale: false, error: '<one-line reason>' }`;
+ * - otherwise `{ question: <parsed object>, stale: false }`.
+ * @param {string} workDir
+ * @returns {{ question: object | null, stale: boolean, error?: string }}
+ */
+export function readPendingQuestion(workDir) {
+  throw new Error('Not implemented');
+}
+
+/**
+ * CONTRACT: `--answer <n>` from the CLI. Throws unless readPendingQuestion(workDir) returns a question:
+ * error → message contains `cannot be read` and the reason; stale → contains `is not asking anything` and
+ * `not running`; no question → contains `is not asking anything`. Then delegates to writeAnswer (same return
+ * value and the same error for an answer that is not one of the options). Writes nothing when it throws.
+ * @param {{ workDir: string, answer: string }} args
+ * @returns {object} the question
+ */
+export function submitAnswer({ workDir, answer }) {
+  throw new Error('Not implemented');
+}

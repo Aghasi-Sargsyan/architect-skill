@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as layoutMod from './layout.mjs';
 import { architectPrompt } from './prompts.mjs';
-import { askPermission } from './ask.mjs';
+import { askPermission, writeAnswer } from './ask.mjs';
 import { runSelfCheckGit } from './selfcheck.mjs';
 import { which } from './guards.mjs';
 
@@ -95,13 +95,10 @@ test('T-051: askPermission hint and selfcheck.mjs config.example.json monotonici
     mkdirSync(claudeOrchDir, { recursive: true });
     mkdirSync(runDir, { recursive: true });
 
-    // Pre-write answer.json so askPermission resolves immediately after logging the hint
+    // Answer right after the question is written: its id gets a random suffix (C-13), so an answer written in advance never matches
     const logs = [];
     const qId = 'q-claude-1';
-    writeFileSync(
-      path.join(tmp, '.agent-runs', 'answer.json'),
-      JSON.stringify({ id: qId, answer: '2' }),
-    );
+    setTimeout(() => writeAnswer({ workDir: tmp, answer: '2' }), 30);
     const ans = await askPermission(
       {
         id: qId,

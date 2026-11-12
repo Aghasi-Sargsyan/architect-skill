@@ -62,6 +62,7 @@ test('--watch: a question → exit 2 at once; no loop after the grace period →
   writeFileSync(path.join(run, 'summary.md'), '■ Стоп: T-001: принята (--only)\n');
   const stopped = await watch({ workDir: dir, minutes: 1, pollMs: 10, graceMs: 50 });
   assert.deepEqual(stopped, { code: 3, text: '■ Стоп: T-001: принята (--only)' });
+  writeFileSync(path.join(runs, '.lock'), String(process.pid)); // a question counts only while its loop is alive (C-17)
   writeFileSync(path.join(runs, 'question.json'), JSON.stringify({ id: 'q', who: 'Исполнитель', taskId: 'T-001', command: 'pnpm test', options: [{ answer: '2', rule: 'pnpm test' }] }));
   const asked = await watch({ workDir: dir, minutes: 1, pollMs: 10, graceMs: 50 });
   assert.equal(asked.code, 2);
