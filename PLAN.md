@@ -103,7 +103,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed tests stay green; `check.mjs` and `config.mjs` are ≤ 400 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/audit-removal.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/config.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs .agents/skills/architect/orchestrator/stack-config.test.mjs .agents/skills/architect/orchestrator/team-config.test.mjs .agents/skills/architect/orchestrator/plan-gates.test.mjs .agents/skills/architect/orchestrator/install-check.test.mjs tests/repo-install.test.mjs`
 
-- [ ] T-129: Claude Code flag check, single-phrase prompts, and the --dry-run prompt file
+- [x] T-129: Claude Code flag check, single-phrase prompts, and the --dry-run prompt file
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/runner-hygiene.test.mjs`, `.agents/skills/architect/orchestrator/adapters/claude.mjs` (`checkClaudeEnv`, `runClaudeAgent` args, lines 117–155), `.agents/skills/architect/orchestrator/prompts.mjs` (lines 24–70), `.agents/skills/architect/orchestrator/run.mjs` (lines 58–85).
