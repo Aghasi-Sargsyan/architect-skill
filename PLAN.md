@@ -46,7 +46,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-105: Поиск бинарников: `EPERM`/`EACCES` как «нет в каталоге», настоящий `git` только вне проекта
+- [x] T-105: Поиск бинарников: `EPERM`/`EACCES` как «нет в каталоге», настоящий `git` только вне проекта
   - Риск: высокий.
   - Зависит от: —.
   - Читать: `.agents/skills/architect/orchestrator/find-executable.test.mjs`, `.agents/skills/architect/orchestrator/events.mjs` (символы `isGuardShimFile`, `findExecutable`), `.agents/skills/architect/orchestrator/guards.mjs` (строки 1–55), `.agents/skills/architect/orchestrator/run.mjs` (строки 1–45), `.agents/skills/architect/orchestrator/cli-exit-codes.test.mjs` (тест `C-06`).
