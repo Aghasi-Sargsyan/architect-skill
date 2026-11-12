@@ -41,14 +41,14 @@ export function cleanShimPath(p = process.env.PATH ?? '', candidate = null) {
 
 process.env.PATH = cleanShimPath(process.env.PATH);
 
-export function which(bin, envPath = process.env.PATH) {
-  const p = findExecutable(bin, envPath);
+export function which(bin, envPath = process.env.PATH, opts) {
+  const p = findExecutable(bin, envPath, opts);
   if (p) return p;
   throw new Error(`binary not found in PATH: ${bin}`);
 }
 
-export function whichOptional(bin, envPath = process.env.PATH) {
-  return findExecutable(bin, envPath) ?? '';
+export function whichOptional(bin, envPath = process.env.PATH, opts) {
+  return findExecutable(bin, envPath, opts) ?? '';
 }
 
 export function defaultSandboxRoot() {

@@ -35,7 +35,7 @@ async function main() {
   // An agent inside the loop must not start another loop or touch the permission settings.
   if (process.env.AGENT_LOOP === '1') throw new Error('orchestrator cannot be run from inside the agent loop (AGENT_LOOP=1)');
   const configPath = resolveConfigPath({ workDir: process.cwd(), configPath: opts.configPath, init: opts.init });
-  const realGit = which('git');
+  const realGit = which('git', process.env.PATH, { excludeUnder: [process.cwd()] });
   const sub = await dispatchCliSubcommand({
     opts,
     configPath,

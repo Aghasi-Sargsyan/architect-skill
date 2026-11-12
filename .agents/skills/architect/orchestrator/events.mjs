@@ -1,5 +1,5 @@
 // Structured event log (.agent-runs/<run>/events.jsonl), cross-platform binary lookup, and privacy-safe notifications.
-import { appendFileSync, closeSync, existsSync, openSync, readFileSync, readSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, openSync, readFileSync, readSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -92,15 +92,41 @@ export function milestonesFromEvents(events) {
   return out;
 }
 
-export function findExecutable(bin, envPath = process.env.PATH) {
+// EPERM/EACCES (an unreadable directory, e.g. under an OS sandbox) mean "nothing here"; any other error is thrown (fail-closed).
+function statIfReadable(file) {
+  try {
+    return statSync(file, { throwIfNoEntry: false });
+  } catch (err) {
+    if (err?.code === 'EPERM' || err?.code === 'EACCES') return undefined;
+    throw err;
+  }
+}
+
+function realOrResolvedDir(dir) {
+  try {
+    return realpathSync(dir);
+  } catch (err) {
+    if (err?.code === 'ENOENT' || err?.code === 'ENOTDIR' || err?.code === 'EPERM' || err?.code === 'EACCES') return path.resolve(dir);
+    throw err;
+  }
+}
+
+function isUnderAny(dir, roots) {
+  const real = realOrResolvedDir(dir);
+  return roots.some((root) => real === root || real.startsWith(root.endsWith(path.sep) ? root : root + path.sep));
+}
+
+export function findExecutable(bin, envPath = process.env.PATH, { excludeUnder = [] } = {}) {
   if (!bin || typeof bin !== 'string') return null;
   if (path.isAbsolute(bin) || bin.includes('/') || (path.sep === '\\' && bin.includes('\\'))) {
-    const st = statSync(bin, { throwIfNoEntry: false });
+    const st = statIfReadable(bin);
     return st && st.isFile() && (st.mode & 0o111) !== 0 ? bin : null;
   }
+  const excluded = excludeUnder.map(realOrResolvedDir);
   const dirs = String(envPath ?? '').split(path.delimiter);
   for (const dir of dirs) {
     if (!dir) continue;
+    if (excluded.length > 0 && isUnderAny(dir, excluded)) continue;
     const gitFile = path.join(dir, 'git');
     if (isGuardShimFile(gitFile)) {
       continue;
@@ -109,7 +135,7 @@ export function findExecutable(bin, envPath = process.env.PATH) {
     if (isGuardShimFile(candidate)) {
       continue;
     }
-    const st = statSync(candidate, { throwIfNoEntry: false });
+    const st = statIfReadable(candidate);
     if (st && st.isFile() && (st.mode & 0o111) !== 0) return candidate;
   }
   return null;
