@@ -104,7 +104,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; `feed.test.mjs`, `feed-en.test.mjs`, `events.test.mjs`, `events-en.test.mjs` stay green; `feed.mjs` ≤ 396 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/feed-protocol.test.mjs .agents/skills/architect/orchestrator/feed.test.mjs .agents/skills/architect/orchestrator/feed-en.test.mjs .agents/skills/architect/orchestrator/events.test.mjs .agents/skills/architect/orchestrator/events-en.test.mjs`
 
-- [ ] T-116: Test suite stable under load: no real-time limits, no nested full-suite run
+- [x] T-116: Test suite stable under load: no real-time limits, no nested full-suite run
   - Risk: medium.
   - Depends on: T-112
   - Read: `.agents/skills/architect/orchestrator/packaging-clean.test.mjs` (lines 40–95), `.agents/skills/architect/orchestrator/evals-permissions.test.mjs` (lines ~60–95), `.agents/skills/architect/orchestrator/adapters/agy-parse.test.mjs` (lines ~90–135), `.agents/skills/architect/orchestrator/mechanics-frozen.test.mjs` (lines ~150–190), `.agents/skills/architect/orchestrator/check.test.mjs` (probe tests), `.agents/skills/architect/orchestrator/run.test.mjs` (the `--background` lock test).
