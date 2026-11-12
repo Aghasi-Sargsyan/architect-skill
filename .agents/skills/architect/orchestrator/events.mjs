@@ -163,6 +163,15 @@ export function resolveWebhookUrl({ env = process.env, home = os.homedir(), webh
   return null;
 }
 
+/** One line naming the channels a question or stop can reach the person through; never the webhook URL. */
+export function deliveryChannels({ config, env = process.env, home = os.homedir(), webhookFile, platform = process.platform } = {}) {
+  const parts = ['questions reach the chat only through --watch'];
+  if (!config?.notify) return [...parts, 'notifications: off'].join('; ');
+  if (platform === 'darwin') parts.push('macOS notification: on (delivery is not confirmed by macOS)');
+  parts.push(resolveWebhookUrl({ env, home, webhookFile }) ? 'webhook: configured' : 'webhook: not configured');
+  return parts.join('; ');
+}
+
 export function classifyStopReason(stopReason = '') {
   const str = String(stopReason ?? '');
   const m = str.match(/^(T-\d+):/);
@@ -273,6 +282,7 @@ export async function sendNotification({
         execFileSync('/usr/bin/osascript', ['-e', `display notification ${JSON.stringify(text)} with title ${JSON.stringify(title)}`]);
       }
       osascriptSent = true;
+      log?.('notification: macOS sent');
     } catch (err) {
       log?.(`notification not sent: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -280,6 +290,7 @@ export async function sendNotification({
   let webhookSent = false;
   let webhookBody = null;
   const url = resolveWebhookUrl({ env, home, webhookFile });
+  if (!url) log?.('webhook: not configured');
   if (url && typeof fetchFn === 'function') {
     const classified = classifyStopReason(text);
     const body = formatWebhookBody({
@@ -297,6 +308,7 @@ export async function sendNotification({
         body,
       });
       webhookSent = true;
+      log?.('webhook: sent');
     } catch (err) {
       log?.(`webhook not sent: ${err instanceof Error ? err.message : String(err)}`);
     }

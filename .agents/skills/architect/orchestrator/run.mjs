@@ -1,7 +1,6 @@
 // Orchestrator: Executor → mechanical checks → Architect review, one PLAN.md task at a time. Never pushes.
 // Usage: node run.mjs [config.json] [--init | --write-permissions | --check | --dry-run | --background] [--pause] [--only T-NNN]
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,6 +25,7 @@ import { parseWaivers } from './selfcheck.mjs';
 import { resolveTaskBase, checkTaskRange, checkResumedTask, formatRangeSummary } from './task-range.mjs';
 import { checkTestMonotonicity } from './monotonicity.mjs';
 import { commitAcceptance } from './accept.mjs';
+import { startBackground } from './background.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -89,16 +89,11 @@ async function main() {
   if (!fastSc.ok) throw new Error(`not ready to start:\n${fastSc.violations.map((v) => `✗ self-check: ${v}`).join('\n')}`);
 
   if (opts.background) {
-    // The detached child gets the same arguments without --background and takes the lock itself;
-    // the parent never holds the lock and closes its copy of the log descriptor, so it exits at once.
-    mkdirSync(runsDir, { recursive: true });
-    const logName = `background-${stamp()}.log`;
-    const fd = openSync(path.join(runsDir, logName), 'a');
+    // The detached child gets the same arguments without --background and takes the lock itself.
     const args = process.argv.slice(2).filter((a) => a !== '--background');
-    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), ...args], { cwd: process.cwd(), env: process.env, detached: true, stdio: ['ignore', fd, fd] });
-    closeSync(fd);
-    child.unref();
-    console.log(`• loop started in background (pid ${child.pid}); output — ${RUNS_DIR}/${logName}; summary — ${RUNS_DIR}/<time>/summary.md${config.notify ? ' and macOS notification' : ''}`);
+    const res = await startBackground({ workDir, runsDir, args, scriptPath: fileURLToPath(import.meta.url), config });
+    console.log(res.text);
+    if (!res.ok) process.exitCode = 1;
     return;
   }
 
