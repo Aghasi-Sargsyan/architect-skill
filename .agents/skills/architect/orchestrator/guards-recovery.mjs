@@ -2,6 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { readLockOwner } from './run-lock.mjs';
 
 const DISABLED_PUSH_URL = '/dev/null/agent-loop-push-disabled';
 const HOOK_MARKER = '# agent-loop guard hook';
@@ -62,16 +63,8 @@ export function guardsJournalPath(workDir, realGit = null) {
 
 function activeLoopPid(workDir, gitDir = null, realGit = null) {
   for (const dir of candidateLockDirs(workDir, gitDir, realGit)) {
-    const lock = path.join(dir, RUNS_DIR, '.lock');
-    if (!existsSync(lock)) continue;
-    const pid = Number(readFileSync(lock, 'utf8').trim());
-    if (!Number.isInteger(pid) || pid <= 0) continue;
-    try {
-      process.kill(pid, 0);
-      return pid;
-    } catch (err) {
-      if (err instanceof Error && 'code' in err && err.code === 'EPERM') return pid;
-    }
+    const owner = readLockOwner(path.join(dir, RUNS_DIR));
+    if (owner?.alive) return owner.pid;
   }
   return null;
 }

@@ -10,6 +10,7 @@ import { readPlan, nextTask } from './plan.mjs';
 import { git, head, commitsSince } from './git.mjs';
 import { checkExecutorRun, checkArchitectRun, inspectFailedExecutorTurn, runTaskVerification } from './mechanics.mjs';
 import { acquireLock, freshShimDir, installGuards, which } from './guards.mjs';
+import { installStopHandlers } from './run-lock.mjs';
 import { RUNS_DIR } from './config.mjs';
 import { resolveConfigPath, reviewFilePath, skillFilePath } from './layout.mjs';
 import { EMPTY_CHANGE, UNPARSED_VERIFY, modelResolver, readiness, resolveEscalationResume } from './check.mjs';
@@ -124,7 +125,7 @@ async function main() {
     cleaned = true;
     clearQuestion(workDir); guards.restore(); releaseLock();
   };
-  for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { cleanup(); process.exit(130); });
+  installStopHandlers({ cleanup });
 
   // One agent run. A denied command does not end it: unsafe commands get an automatic «no», others are asked
   // about (terminal or --answer); either way the same conversation continues, at most maxPermissionPrompts times.

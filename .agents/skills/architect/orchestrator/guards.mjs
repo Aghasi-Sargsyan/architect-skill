@@ -14,6 +14,7 @@ import { PATH_GUARDED_TOOLS, writePathShims, writeRunnerShims } from './runners.
 import { findExecutable, isGuardShimFile } from './events.mjs';
 import { clearGuardsJournal, writeGuardsJournal } from './guards-recovery.mjs';
 import { shQuote, writeGitShim } from './git-shim.mjs';
+import { acquireRunLock, readLockOwner } from './run-lock.mjs';
 
 export { unwrapGit, writeGitShim } from './git-shim.mjs';
 
@@ -145,27 +146,13 @@ export function disablePushUrls({ workDir, realGit }) {
 
 /** PID of a live loop holding the lock in the runs directory, or null (no lock or a stale one). */
 export function lockHolder(runsDir) {
-  const lock = path.join(runsDir, '.lock');
-  if (!existsSync(lock)) return null;
-  const pid = Number(readFileSync(lock, 'utf8').trim());
-  if (!Number.isInteger(pid) || pid <= 0) return null;
-  try {
-    process.kill(pid, 0);
-    return pid;
-  } catch (err) {
-    // ESRCH: no such process → stale lock from a crashed run; EPERM: the process exists.
-    return err instanceof Error && 'code' in err && err.code === 'EPERM' ? pid : null;
-  }
+  const owner = readLockOwner(runsDir);
+  return owner?.alive ? owner.pid : null;
 }
 
-/** One loop per working tree. The lock lives in the git-ignored runs directory. */
+/** One loop per working tree. The lock lives in the git-ignored runs directory (atomic, see run-lock.mjs). */
 export function acquireLock(runsDir) {
-  mkdirSync(runsDir, { recursive: true });
-  const lock = path.join(runsDir, '.lock');
-  const pid = lockHolder(runsDir);
-  if (pid !== null) throw new Error(`loop is already running (PID ${pid}, ${lock})`);
-  writeFileSync(lock, String(process.pid));
-  return () => rmSync(lock, { force: true });
+  return acquireRunLock(runsDir);
 }
 
 /** SHA-256 of every entry directly in the shim directory; an entry that is not a regular file gets a fixed label. */

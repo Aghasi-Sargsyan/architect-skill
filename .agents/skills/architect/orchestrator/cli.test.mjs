@@ -186,3 +186,25 @@ test('T-049: run.mjs delegates parseArgs to cli.mjs, both files stay <= 400 line
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('T-112: parseArgs parses --stop (default false) and keeps it exclusive with the other modes', () => {
+  assert.equal(parseArgs(['--stop']).stop, true);
+  assert.equal(parseArgs([]).stop, false);
+  assert.throws(() => parseArgs(['--stop', '--check']), /only one/i);
+});
+
+test('T-112: the --stop dispatch with no running loop prints "no running loop" and exits with code 1', () => {
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 't112-stop-')));
+  try {
+    const dispatchUrl = new URL('./cli-dispatch.mjs', import.meta.url).href;
+    const script = `import { dispatchCliSubcommand } from ${JSON.stringify(dispatchUrl)};
+const sub = await dispatchCliSubcommand({ opts: { stop: true }, configPath: 'unused', realGit: 'git', cwd: ${JSON.stringify(root)}, loadConfig: () => ({ paths: {}, workDir: ${JSON.stringify(root)} }) });
+if (!sub.handled) process.exitCode = 2;`;
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'NODE_TEST_CONTEXT'));
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', env });
+    assert.equal(res.status, 1, `${res.stdout}\n${res.stderr}`);
+    assert.match(res.stdout, /no running loop/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

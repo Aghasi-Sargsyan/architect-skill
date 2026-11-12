@@ -34,12 +34,12 @@ export function parseArgs(argv) {
     configPath: null, pause: false, only: null, dryRun: false, init: false, check: false, writePermissions: false,
     background: false, answer: null, watch: null, since: null, status: false, follow: false, selfCheck: false, base: null,
     auditPlan: false, checkTask: null, installHooks: false, team: false, update: false, force: false,
-    models: false, setModel: null, local: false, compact: false, repair: false,
+    models: false, setModel: null, local: false, compact: false, repair: false, stop: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update', '--models', '--compact', '--repair'].includes(a)) {
+    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update', '--models', '--compact', '--repair', '--stop'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
     } else if (a === '--team') { opts.team = true; } else if (a === '--force') { opts.force = true; } else if (a === '--local') { opts.local = true;
     } else if (a === '--set-model') {
@@ -69,9 +69,9 @@ export function parseArgs(argv) {
   if (opts.local && !opts.setModel) throw new Error('--local is allowed only with --set-model');
   if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) throw new Error('--base is allowed only with --self-check or --check-task');
 
-  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update, opts.models, opts.setModel !== null, opts.compact, opts.repair];
+  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update, opts.models, opts.setModel !== null, opts.compact, opts.repair, opts.stop];
   if (modeFlags.filter(Boolean).length > 1) {
-    throw new Error('--init, --compact, --repair, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, --install-hooks, --update, --models, and --set-model: only one per invocation');
+    throw new Error('--init, --compact, --repair, --stop, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, --install-hooks, --update, --models, and --set-model: only one per invocation');
   }
 
   if (opts.answer !== null && !/^[123]$/.test(opts.answer)) throw new Error('--answer expects 1, 2, or 3');

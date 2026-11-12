@@ -1,6 +1,8 @@
 // Dispatches standalone CLI subcommands for run.mjs before starting the automated agent loop.
 import path from 'node:path';
 import { handleRepairCli } from './guards-recovery.mjs';
+import { RUNS_DIR } from './config.mjs';
+import { stopLoop } from './run-lock.mjs';
 import { handleModelsCli } from './models.mjs';
 import { handleCompactCli, resolveInstalledSkillDir } from './layout.mjs';
 import {
@@ -135,6 +137,13 @@ export async function dispatchCliSubcommand({
     if (!res?.ok) {
       process.exitCode = 1;
     }
+    return { handled: true };
+  }
+
+  if (opts.stop) {
+    const res = await stopLoop({ runsDir: path.join(workDir, RUNS_DIR) });
+    console.log(res.stopped ? `loop stopped (PID ${res.pid})` : res.reason);
+    if (!res.stopped) process.exitCode = 1;
     return { handled: true };
   }
 

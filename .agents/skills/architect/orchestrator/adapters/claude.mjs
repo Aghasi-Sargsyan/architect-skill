@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { JsonlTail } from '../feed.mjs';
 import { findExecutable } from '../events.mjs';
+import { trackChild } from '../run-lock.mjs';
 import { parseAgentResponse } from './agy.mjs';
 import { claudeModelArgs } from './claude-models.mjs';
 import { claudeSettingsPath } from './claude-permissions.mjs';
@@ -81,6 +82,7 @@ function spawnCollect(bin, args, { cwd, env, timeoutMs, killGraceMs = 5000 }) {
       resolve({ stdout, stderr, ...r, signal: timedOut ? (r.signal ?? 'SIGTERM') : (r.signal ?? null) });
     };
     const child = spawn(bin, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    trackChild(child);
     if (timeoutMs) {
       timer = setTimeout(() => {
         timedOut = true;

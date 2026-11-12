@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { JsonlTail } from '../feed.mjs';
 import { findExecutable } from '../events.mjs';
+import { trackChild } from '../run-lock.mjs';
 
 const TRANSIENT_RE = /\b(503|UNAVAILABLE|RESOURCE_EXHAUSTED|429|EOF|ECONNRESET|ETIMEDOUT|Eligibility check failed)\b/i;
 const PERMISSION_RE = /cannot prompt|auto-denied/i;
@@ -121,6 +122,7 @@ function spawnCollect(bin, args, { cwd, env, timeoutMs, killGraceMs = 5000 }) {
       resolve({ stdout, stderr, ...r, signal: timedOut ? (r.signal ?? 'SIGTERM') : r.signal ?? null });
     };
     const child = spawn(bin, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    trackChild(child);
     timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGTERM');
