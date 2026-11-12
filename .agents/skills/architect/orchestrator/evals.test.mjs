@@ -58,7 +58,7 @@ test('T-031 (E3, Ф2): EVAL_SCENARIOS defines all 6 behavioral scenarios and eva
     const dir = path.join(tmp, 's1');
     const { baseSha } = initFixtureRepo(dir);
     assert.deepEqual(
-      evaluateScenarioResult('phase1_no_write', { workDir: dir, realGit, baseSha, deniedActions: [] }),
+      evaluateScenarioResult('phase1_no_write', { workDir: dir, realGit, baseSha, deniedActions: [], responseText: '[MODE: FEATURE · PHASE 1] answer' }),
       { pass: true, reasons: [] },
     );
 
@@ -227,7 +227,7 @@ test('T-031 (Ф2): runLiveEvals refuses to run when AGENT_LOOP=1 and never write
     // T-034 (Г3): a completed turn carries a valid JSON answer; without it the run is ERROR, not PASS.
     runTurn: async ({ scenario }) => ({
       ok: true,
-      json: { task_id: 'T-001', verdict: 'needs_user', summary: 'phase 1 answer' },
+      json: { task_id: 'T-001', verdict: 'needs_user', summary: '[MODE: FEATURE · PHASE 1] phase 1 answer' },
       verdict: scenario.id === 'auto_refusal_git_c_retry' ? 'accepted' : undefined,
       deniedActions: [],
     }),

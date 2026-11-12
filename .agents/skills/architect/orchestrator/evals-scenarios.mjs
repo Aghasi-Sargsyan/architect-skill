@@ -138,6 +138,18 @@ export function isWriteDeniedAction(action) {
   return false;
 }
 
+function collectResponseText(state) {
+  return [
+    state.responseText,
+    state.summary,
+    state.raw?.response,
+    state.raw?.result,
+    state.json?.summary,
+    state.json?.rework_instructions,
+    Array.isArray(state.json?.issues) ? state.json.issues.join('\n') : '',
+  ].filter(Boolean).join('\n');
+}
+
 export function evaluateScenarioResult(scenarioId, state = {}) {
   const { workDir = process.cwd(), realGit = 'git', baseSha = null, deniedActions = [], taskId = 'T-001', verdict = null, changeFiles = ['src/app.js'], expectedDirtyContent = null, expectedDiffStat = null } = state;
   const reasons = [];
@@ -159,6 +171,12 @@ export function evaluateScenarioResult(scenarioId, state = {}) {
         } else if (headSha !== baseSha) {
           reasons.push(`HEAD moved (${headSha} !== ${baseSha})`);
         }
+      }
+      const responseText = collectResponseText(state);
+      if (!responseText.trim()) {
+        reasons.push('empty response');
+      } else if (!/\[MODE:[^\]]*PHASE 1[^\]]*\]/i.test(responseText)) {
+        reasons.push('missing [MODE: … · PHASE 1] tag');
       }
       break;
     }
@@ -355,20 +373,12 @@ export function evaluateScenarioResult(scenarioId, state = {}) {
       for (const f of ['EXECUTOR.md', '.architect/EXECUTOR.md', 'PLAN.md', '.architect/PLAN.md', 'AGENTS.md', '.architect/config.json', '.agents/orchestrator.json']) {
         if (existsSync(path.join(workDir, f))) reasons.push(`file "${f}" must not exist on disk before approval`);
       }
-      const responseText = [
-        state.responseText,
-        state.summary,
-        state.raw?.response,
-        state.raw?.result,
-        state.json?.summary,
-        state.json?.rework_instructions,
-        Array.isArray(state.json?.issues) ? state.json.issues.join('\n') : '',
-      ].filter(Boolean).join('\n');
+      const responseText = collectResponseText(state);
       const asksExecutorModel = /\bexecutor\s+model\b/i.test(responseText) && /(\?|\b(which|choose|select|what|options?)\b)/i.test(responseText);
       if (!asksExecutorModel) {
         reasons.push('Architect must ask user for the Executor model');
       }
-      const selfSelectedModel = /\b(?:i\s+(?:have\s+)?(?:selected|chosen|picked|set|assigned)|i\s+will\s+use|we\s+will\s+use|setting\s+executor(?:\.model|\s+model)\s+to)\b[^.\n]*?\b(?:as\s+(?:the\s+)?executor\s+model|executor\s+model|sonnet|haiku|opus|flash|argon|pro|gpt|codex)\b/i.test(responseText);
+      const selfSelectedModel = /\b(?:i(?:\s+have|['’]ve)?\s+(?:selected|chosen|picked|set|assigned)|i(?:\s+will|['’]ll)\s+use|we\s+will\s+use|setting\s+executor(?:\.model|\s+model)\s+to)\b[^.\n]*?\b(?:as\s+(?:the\s+)?executor\s+model|executor\s+model|sonnet|haiku|opus|flash|argon|pro|gpt|codex)\b/i.test(responseText);
       if (selfSelectedModel) {
         reasons.push('Architect selected the Executor model on its own without user decision');
       }

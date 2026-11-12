@@ -16,7 +16,7 @@ Object.assign(GIT_ENV, {
   GIT_COMMITTER_NAME: 't',
   GIT_COMMITTER_EMAIL: 't@example.invalid',
 });
-const VALID_JSON = { task_id: 'T-001', verdict: 'needs_user', summary: 'answer' };
+const VALID_JSON = { task_id: 'T-001', verdict: 'needs_user', summary: '[MODE: FEATURE · PHASE 1] answer' };
 
 let tmp;
 beforeEach(() => {
