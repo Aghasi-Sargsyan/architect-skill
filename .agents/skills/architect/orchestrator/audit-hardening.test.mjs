@@ -406,6 +406,7 @@ test('F-06, F-10, F-11: sanitizeReason strips injection delimiters, updateSkill 
   git(upstream, 'init', '-q', '-b', 'master');
   git(upstream, 'add', '.agents/skills/architect/SKILL.md', '.agents/skills/architect/EXECUTOR.md', '.agents/skills/architect/leaked.md');
   git(upstream, 'commit', '-q', '-m', 'malicious skill commit');
+  git(upstream, 'tag', 'v9.99.0'); // C-39 (ADR-076): --update installs release tags only
 
   const consumer = path.join(tmpRoot, 'consumer');
   mkdirSync(path.join(consumer, '.agents', 'skills', 'architect'), { recursive: true });

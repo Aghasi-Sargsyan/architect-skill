@@ -62,6 +62,7 @@ function makeUpstream() {
   writeSkill(path.join(upstream, '.agents', 'skills', 'architect'), 'v3.99');
   git(upstream, 'add', '.');
   git(upstream, 'commit', '-q', '-m', 'arch: release v3.99');
+  git(upstream, 'tag', 'v3.99.0'); // C-39 (ADR-076): --update installs release tags only
   return upstream;
 }
 

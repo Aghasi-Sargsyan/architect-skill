@@ -44,6 +44,8 @@ function initUpstreamRepo(dir, skillVer = 'v3.99', execVer = '1.9') {
 
   execFileSync('git', ['add', '.'], { cwd: dir, stdio: 'ignore' });
   execFileSync('git', ['commit', '-m', 'arch: release test skill version'], { cwd: dir, stdio: 'ignore' });
+  // C-39 (ADR-076): --update installs release tags only, so every fixture release is tagged.
+  execFileSync('git', ['tag', `${skillVer}.0`], { cwd: dir, stdio: 'ignore' });
   return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
 }
 
@@ -152,6 +154,7 @@ test('T-075 (a): checkSkillUpdateAvailable detects newer upstream commit, caches
     writeFileSync(path.join(upstreamDir, 'CHANGELOG.md'), '# New release\n');
     execFileSync('git', ['add', 'CHANGELOG.md'], { cwd: upstreamDir, stdio: 'ignore' });
     execFileSync('git', ['commit', '-m', 'arch: new upstream commit'], { cwd: upstreamDir, stdio: 'ignore' });
+    execFileSync('git', ['tag', 'v3.31.0'], { cwd: upstreamDir, stdio: 'ignore' });
     const newerSha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: upstreamDir, encoding: 'utf8' }).trim();
 
     // Within 24h TTL, cached result should still be returned without hitting upstream
