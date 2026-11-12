@@ -15,7 +15,7 @@ export function parseWaivers(planText) {
   const waivers = [];
   let inDecisions = false;
   for (const line of planText.split('\n')) {
-    if (line.startsWith('## ')) inDecisions = /^##\s+(?:decisions\b|решения\b)/i.test(line);
+    if (line.startsWith('## ')) inDecisions = /^##\s+(?:decisions|решения)(?![\p{L}\p{N}_])/iu.test(line); // \b is ASCII-only: it never matches after Cyrillic
     else if (inDecisions) {
       const m = line.match(/^- WAIVER\s+([0-9a-fA-F]{7,})\s*:\s*(.+?)\s+(?:[—–]|--|-)\s+(.+)$/);
       if (m) waivers.push({ sha7: m[1], rule: m[2].trim(), reason: m[3].trim(), raw: line.trim() });

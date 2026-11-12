@@ -152,3 +152,11 @@ test('T-123: a waived commit that deletes a test file is allowed; a later unwaiv
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('parseWaivers reads WAIVERs under a Cyrillic "## Решения" heading and only there', () => {
+  const plan = '# План\n\n## Решения\n- WAIVER abcdef1: monotonicity — consolidated tests\n\n## Задачи\n- WAIVER 1234567: monotonicity — not in Decisions\n';
+  assert.deepEqual(waivers.parseWaivers(plan).map((w) => w.sha7), ['abcdef1']);
+  assert.deepEqual(waivers.parseWaivers('## Решения (ADR)\n- WAIVER abcdef1: fix-frozen — x\n').map((w) => w.rule), ['fix-frozen']);
+  assert.deepEqual(waivers.parseWaivers('## Решениями\n- WAIVER abcdef1: monotonicity — x\n'), []);
+  assert.deepEqual(waivers.parseWaivers('## Decisions\n- WAIVER abcdef1: monotonicity — x\n').length, 1);
+});
