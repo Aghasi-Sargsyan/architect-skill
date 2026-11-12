@@ -54,7 +54,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; `evidence.test.mjs`, `stack-config.test.mjs`, `plan-gates.test.mjs`, `field-selfcheck-retro.test.mjs`, `config.test.mjs`, `cli.test.mjs`, `packaging-clean.test.mjs` stay green; no comment-only `catch` added.
   - Verify: `node --test .agents/skills/architect/orchestrator/red-check.test.mjs .agents/skills/architect/orchestrator/evidence.test.mjs .agents/skills/architect/orchestrator/stack-config.test.mjs .agents/skills/architect/orchestrator/plan-gates.test.mjs .agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs .agents/skills/architect/orchestrator/config.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
 
-- [ ] T-121: Honest self-check range — commit count, EMPTY status, shallow clone, empty close commit
+- [x] T-121: Honest self-check range — commit count, EMPTY status, shallow clone, empty close commit
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/selfcheck-base.test.mjs`, `.agents/skills/architect/orchestrator/selfcheck-base.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`resolveSelfCheckBase` lines 46–63, `runSelfCheckGit` lines 172–196 and the final `return`), `.agents/skills/architect/orchestrator/cli.mjs` (`runFastSelfCheck` lines 146–197, `formatSelfCheckReport` lines 221–258), `.agents/skills/architect/orchestrator/audit.mjs` (lines 136–146), `.agents/skills/architect/orchestrator/selfcheck.test.mjs` (T-046 base priority, lines 42–100).
