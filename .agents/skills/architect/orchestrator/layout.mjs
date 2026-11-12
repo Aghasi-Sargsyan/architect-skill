@@ -173,6 +173,54 @@ export function alwaysFrozenFiles(configPath = '', opts = {}) {
   return list;
 }
 
+// Every rewrite matches at a path boundary: the path is not preceded by a letter, digit, `_`, `.`, `/` or `-`.
+const PLAN_REWRITES = [
+  [/(- `|read )EXECUTOR\.md/g, '$1.architect/EXECUTOR.md'],
+  [/(?<![\w./-])docs\/decisions-full\.md/g, '.architect/decisions-full.md'],
+  [/(?<![\w./-])docs\/decisions\.md/g, '.architect/decisions.md'],
+  [/(?<![\w./-])docs\/executor-profiles\.md/g, '.architect/executor-profiles.md'],
+  [/(?<![\w./-])docs\/plans\//g, '.architect/plans/'],
+];
+const REFERENCE_REWRITES = [
+  [/(?<![\w./-])\.agents\/orchestrator\.local\.json/g, '.architect/config.local.json'],
+  [/(?<![\w./-])\.agents\/orchestrator\.json/g, '.architect/config.json'],
+  [/(?<![\w./-])EXECUTOR\.md\b/g, '.architect/EXECUTOR.md'],
+  [/(?<![\w./-])PLAN\.md\b/g, '.architect/PLAN.md'],
+];
+
+function applyRewrites(text, rules) {
+  return rules.reduce((acc, [re, to]) => acc.replace(re, to), text);
+}
+
+function errMessage(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function readSource(workDir, rel, encoding) {
+  try {
+    return readFileSync(path.join(workDir, rel), encoding);
+  } catch (err) {
+    throw new Error(`could not read ${rel}: ${errMessage(err)}`);
+  }
+}
+
+/** Phase 1 helper: the exact bytes the target of `from` must hold, with no write. */
+function computeTarget(workDir, from) {
+  if (from === 'PLAN.md') {
+    return Buffer.from(applyRewrites(readSource(workDir, from, 'utf8'), PLAN_REWRITES), 'utf8');
+  }
+  if (from === '.agents/orchestrator.json') {
+    let raw;
+    try {
+      raw = JSON.parse(readSource(workDir, from, 'utf8'));
+    } catch (err) {
+      throw new Error(`invalid JSON in ${from}: ${errMessage(err)}`);
+    }
+    return Buffer.from(JSON.stringify({ layout: 'compact', ...raw }, null, 2) + '\n', 'utf8');
+  }
+  return readSource(workDir, from);
+}
+
 export function migrateToCompact({ workDir = process.cwd() } = {}) {
   if (process.env.AGENT_LOOP === '1') {
     throw new Error('cannot run --compact from inside the agent loop (AGENT_LOOP=1)');
@@ -186,6 +234,7 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
     ['EXECUTOR.md', '.architect/EXECUTOR.md'],
     ['PLAN.md', '.architect/PLAN.md'],
     ['docs/decisions.md', '.architect/decisions.md'],
+    ['docs/decisions-full.md', '.architect/decisions-full.md'],
     ['docs/executor-profiles.md', '.architect/executor-profiles.md'],
     ['.agents/orchestrator.json', '.architect/config.json'],
     ['.agents/orchestrator.local.json', '.architect/config.local.json'],
@@ -201,46 +250,58 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
         }
       }
     } catch (err) {
-      skipped.push(`could not read docs/plans: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`could not read docs/plans: ${errMessage(err)}`);
     }
   }
 
+  // Phase 1 (ADR-078): read every source and compute every target text; nothing is written.
+  const moved = [];
+  const writes = [];
   for (const [from, to] of pairs) {
-    const fromPath = path.join(workDir, from);
-    const toPath = path.join(workDir, to);
-    if (existsSync(fromPath) && existsSync(toPath)) {
-      const fromBuf = readFileSync(fromPath);
-      const toBuf = readFileSync(toPath);
-      if (!fromBuf.equals(toBuf)) {
+    if (!existsSync(path.join(workDir, from))) continue;
+    const data = computeTarget(workDir, from);
+    if (existsSync(path.join(workDir, to))) {
+      if (!readSource(workDir, to).equals(data)) {
         throw new Error(`conflicting classic and compact files: ${from} vs ${to}`);
       }
-    }
-  }
-
-  const moved = [];
-  for (const [from, to] of pairs) {
-    const fromPath = path.join(workDir, from);
-    if (!existsSync(fromPath)) continue;
-    const toPath = path.join(workDir, to);
-    mkdirSync(path.dirname(toPath), { recursive: true });
-
-    if (from === 'PLAN.md') {
-      let content = readFileSync(fromPath, 'utf8');
-      content = content
-        .replaceAll('- `EXECUTOR.md`', '- `.architect/EXECUTOR.md`')
-        .replaceAll('read EXECUTOR.md', 'read .architect/EXECUTOR.md')
-        .replaceAll('docs/decisions.md', '.architect/decisions.md')
-        .replaceAll('docs/executor-profiles.md', '.architect/executor-profiles.md')
-        .replaceAll('docs/plans/', '.architect/plans/');
-      writeFileSync(toPath, content, 'utf8');
-    } else if (from === '.agents/orchestrator.json') {
-      const raw = JSON.parse(readFileSync(fromPath, 'utf8'));
-      writeFileSync(toPath, JSON.stringify({ layout: 'compact', ...raw }, null, 2) + '\n', 'utf8');
     } else {
-      writeFileSync(toPath, readFileSync(fromPath));
+      writes.push({ to, data });
     }
     moved.push({ from, to });
   }
+
+  const referenceEdits = [];
+  for (const rel of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
+    if (!existsSync(path.join(workDir, rel))) continue;
+    const original = readSource(workDir, rel, 'utf8');
+    const transformed = applyRewrites(original, REFERENCE_REWRITES);
+    if (transformed !== original) referenceEdits.push({ rel, original, transformed });
+  }
+
+  // Phase 2: write the targets; any write error deletes what this call wrote before rethrowing.
+  const createdFiles = [];
+  const createdDirs = [];
+  const editedRefs = [];
+  try {
+    for (const { to, data } of writes) {
+      const toPath = path.join(workDir, to);
+      const firstCreated = mkdirSync(path.dirname(toPath), { recursive: true });
+      if (firstCreated) createdDirs.push(firstCreated);
+      createdFiles.push(toPath);
+      writeFileSync(toPath, data);
+    }
+    for (const edit of referenceEdits) {
+      editedRefs.push(edit);
+      writeFileSync(path.join(workDir, edit.rel), edit.transformed, 'utf8');
+    }
+  } catch (err) {
+    for (const edit of editedRefs) writeFileSync(path.join(workDir, edit.rel), edit.original, 'utf8');
+    for (const file of createdFiles) rmSync(file, { force: true });
+    for (const dir of createdDirs.reverse()) rmSync(dir, { recursive: true, force: true });
+    throw err;
+  }
+
+  // Sources are removed only after every write succeeded.
   for (const { from } of moved) {
     rmSync(path.join(workDir, from), { force: true });
   }
@@ -251,30 +312,12 @@ export function migrateToCompact({ workDir = process.cwd() } = {}) {
       try {
         if (readdirSync(dirFull).length === 0) rmSync(dirFull, { recursive: true, force: true });
       } catch (err) {
-        skipped.push(`could not remove empty ${dirRel}: ${err instanceof Error ? err.message : String(err)}`);
+        skipped.push(`could not remove empty ${dirRel}: ${errMessage(err)}`);
       }
     }
   }
 
-  const updated = [];
-  for (const rel of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md']) {
-    const p = path.join(workDir, rel);
-    if (!existsSync(p)) continue;
-    try {
-      const original = readFileSync(p, 'utf8');
-      const transformed = original
-        .replace(/\.agents\/orchestrator\.local\.json/g, '.architect/config.local.json')
-        .replace(/\.agents\/orchestrator\.json/g, '.architect/config.json')
-        .replace(/(?<![/\w.-])EXECUTOR\.md\b/g, '.architect/EXECUTOR.md')
-        .replace(/(?<![/\w.-])PLAN\.md\b/g, '.architect/PLAN.md');
-      if (transformed !== original) {
-        writeFileSync(p, transformed, 'utf8');
-        updated.push(rel);
-      }
-    } catch (err) {
-      skipped.push(`could not update references in ${rel}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
+  const updated = referenceEdits.map((edit) => edit.rel);
 
   const notes = [];
   if (moved.length === 0 && updated.length === 0) {
