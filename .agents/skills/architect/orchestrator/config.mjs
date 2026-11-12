@@ -74,19 +74,14 @@ export function validateLocalConfig(raw) {
   if (raw.notify !== undefined && typeof raw.notify !== 'boolean') {
     problems.push('local config: notify — true or false');
   }
-  if (raw.auditor !== undefined) {
-    if (!isObject(raw.auditor)) {
-      problems.push('local config: auditor must be an object');
-    } else {
-      if (raw.auditor.runner !== 'claude') {
-        problems.push('local config: auditor.runner — "claude"');
-      }
-      if (typeof raw.auditor.model !== 'string' || !raw.auditor.model) {
-        problems.push('local config: Field auditor.model is required (non-empty string)');
-      }
-    }
-  }
   return problems;
+}
+
+/** Notes about config keys that are still accepted but no longer do anything (printed by `--check` as "! <note>"). */
+export function deprecatedConfigNotes(config) {
+  return config?.auditor !== undefined
+    ? ['auditor: ignored — --audit-plan was removed in v3.55 (ADR-075); delete the "auditor" key']
+    : [];
 }
 
 /** @returns {string[]} problems; empty when the config is usable */
@@ -179,18 +174,6 @@ export function validateConfig(config) {
     problems.push('verifyTimeoutMs — integer > 0');
   }
   if (typeof config.notify !== 'boolean') problems.push('notify — true or false');
-  if (config.auditor !== undefined) {
-    if (!isObject(config.auditor)) {
-      problems.push('auditor must be an object');
-    } else {
-      if (config.auditor.runner !== 'claude') {
-        problems.push('auditor.runner — "claude"');
-      }
-      if (typeof config.auditor.model !== 'string' || !config.auditor.model) {
-        problems.push('Field auditor.model is required (non-empty string)');
-      }
-    }
-  }
   if (config.workDir !== undefined && (typeof config.workDir !== 'string' || !config.workDir)) {
     problems.push('workDir must be a non-empty string');
   }

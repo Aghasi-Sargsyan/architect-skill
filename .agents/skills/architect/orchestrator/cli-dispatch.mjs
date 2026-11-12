@@ -8,7 +8,6 @@ import { handleCompactCli, resolveInstalledSkillDir } from './layout.mjs';
 import {
   handleCheckTaskCli,
   handleSelfCheckCli,
-  handleAuditPlanCli,
   handleUpdateCli,
   safeLoadConfig,
   loadConfigOrDefaults,
@@ -25,7 +24,7 @@ import { detectInitRunner, ensureClaudeSkillLink } from './claude-setup.mjs';
 
 /**
  * Handles early CLI subcommands (--repair, --compact, --models/--set-model, --check-task, --self-check,
- * --init, --install-hooks, --update, --write-permissions, views, --answer, --check, --audit-plan).
+ * --init, --install-hooks, --update, --write-permissions, views, --answer, --check).
  * Sets process.exitCode on failure and returns { handled: true } when main() should exit early,
  * or { handled: false, config, layout, workDir } when execution should continue to preflight/loop.
  * @param {{
@@ -165,11 +164,6 @@ export async function dispatchCliSubcommand({
     if (!ok) {
       process.exitCode = 1;
     }
-    return { handled: true };
-  }
-
-  if (opts.auditPlan) {
-    handleAuditPlanCli({ opts, config, workDir, realGit });
     return { handled: true };
   }
 

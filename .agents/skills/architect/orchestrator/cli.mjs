@@ -1,4 +1,4 @@
-// CLI argument parser and orchestration entry points for --self-check and --audit-plan.
+// CLI argument parser and orchestration entry points for --self-check.
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +8,6 @@ import { resolveConfigPath, resolveLayout, CLASSIC_CONFIG_PATH, COMPACT_CONFIG_P
 import { effectiveBlockedScripts } from './runners.mjs';
 import { runSelfCheckGit } from './selfcheck.mjs';
 import { checkEvalEvidence, runRedCheck } from './evidence.mjs';
-import { checkAuditCoverage, runPlanAudit } from './audit.mjs';
 import { checkSkillInstallation } from './check.mjs';
 import { checkParallelTasks, parsePlan } from './plan.mjs';
 import { validatePlan } from './plan-validate.mjs';
@@ -33,14 +32,15 @@ export function parseArgs(argv) {
   const opts = {
     configPath: null, pause: false, only: null, dryRun: false, init: false, check: false, writePermissions: false,
     background: false, answer: null, watch: null, since: null, status: false, follow: false, selfCheck: false, base: null,
-    auditPlan: false, checkTask: null, installHooks: false, team: false, update: false, force: false,
+    checkTask: null, installHooks: false, team: false, update: false, force: false,
     models: false, setModel: null, local: false, compact: false, repair: false, stop: false, probe: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--audit-plan', '--install-hooks', '--update', '--models', '--compact', '--repair', '--stop', '--probe'].includes(a)) {
+    if (['--pause', '--dry-run', '--init', '--check', '--write-permissions', '--background', '--status', '--follow', '--self-check', '--install-hooks', '--update', '--models', '--compact', '--repair', '--stop', '--probe'].includes(a)) {
       opts[a.slice(2).replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = true;
+    } else if (a === '--audit-plan') { throw new Error('--audit-plan was removed in v3.55 (ADR-075)');
     } else if (a === '--team') { opts.team = true; } else if (a === '--force') { opts.force = true; } else if (a === '--local') { opts.local = true;
     } else if (a === '--set-model') {
       const role = argv[++i], model = argv[++i];
@@ -69,9 +69,9 @@ export function parseArgs(argv) {
   if (opts.local && !opts.setModel) throw new Error('--local is allowed only with --set-model');
   if (opts.base !== null && !opts.selfCheck && opts.checkTask === null) throw new Error('--base is allowed only with --self-check or --check-task');
 
-  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.auditPlan, opts.checkTask !== null, opts.installHooks, opts.update, opts.models, opts.setModel !== null, opts.compact, opts.repair, opts.stop];
+  const modeFlags = [opts.init, opts.check, opts.dryRun, opts.writePermissions, opts.background, opts.answer !== null, opts.watch !== null, opts.status, opts.follow, opts.selfCheck, opts.checkTask !== null, opts.installHooks, opts.update, opts.models, opts.setModel !== null, opts.compact, opts.repair, opts.stop];
   if (modeFlags.filter(Boolean).length > 1) {
-    throw new Error('--init, --compact, --repair, --stop, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --audit-plan, --check-task, --install-hooks, --update, --models, and --set-model: only one per invocation');
+    throw new Error('--init, --compact, --repair, --stop, --write-permissions, --check, --dry-run, --background, --answer, --watch, --status, --follow, --self-check, --check-task, --install-hooks, --update, --models, and --set-model: only one per invocation');
   }
 
   if (opts.answer !== null && !/^[123]$/.test(opts.answer)) throw new Error('--answer expects 1, 2, or 3');
@@ -148,7 +148,6 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
   const cfg = config ?? safeLoadConfig(resolveConfigPath({ workDir }));
   const gitRes = runSelfCheckGit({ realGit: g, cwd: workDir, config: cfg, baseRef, orchestratorDir });
   const evidenceRes = checkEvalEvidence({ realGit: g, cwd: workDir, baseSha: gitRes.baseSha });
-  const auditRes = checkAuditCoverage({ workDir, cycleBaseSha: gitRes.baseSha });
   const layout = cfg?.paths ?? resolveLayout({ config: cfg });
   const installProblems = checkSkillInstallation({
     workDir,
@@ -173,13 +172,12 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
   const violations = [
     ...gitRes.violations,
     ...evidenceRes.violations,
-    ...auditRes.violations,
     ...installProblems.map((p) => `${p.name}: ${p.detail}`),
     ...parallelProblems,
     ...planIssues,
   ];
   const notVerified = [...(gitRes.notVerified ?? []), ...(evidenceRes.notVerified ?? [])];
-  const waivers = gitRes.waivers ?? [], rejectedBlockers = auditRes.rejectedBlockers ?? [], warnings = gitRes.warnings ?? [];
+  const waivers = gitRes.waivers ?? [], warnings = gitRes.warnings ?? [];
 
   return {
     ok: violations.length === 0,
@@ -191,11 +189,8 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
     warnings,
     notVerified,
     waivers,
-    rejectedBlockers,
-    hasAudit: auditRes.hasAudit,
     gitRes,
     evidenceRes,
-    auditRes,
   };
 }
 
@@ -253,18 +248,13 @@ export function formatSelfCheckReport(res) {
     lines.push(`\nActive WAIVERs (${res.waivers.length}):`);
     for (const w of res.waivers) lines.push(`  • ${w.raw || `${w.sha7}: ${w.rule}`}`);
   }
-  if (res.rejectedBlockers && res.rejectedBlockers.length > 0) {
-    lines.push(`\nRejected blockers (${res.rejectedBlockers.length}):`);
-    for (const b of res.rejectedBlockers) lines.push(`  • ${b.id}: ${b.reason}`);
-  }
   return lines.join('\n');
 }
 
-export function formatStartupNotices({ waivers = [], rejectedBlockers = [], updateNotice = null } = {}) {
+export function formatStartupNotices({ waivers = [], updateNotice = null } = {}) {
   const notices = [];
   if (updateNotice) notices.push(updateNotice.startsWith('! ') ? updateNotice : `! ${updateNotice}`);
   for (const w of waivers) notices.push(`• Active WAIVER ${w.sha7}: ${w.rule} — ${w.reason}`);
-  for (const b of rejectedBlockers) notices.push(`• Rejected audit blocker ${b.id}: ${b.reason || b.finding?.summary || 'rejected'}`);
   return notices;
 }
 
@@ -275,29 +265,6 @@ export async function handleSelfCheckCli({ opts = {}, config, workDir = process.
   console.log(formatSelfCheckReport(res));
   if (!res.ok) process.exitCode = 1;
   return res;
-}
-
-export async function handleAuditPlanCli({ opts = {}, config, workDir = process.cwd(), realGit, env = process.env } = {}) {
-  const g = realGit ?? which('git');
-  const cfg = config ?? safeLoadConfig(resolveConfigPath({ workDir }));
-  try {
-    const authorModel = cfg?.architect?.model ?? null;
-    const res = await runPlanAudit({
-      config: cfg,
-      workDir,
-      realGit: g,
-      authorModel,
-      baseRef: opts?.base ?? null,
-      env,
-    });
-    console.log(`• Plan audit completed: ${res.audit.findings.length} findings (${res.audit.summary || 'no summary'})`);
-    console.log(`• Report: ${res.auditMdPath}`);
-    return res;
-  } catch (err) {
-    console.error(`✗ Plan audit failed: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
 }
 
 export function runCheckTask({ realGit, workDir = process.cwd(), config = null, taskId, baseRef = null, orchestratorDir = orchDir }) {

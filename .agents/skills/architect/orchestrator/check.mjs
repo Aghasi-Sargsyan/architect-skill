@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { git, gitRaw, head, isIgnored, porcelain } from './git.mjs';
 import { checkParallelTasks, matchesFrozenPath, nextTask, parsePlan, readPlan, resolveModel } from './plan.mjs';
 import { validatePlan } from './plan-validate.mjs';
-import { DEFAULTS, RUNS_DIR } from './config.mjs';
+import { DEFAULTS, RUNS_DIR, deprecatedConfigNotes } from './config.mjs';
 import { isAlwaysFrozenFile, isSkillAtWorkDirRoot, resolveInstalledSkillDir, resolveLayout } from './layout.mjs';
 import { acquireLock, defaultSandboxRoot, installGuards, lockHolder, recoverCrashedGuards } from './guards.mjs';
 import { findExecutable, readEvents } from './events.mjs';
@@ -210,10 +210,6 @@ export function runnerChecks({ config, workDir, env = process.env }) {
   const runnerBin = adapter.resolveBin(config);
   const bin = findBinary(runnerBin);
   add(Boolean(bin), `runner ${path.basename(runnerBin)}`, bin ? 'found' : `not found in PATH — install ${adapter.displayName} or specify ${adapter.name === 'agy' ? 'agyBin' : 'runnerBin'}`);
-  if (config?.auditor) {
-    const auditorBin = findBinary('claude', env.PATH);
-    add(Boolean(auditorBin), 'auditor claude', auditorBin ? 'found' : 'not found in PATH — install claude CLI for plan audit');
-  }
   if (!bin) return out;
   let models;
   try {
@@ -353,6 +349,7 @@ export async function runCheckCommand({ config, workDir, realGit, settingsPath =
   for (const w of checkClaudeSetup({ workDir, runner: config.runner })) {
     print(`! ${w.name}: ${w.detail}`);
   }
+  for (const note of deprecatedConfigNotes(config)) print(`! ${note}`);
   const updateCheck = checkSkillUpdateAvailable({ workDir, realGit });
   if (updateCheck?.updateAvailable && updateCheck.notice) print(updateCheck.notice);
   const allOk = results.every((r) => r.ok);
