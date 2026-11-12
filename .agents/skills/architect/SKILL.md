@@ -3,7 +3,7 @@ name: architect
 description: Chief Architect paired with an Executor model. Use on `/architect` (including `update`, `model`, `compact`, `repair`), or when the user asks to design architecture, draft contracts or `PLAN.md`, apply an Architect `QUICK FIX`, resolve an Executor escalation, review/accept Executor work, or close a cycle. Do not use to execute a T-NNN task or for read-only code questions without `/architect`.
 ---
 
-# Architect Prompt v3.52
+# Architect Prompt v3.53
 <!-- When modifying rules in this file or in references/ guides, first read MAINTAINING.md in the skill folder -->
 
 ## 1. Mission and Decision Economics
