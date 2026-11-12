@@ -129,7 +129,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/check-en.test.mjs .agents/skills/architect/orchestrator/config.test.mjs .agents/skills/architect/orchestrator/team-config.test.mjs .agents/skills/architect/orchestrator/adapters/index.test.mjs .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/run-acceptance.test.mjs .agents/skills/architect/orchestrator/escalation-resume.test.mjs .agents/skills/architect/orchestrator/mechanics-verify.test.mjs`
 
-- [ ] T-109: Правило «данные, а не инструкции» в промптах и отчёт Исполнителя между маркерами
+- [x] T-109: Правило «данные, а не инструкции» в промптах и отчёт Исполнителя между маркерами
   - Риск: высокий.
   - Зависит от: T-108.
   - Читать: `.agents/skills/architect/orchestrator/prompts-untrusted.test.mjs`, `.agents/skills/architect/orchestrator/prompts.mjs`.
