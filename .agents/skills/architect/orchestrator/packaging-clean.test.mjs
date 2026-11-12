@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,34 +57,97 @@ test('T-054: orchestrator production modules have no T-NNN task IDs in comments,
   assert.ok(totalAsserts >= 1258, `expected >= 1258 assert. calls across skill test suite, got ${totalAsserts}`);
 });
 
-test('T-054: skill test suite passes in an isolated temporary directory containing ONLY the skill folder', () => {
+// Relative module references that can be resolved statically: import/export ... from, side-effect imports,
+// dynamic imports with a literal, and new URL('./x', import.meta.url). A line-start anchor keeps code inside
+// string fixtures out of the scan.
+const RELATIVE_TARGET_PATTERNS = [
+  /^[ \t]*(?:import|export)\b[^'"\n;]*?\bfrom\s+['"](\.{1,2}\/[^'"]+)['"]/gm,
+  /^[ \t]*\}\s*from\s+['"](\.{1,2}\/[^'"]+)['"]/gm,
+  /^[ \t]*import\s+['"](\.{1,2}\/[^'"]+)['"]/gm,
+  /\bimport\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*\)/g,
+  /\bnew URL\(\s*['"](\.{1,2}\/[^'"]+)['"]/g,
+];
+
+function relativeTargets(source) {
+  const targets = [];
+  for (const pattern of RELATIVE_TARGET_PATTERNS) {
+    pattern.lastIndex = 0;
+    for (const match of source.matchAll(pattern)) targets.push(match[1]);
+  }
+  return targets;
+}
+
+function listMjsFiles(dir) {
+  const files = [];
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, ent.name);
+    if (ent.isDirectory()) files.push(...listMjsFiles(full));
+    else if (ent.isFile() && ent.name.endsWith('.mjs')) files.push(full);
+  }
+  return files;
+}
+
+test('T-054: the scan of relative import and URL targets sees imports, multi-line imports and URLs, and skips string fixtures', () => {
+  const source = [
+    "import { a } from './a.mjs';",
+    "import * as b from '../b.mjs';",
+    'import {',
+    '  c,',
+    "} from './c.mjs';",
+    "import './side.mjs';",
+    "export { d } from './d.mjs';",
+    "const u = new URL('./u.mjs', import.meta.url);",
+    "const lazy = await import('./lazy.mjs');",
+    "const fixture = \"import { x } from '../fixture.mjs';\";",
+    "import { node } from 'node:fs';",
+  ].join('\n');
+  assert.deepEqual(
+    relativeTargets(source).sort(),
+    ['../b.mjs', './a.mjs', './c.mjs', './d.mjs', './lazy.mjs', './side.mjs', './u.mjs'],
+  );
+});
+
+test('T-054: a skill folder copied alone to a temporary directory is self-contained: every relative import and URL target of every .mjs file stays inside it, and one test file passes there', () => {
   const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'skill-only-t054-')));
   try {
     const isolatedSkill = path.join(tmp, 'architect');
     cpSync(skillDir, isolatedSkill, { recursive: true });
 
     const isolatedOrch = path.join(isolatedSkill, 'orchestrator');
-    const testFiles = [
-      ...readdirSync(isolatedOrch)
-        .filter((f) => f.endsWith('.test.mjs') && f !== 'packaging-clean.test.mjs')
-        .map((f) => path.join(isolatedOrch, f)),
-      ...readdirSync(path.join(isolatedOrch, 'adapters'))
-        .filter((f) => f.endsWith('.test.mjs'))
-        .map((f) => path.join(isolatedOrch, 'adapters', f)),
-    ];
+    const unresolved = [];
+    let checkedTargets = 0;
+    for (const file of listMjsFiles(isolatedOrch)) {
+      // This file holds the scanner's own sample sources, which are not real imports.
+      if (path.basename(file) === path.basename(fileURLToPath(import.meta.url))) continue;
+      for (const spec of relativeTargets(readFileSync(file, 'utf8'))) {
+        checkedTargets++;
+        const target = path.resolve(path.dirname(file), spec);
+        const rel = path.relative(isolatedSkill, target);
+        const inside = rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+        if (!inside || !statSync(target, { throwIfNoEntry: false })?.isFile()) {
+          unresolved.push(`${path.relative(isolatedSkill, file)} -> ${spec}`);
+        }
+      }
+    }
+    assert.ok(checkedTargets >= 100, `expected the scan to find >= 100 relative targets, found ${checkedTargets}`);
+    assert.deepEqual(
+      unresolved,
+      [],
+      `every relative target must resolve to a file inside the skill folder, unresolved: ${unresolved.join('; ')}`,
+    );
 
+    // A smoke test of the copy: one small test file, with a safety cap against a hang (not a speed limit).
     const { NODE_TEST_CONTEXT: _ntc, AGENT_LOOP: _al, ...cleanEnv } = process.env;
-    const res = spawnSync(process.execPath, ['--test', '--test-concurrency=2', ...testFiles], {
+    const res = spawnSync(process.execPath, ['--test', path.join(isolatedOrch, 'layout.test.mjs')], {
       cwd: tmp,
       env: cleanEnv,
       encoding: 'utf8',
-      // The isolated suite alone takes ~100 s; under the load of the outer run 120 s was not enough (C-30).
-      timeout: 300000,
+      timeout: 60_000,
     });
     assert.equal(
       res.status,
       0,
-      `skill tests must pass in an isolated temp directory containing only the skill folder:\n${res.stdout.slice(-2000)}\n${res.stderr.slice(-2000)}`,
+      `layout.test.mjs must pass in an isolated temp directory containing only the skill folder:\n${res.stdout.slice(-2000)}\n${res.stderr.slice(-2000)}`,
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });

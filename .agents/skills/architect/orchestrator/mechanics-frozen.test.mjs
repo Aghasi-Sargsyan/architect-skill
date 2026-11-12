@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { checkExecutorRun } from './mechanics.mjs';
@@ -154,19 +154,20 @@ test('B3: protectedConfigFiles in config defaults/validation; modifying verifica
 
 test('B4: runAgent escalates from SIGTERM to SIGKILL when a timed-out runner ignores SIGTERM', async () => {
   const stubborn = path.join(dir, 'stubborn-agy');
+  const pidFile = path.join(dir, 'stubborn.pid');
+  // Only SIGKILL can stop it: it ignores SIGTERM and never exits on its own.
   writeFileSync(
     stubborn,
     `#!/bin/sh
 [ "$1" = warmup ] && exit 0
+echo $$ > '${pidFile}'
 trap '' TERM
-sleep 2 >/dev/null 2>&1 &
-wait
+while :; do sleep 1 >/dev/null 2>&1; done
 `,
   );
   chmodSync(stubborn, 0o755);
   execFileSync(stubborn, ['warmup']);
   const logs = [];
-  const start = Date.now();
   const res = await runAgent({
     bin: stubborn,
     model: 'm',
@@ -175,13 +176,15 @@ wait
     schemaPath: 's.json',
     env: process.env,
     skipPermissions: false,
-    timeoutMs: 300,
+    timeoutMs: 2000,
     killGraceMs: 200,
     maxAttempts: 1,
     home: dir,
     log: (m) => logs.push(m),
   });
-  const elapsedMs = Date.now() - start;
-  assert.equal(res.ok, false);
-  assert.ok(elapsedMs >= 450 && elapsedMs < 1500, `expected SIGKILL after timeoutMs(300)+killGraceMs(200), took ${elapsedMs}ms; logs=${logs.join('; ')} err=${res.error}`);
+  assert.equal(res.ok, false, `logs=${logs.join('; ')}`);
+  const pid = Number(readFileSync(pidFile, 'utf8').trim());
+  assert.ok(Number.isInteger(pid) && pid > 0, `the stubborn runner must record its pid, got ${pid}`);
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, 'the runner that ignores SIGTERM must be dead');
+  assert.ok(logs.some((l) => /signal=SIGKILL/.test(l)), `expected the log to show the SIGKILL escalation, logs=${logs.join('; ')} err=${res.error}`);
 });

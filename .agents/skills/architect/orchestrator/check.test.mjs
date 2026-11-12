@@ -94,7 +94,20 @@ test('runner checks: binary, model list, configured models and the open tasks\' 
   assert.deepEqual(runnerChecks({ config: config({ agyBin: path.join(dir, 'missing-agy') }), workDir: dir }).map((x) => x.ok), [false]);
 });
 
-test('permission probe: passes only when the commands ran and the file was really written and edited; guards restored', async () => {
+/** Points the runner's home at an empty temporary directory (os.homedir() follows HOME) so nothing reads the real one. */
+function useTempHome(t) {
+  const realHome = process.env.HOME;
+  const tempHome = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'orch-check-home-')));
+  process.env.HOME = tempHome;
+  t.after(() => {
+    if (realHome === undefined) delete process.env.HOME;
+    else process.env.HOME = realHome;
+    rmSync(tempHome, { recursive: true, force: true });
+  });
+}
+
+test('permission probe: passes only when the commands ran and the file was really written and edited; guards restored', async (t) => {
+  useTempHome(t);
   g('remote', 'add', 'origin', path.join(dir, 'nowhere.git'));
   const allOk = { git_status: 'ok', rev_parse: 'ok', write: 'ok', edit: 'ok', note: '' };
   const ok = await probePermissions({ config: config({ agyBin: fakeRunner({ answer: allOk, writes: 'two' }) }), workDir: dir, realGit });

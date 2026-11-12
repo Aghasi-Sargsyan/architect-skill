@@ -66,10 +66,11 @@ test('--background: preflight in the parent, then a detached child that takes th
   assert.match(started.stdout, /(?:цикл запущен в фоне \(pid \d+\); вывод —|loop started in background \(pid \d+\); output —) \.agent-runs\/background-.*\.log/);
   const runs = path.join(work, '.agent-runs');
   let summary = null;
-  for (let i = 0; i < 100 && !summary; i++) {
+  // A bounded number of polling steps, not a time budget: a loaded machine only makes the wait longer.
+  for (let i = 0; i < 200 && !(summary && !existsSync(path.join(runs, '.lock'))); i++) {
     const dirs = existsSync(runs) ? readdirSync(runs).filter((d) => existsSync(path.join(runs, d, 'summary.md'))) : [];
     summary = dirs.length ? readFileSync(path.join(runs, dirs[0], 'summary.md'), 'utf8') : null;
-    if (!summary) sleep(200);
+    if (!summary || existsSync(path.join(runs, '.lock'))) sleep(50);
   }
   assert.ok(summary, 'the detached loop wrote its summary');
   assert.match(summary, /T-001: (?:эскалация Исполнителя|Executor escalation)/);

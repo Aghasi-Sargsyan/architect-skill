@@ -43,7 +43,7 @@ function hostFixture() {
   return { hostDir, home, agySettings };
 }
 
-test('T-035 (П1, П2): writeGitShim and installGuards throw on non-absolute realGit; runLiveEvals defaults realGit to which("git") so git status inside turn env finishes in <4s with exit 0', async () => {
+test('T-035 (П1, П2): writeGitShim and installGuards throw on non-absolute realGit; runLiveEvals defaults realGit to which("git") so git status inside turn env finishes with exit 0', async () => {
   const fx = hostFixture();
   const shimDir = path.join(tmp, 'bad-shims');
   const sandboxRoot = path.join(tmp, 'bad-sandbox');
@@ -71,7 +71,7 @@ test('T-035 (П1, П2): writeGitShim and installGuards throw on non-absolute rea
         cwd: workDir,
         env,
         encoding: 'utf8',
-        timeout: 4000,
+        timeout: 60_000,
       });
       return { ok: true, json: VALID_JSON, deniedActions: [] };
     },

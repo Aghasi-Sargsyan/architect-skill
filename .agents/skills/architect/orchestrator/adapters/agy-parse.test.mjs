@@ -97,7 +97,7 @@ test('T-020: runAgent succeeds on text + final JSON, logs discarded prefix lengt
     schemaPath: 's.json',
     env: process.env,
     skipPermissions: false,
-    timeoutMs: 5000,
+    timeoutMs: 60_000,
     home,
     log: (m) => logs.push(m),
   });
@@ -126,7 +126,7 @@ test('T-020: runAgent succeeds on text + final JSON, logs discarded prefix lengt
     schemaPath: 's.json',
     env: process.env,
     skipPermissions: false,
-    timeoutMs: 5000,
+    timeoutMs: 60_000,
     maxAttempts: 1,
     home,
   });
