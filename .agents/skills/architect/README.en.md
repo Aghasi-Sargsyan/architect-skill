@@ -1,11 +1,11 @@
-<!-- skill-readme-sync: v3.54 / 1.9 -->
-# Architect + Executor Skill (`v3.53 / 1.9`)
+<!-- skill-readme-sync: v3.55 / 2.0 -->
+# Architect + Executor Skill (`v3.55 / 2.0`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
 2. **Automated Orchestrator (`orchestrator/run.mjs`):** zero-dependency Node.js CLI requiring **Node.js 22+** and **git 2.31+**. **Deterministic checks (`--check`, `--check-task`, `--self-check`) are officially supported on macOS and Linux (`ubuntu-latest`); the headless agent loop supports macOS only (Windows is not supported).** Supports headless runners **`agy`** (Antigravity) and **`claude`** (Claude Code); native desktop notifications work on **macOS** (`osascript`), and `AGENT_LOOP_WEBHOOK_URL` webhook notifications are also supported.
 
-- **Active prompts (English, single source of truth):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks,team}.md`.
+- **Active prompts (English, single source of truth):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,retro,stacks,team}.md`.
 - **Human guides (`<= 25 KB` each):** `README.en.md` (English) and `README.ru.md` (Russian).
 
 ---
@@ -48,7 +48,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 ### Threat Model
 - **Guardrails, not a security boundary:** the checks above stop model mistakes and rule bypasses. Only the runner's OS sandbox is a security boundary: the `claude` runner runs with it enabled, the `agy` runner runs without one.
 - **Untrusted content** (third-party code, issue text, web data): run the loop in a container, a VM, or a separate clone without network access or cloud keys.
-- **Data, not instructions:** the rules of both agents treat file contents, command output, and reports as data (`EXECUTOR.md` `1.9`, `SKILL.md` `v3.53`).
+- **Data, not instructions:** the rules of both agents treat file contents, command output, and reports as data (`EXECUTOR.md` `2.0`, `SKILL.md` `v3.55`).
 - **Known limits:** `Verify` commands run with the orchestrator's own rights outside the runner sandbox; changes to git-ignored files (e.g. `node_modules/`) are invisible to the clean-tree check; a background process that outlives an agent turn is not tracked; a `Verify` timeout (default 600 s) stops the loop as an environment problem instead of spending a rework round.
 
 ---
@@ -97,7 +97,7 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
    node .agents/skills/architect/orchestrator/run.mjs --update
    # or: npm run agents -- --update
    ```
-   This automatically clones the latest commit into a temporary directory, atomically updates installed skill folders (`.agents/skills/architect` / `.claude/skills/architect`), records the commit SHA in `.version`, synchronizes root `EXECUTOR.md`, and refreshes git hooks without touching your project configs (`config.json`, `config.local.json`) or history. `--check`, `--dry-run`, `--self-check`, and loop startup check for new upstream commits once per 24h (cached in `.agent-runs/.update-check.json`) and emit an informational `! skill update available:` line when a newer commit exists.
+   This installs the newest release tag (`vX.Y.Z`; set `ARCHITECT_UPDATE_REF=<branch>` to follow a branch) from a temporary clone, swaps the installed skill folders (`.agents/skills/architect` / `.claude/skills/architect`) and `EXECUTOR.md` all-or-nothing (a failure restores the previous copy), records the commit SHA in `.version`, and refreshes git hooks without touching your project configs (`config.json`, `config.local.json`) or history. Untracked files inside a git-tracked skill folder block the update unless `--force`. Only `--check` and `--update` contact the network (at most once per 24h, cached in `.agent-runs/.update-check.json`; `ARCHITECT_NO_UPDATE_CHECK=1` turns the check off); `--dry-run`, `--self-check`, and loop startup reuse the cached `! skill update available:` line.
 2. **Without Node.js / orchestrator:** re-run the same idempotent one-line install command from Section 1 (`Quickstart`) for `.agents/skills/` or `.claude/skills/` using `mktemp -d` (`rm -rf` of the old skill folder before `cp -R`), then refresh the project copy of `EXECUTOR.md`:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
@@ -112,7 +112,7 @@ Add this block to your project's `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md`:
 
 ```markdown
 ### Roles: Chief Architect and Executor
-- **Architect session** (when `/architect` is invoked or asked to plan/review/diagnose): first read `.agents/skills/architect/SKILL.md` and follow its Two-Phase Protocol (`[MODE: ... · PHASE 1/2]`).
+- **Architect session** (when `/architect` is invoked, or asked to design architecture, draft contracts or `PLAN.md`, apply an Architect `QUICK FIX`, resolve an escalation, review Executor work, or close a cycle — not to execute a `T-NNN` task): first read `.agents/skills/architect/SKILL.md` and follow its Two-Phase Protocol (`[MODE: ... · PHASE 1/2]`).
 - **Executor session** (when asked to execute task `T-NNN` from `PLAN.md`): first read `EXECUTOR.md` and `PLAN.md`, modify only files in `Change` of `T-NNN`, never touch `Frozen` or `PLAN.md`, and run `Check` before committing `T-NNN: ...`.
 - **Executor model:** `<Model / Tier>` (used for all `T-NNN` tasks unless overridden in the task's `Model` field).
 - **Commit language:** English (`T-NNN: ...`, `arch: ...`).
@@ -145,7 +145,7 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 |---|---|
 | `--init [--team]` | Create `.architect/config.json` (or `.agents/orchestrator.json`), install `.git/hooks/commit-msg`, add `.agent-runs/` and `*.local.json` to `.gitignore`; with `--team`, set `"team": true` and create `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Install the zero-dependency Node `.git/hooks/commit-msg` hook (without overwriting an existing custom hook or `core.hooksPath`) |
-| `--update [--force]` | Fetch latest commit, atomically update installed skill folder, write commit SHA to `.version`, sync `EXECUTOR.md`, and refresh git hooks |
+| `--update [--force]` | Install the newest release tag (`vX.Y.Z`) all-or-nothing, write commit SHA to `.version`, sync `EXECUTOR.md`, and refresh git hooks |
 | `--compact` | Migrate an existing `classic` project (root `PLAN.md`/`EXECUTOR.md`/`docs/`) into the `.architect/` compact layout (`/architect compact`) |
 | `--repair` | Restore leftover `remote.<name>.pushurl`, `.git/hooks/pre-push`, and stale `.agent-runs/.lock` after a crashed run (`/architect repair`) |
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | List current `executor` / `architect` models and all available environment models with effort tiers (`--models`), or set the chosen role model in shared/local config and sync `AGENTS.md` / `.claude/agents/executor.md` (`--set-model`, `/architect model`) |
@@ -154,7 +154,6 @@ Add `"agents": "node .agents/skills/architect/orchestrator/run.mjs"` to `scripts
 | `--write-permissions` | Write safe command/file allowlists: `claude` prunes unsafe `allow` rules (archived to `*.pruned.json`); the shared `agy` file is only added to, unsafe rules stay and keep `--check` red (only after explicit user confirmation) |
 | `--dry-run` | Validate readiness, run `--self-check` (including `red-check`), and preview the next task prompt without calling any LLM |
 | `--self-check [--base <ref>]` | Run deterministic Architect self-check (bypasses, empty `catch`, test timers, monotonicity, `fix-frozen`, `eval` evidence, audit coverage, parallel task overlaps, and `red-check`) |
-| `--audit-plan` | Run advisory read-only cross-model plan audit (`references/plan-audit.md`) via `config.auditor` (paid live call, max 1 re-run per cycle base) |
 | `--background` | Start the detached background loop; returns once it holds `.agent-runs/.lock` and prints the next `--watch` (exit `1` if the start fails) |
 | `--stop` | Stop a running loop: the agent first, then guards, then the lock (exit `0`; `1` when no loop is running) |
 | `--watch [min] [--since N]` | Wait for a permission prompt (exit `2`), loop stop (exit `3`), or task milestone (exit `4`); the output ends with `(milestones: N)` |

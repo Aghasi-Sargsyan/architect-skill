@@ -22,6 +22,10 @@ test('repository installation: root EXECUTOR.md is a byte-for-byte copy of skill
   assert.ok(execVer, 'EXECUTOR.md must declare policy version');
   assert.equal(readmeRu.split('\n')[0]?.trim(), `<!-- skill-readme-sync: ${skillVer} / ${execVer} -->`);
   assert.equal(readmeEn.split('\n')[0]?.trim(), `<!-- skill-readme-sync: ${skillVer} / ${execVer} -->`);
+  const titleTag = '(`' + skillVer + ' / ' + execVer + '`)';
+  assert.ok(readmeRu.split('\n')[1]?.includes(titleTag), `README.ru.md title must show ${titleTag}`);
+  assert.ok(readmeEn.split('\n')[1]?.includes(titleTag), `README.en.md title must show ${titleTag}`);
+  assert.ok(readFileSync(path.join(repoRoot, 'README.md'), 'utf8').split('\n')[0]?.includes(titleTag), `README.md title must show ${titleTag}`);
 
   const agentsText = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
   assert.match(agentsText, /--check/);
@@ -186,7 +190,7 @@ test('T-069: root README.md, skill README.en/ru, AGENTS.md, references/team.md, 
   const teamRef = readFileSync(path.join(skillDir, 'references', 'team.md'), 'utf8');
   const teamCiTpl = readFileSync(path.join(skillDir, 'templates', 'github-team-ci.yml'), 'utf8');
 
-  assert.match(rootReadme, /^# Architect \+ Executor Skill \(`v3\.\d+ \/ 1\.\d+`\)/m);
+  assert.match(rootReadme, /^# Architect \+ Executor Skill \(`v3\.\d+ \/ \d+\.\d+`\)/m);
   assert.match(rootReadme, /^##\s+Team Use\b/m, 'root README.md must include a ## Team Use section');
   assert.match(rootReadme, /--init --team/, 'root README.md must mention --init --team');
   assert.match(rootReadme, /cycle\/<N>/, 'root README.md must mention cycle/<N> branch');

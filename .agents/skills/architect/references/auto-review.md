@@ -9,7 +9,7 @@ The Executor report is testimony, not proof. By default, the Executor runs typec
 
 - **Low risk (`низкий`):** check the report, the combined diff of all task commits (`T-NNN` and `T-NNN (fix N)`), and the acceptance criteria.
 - **Medium risk (`средний`):** plus the results of targeted tests and changes to affected interfaces. When in specific doubt, re-run the main verification command.
-- **High risk (`высокий`):** run the key verification commands yourself or take the CI result. The report alone is not enough. CI counts only when the run is finished, green, triggered on the hash of the commit being reviewed, and includes the required checks.
+- **High risk (`высокий`):** run the key verification commands yourself or take the CI result. The report alone is not enough; in the automated loop the orchestrator's mechanics check has already run `Verify`, so re-run a command only when a high-risk check is in doubt. CI counts only when the run is finished, green, triggered on the hash of the commit being reviewed, and includes the required checks.
 
 If a result could not be confirmed, mark it `NOT VERIFIED` and do not call the check passed.
 

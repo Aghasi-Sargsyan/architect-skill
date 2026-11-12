@@ -1,11 +1,11 @@
-<!-- skill-readme-sync: v3.54 / 1.9 -->
-# Скилл «Архитектор + Исполнитель» (`v3.53 / 1.9`)
+<!-- skill-readme-sync: v3.55 / 2.0 -->
+# Скилл «Архитектор + Исполнитель» (`v3.55 / 2.0`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
 2. **Автоматический оркестратор (`orchestrator/run.mjs`):** CLI на чистом Node.js без npm-зависимостей; требует **Node.js 22+** и **git 2.31+**. **Детерминированные проверки (`--check`, `--check-task`, `--self-check`) официально поддерживаются на macOS и Linux (`ubuntu-latest`); цикл запуска агентов поддерживается только на macOS (Windows не поддерживается).** Поддерживает раннеры **`agy`** (Antigravity) и **`claude`** (Claude Code); уведомления — **macOS** (`osascript`) и вебхук `AGENT_LOOP_WEBHOOK_URL`.
 
-- **Рабочие промпты (единый источник правил на английском):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,plan-audit,retro,stacks,team}.md`.
+- **Рабочие промпты (единый источник правил на английском):** `SKILL.md`, `EXECUTOR.md`, `references/{auto-review,orchestrator,retro,stacks,team}.md`.
 - **Руководства для человека (`<= 25 КБ` каждое):** `README.ru.md` (на русском) и `README.en.md` (на английском).
 
 ---
@@ -44,7 +44,7 @@
 ### Модель угроз
 - **Ограждение, а не граница безопасности:** проверки ловят ошибки модели. Граница — только ОС-песочница раннера: у `claude` она включена, у `agy` её нет.
 - **Недоверенные данные** (чужой код, текст задач, веб): цикл — в контейнере, ВМ или клоне без сети и облачных ключей.
-- **Данные, а не инструкции:** по правилам обоих агентов файлы, вывод команд и отчёты — данные (`EXECUTOR.md` `1.9`).
+- **Данные, а не инструкции:** по правилам обоих агентов файлы, вывод команд и отчёты — данные (`EXECUTOR.md` `2.0`).
 - **Пределы:** `Verify` идёт с правами оркестратора вне песочницы; правки игнорируемых файлов (`node_modules/`) не видны проверке чистого дерева; фоновый процесс, переживший ход агента, не отслеживается; таймаут `Verify` (600 с) останавливает цикл как проблему окружения.
 
 ---
@@ -92,7 +92,7 @@
    node .agents/skills/architect/orchestrator/run.mjs --update
    # или: npm run agents -- --update
    ```
-   Клонирует свежий коммит, обновляет папки скилла и `EXECUTOR.md`, пишет SHA в `.version`, не трогая конфиги и историю. `--check`, `--dry-run`, `--self-check` и старт цикла раз в 24 часа сообщают о новых коммитах (`! skill update available:`).
+   Ставит последний выпуск `vX.Y.Z` (ветка — `ARCHITECT_UPDATE_REF`) целиком или никак, пишет SHA в `.version`, конфиги и историю не трогает; неотслеживаемые файлы в папке скилла — только с `--force`. Сеть — только в `--check` и `--update` (раз в сутки; выключить — `ARCHITECT_NO_UPDATE_CHECK=1`).
 2. **Без Node.js:** однострочник из раздела 1 с `mktemp -d` (`rm -rf` перед `cp -R`), затем:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
@@ -136,7 +136,7 @@
 |---|---|
 | `--init [--team]` | Создание конфига, установка `.git/hooks/commit-msg`, добавление `.agent-runs/` и `*.local.json` в `.gitignore`; с `--team` пишет `"team": true` и `.github/workflows/team-ci.yml` |
 | `--install-hooks` | Установка Node-хука `.git/hooks/commit-msg` (без перезаписи существующего хука или `core.hooksPath`) |
-| `--update [--force]` | Обновление папки скилла, `.version`, `EXECUTOR.md` и хуков |
+| `--update [--force]` | Последний выпуск `vX.Y.Z`: папка скилла, `.version`, `EXECUTOR.md`, хуки |
 | `--compact` | Миграция проекта из `classic` (корень / `docs/`) в компактную раскладку `.architect/` (`/architect compact`) |
 | `--repair` | Восстановление `pushurl`, `.git/hooks/pre-push` и очистка stale `.lock` после аварийного завершения (`/architect repair`) |
 | `--models` / `--set-model <executor\|architect> <id> [--local]` | Список моделей окружения с `effort` (`--models`) или запись модели роли в конфиг и `AGENTS.md` (`--set-model`, `/architect model`) |
@@ -145,7 +145,6 @@
 | `--write-permissions` | Запись allowlist: у `claude` опасные правила удаляются (архив `*.pruned.json`), общий файл `agy` только дополняется (после явного согласия) |
 | `--dry-run` | Проверка готовности, `--self-check` (`red-check`) и показ промпта следующей задачи без вызова LLM |
 | `--self-check [--base <ref>]` | Самопроверка Архитектора (обходы, пустой `catch`, таймеры, монотонность, `fix-frozen`, `eval`, аудит, параллельные задачи и `red-check`) |
-| `--audit-plan` | Read-only аудит плана другой моделью (`references/plan-audit.md`) через `config.auditor` (до 1 повтора на базу цикла) |
 | `--background` / `--stop` | Фоновый запуск (ждёт `.lock`, даёт `--watch`) / остановка (агент, защита, блокировка) |
 | `--watch [мин] [--since N]` | Ожидание запроса разрешения (`2`), остановки (`3`) или вехи (`4`); вывод кончается `(milestones: N)` |
 | `--status` / `--follow` | Сводка состояния цикла (`--status`) или живая лента в терминале (`--follow`) |
