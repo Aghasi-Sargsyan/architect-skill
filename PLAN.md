@@ -52,7 +52,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; `mechanics-bypass.test.mjs`, `selfcheck.test.mjs`, `field-bypass-frozen.test.mjs` stay green; `mechanics.mjs` ≤ 400 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/mechanics-bypass-scope.test.mjs .agents/skills/architect/orchestrator/mechanics-bypass.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/field-bypass-frozen.test.mjs`
 
-- [ ] T-113: `--set-model` replaces the whole model line and validates the id
+- [x] T-113: `--set-model` replaces the whole model line and validates the id
   - Risk: medium.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/models.mjs` (`validateModelName`, lines ~40–60 and ~200–235), `.agents/skills/architect/orchestrator/models.test.mjs`, `AGENTS.md` (line 5 sample `Исполнитель по умолчанию — …`; read-only).
