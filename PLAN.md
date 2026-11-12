@@ -112,7 +112,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/cli.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs`
 
-- [ ] T-097: Self-check без исключения коммитов задачи и модуль `monotonicity.mjs`
+- [x] T-097: Self-check без исключения коммитов задачи и модуль `monotonicity.mjs`
   - Риск: высокий.
   - Зависит от: T-095.
   - Читать: `.agents/skills/architect/orchestrator/monotonicity.mjs` (контракт), `.agents/skills/architect/orchestrator/selfcheck-range.test.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs` (строки 1–30, 136–190, 189–380 — читать участками), `.agents/skills/architect/orchestrator/task-range.mjs` (символ `findTaskDirtyFiles`), `.agents/skills/architect/orchestrator/selfcheck.test.mjs` (строки 139–252), `.agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs` (строки 124–235).
