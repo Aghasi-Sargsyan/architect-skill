@@ -6,24 +6,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { blockedRunnerCommands } from './runners.mjs';
 import { skillFilePath } from './layout.mjs';
+import { gitArgsProblem } from './git-policy.mjs';
+import {
+  BASE_COMMANDS, DENIED_BINARIES, FILE_BINARIES, LEADING_FLAG_RUNNERS, PY_SAFE_MODULES, STANDALONE_TOOLS, SUBCOMMAND_TOOLS, TOO_BROAD, WRAPPERS,
+} from './command-tables.mjs';
 
 export const AGY_SETTINGS_SHOWN = '~/.gemini/antigravity-cli/settings.json';
 export const agySettingsPath = (home = os.homedir()) => path.join(home, '.gemini', 'antigravity-cli', 'settings.json');
 
-/** Safe base set: read-only git, local commits, verification commands and read-only listings. */
-export const BASE_COMMANDS = [
-  'git status', 'git diff', 'git log', 'git show', 'git rev-parse', 'git branch --show-current', 'git ls-files', 'git grep', 'git blame', 'git ls-tree', 'git merge-base', 'git rev-list', 'git describe', 'git shortlog', 'git stash list', 'git tag -l', 'git branch -a', 'git branch -r', 'git branch --list', 'git check-ignore', 'git add', 'git commit', 'node --test', 'node --version', 'npm ls', 'wc -l', 'grep', 'ls', 'pwd', 'which',
-];
+export { BASE_COMMANDS, WRAPPERS, FILE_BINARIES, SUBCOMMAND_TOOLS, STANDALONE_TOOLS };
 
-const TOO_BROAD = new Set([
-  'git', 'npm', 'npm run', 'npm run-script', 'npx', 'node', 'sh', 'bash', 'zsh', 'env', 'xargs', 'pnpm', 'pnpm run', 'yarn', 'yarn run', 'bun', 'bun run', 'make', 'just',
-]);
-export const WRAPPERS = new Set(['time', 'timeout', 'nice', 'nohup', 'caffeinate', 'stdbuf', 'command', 'builtin', 'arch']);
-export const FILE_BINARIES = new Set(['cat', 'head', 'tail', 'less', 'more', 'sed', 'awk', 'perl', 'python', 'python3', 'tee', 'find', 'touch', 'mkdir', 'cp', 'mv', 'shasum', 'sha256sum', 'md5']);
-const DENIED_BINARIES = new Set([
-  'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec', 'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript', ...WRAPPERS, ...FILE_BINARIES,
-]);
-const PY_SAFE_MODULES = new Set(['pytest', 'unittest', 'mypy', 'ruff', 'flake8', 'black', 'isort', 'pyright', 'doctest']);
 const SHELL_OPERATORS_RE = /&|\||;|>|<|\$\(|`/;
 const SHELL_OPERATORS_ERR = 'contains shell operators (; & && || | > < ` $() or newlines) — only simple commands are allowed';
 const RULE_RE = /^([a-z_]+)\((.*)\)$/;
@@ -87,8 +79,6 @@ export function forbiddenCommands(blockedScripts = []) {
   return ['git push', 'git reset', 'git clean', 'git config', 'git remote', 'git checkout', 'git restore', 'git switch', ...blockedRunnerCommands(blockedScripts)];
 }
 
-const LEADING_FLAG_RUNNERS = new Set(['git', 'npm', 'pnpm', 'yarn', 'bun', 'make', 'just']);
-
 /** Why allowing `command(<command>)` is unsafe, or null. */
 export function commandProblem(command, blockedScripts = []) {
   if (/[\r\n\0]/.test(String(command ?? ''))) return SHELL_OPERATORS_ERR;
@@ -128,11 +118,9 @@ export function commandProblem(command, blockedScripts = []) {
   if (LEADING_FLAG_RUNNERS.has(unwrappedBin) && unwrappedSecond.startsWith('-')) return `rule is too broad: leading flag "${unwrappedSecond}" before ${unwrappedBin} subcommand`;
   if (rawFirst.includes('/')) return `calling by path ("${rawFirst}") is forbidden: use command from PATH`;
   if (WRAPPERS.has(binName(rawFirst))) return `command wrapper "${rawFirst}" is not allowed`;
+  if (unwrappedBin === 'git') return gitArgsProblem(unwrappedTokens.slice(1));
   return null;
 }
-
-export const SUBCOMMAND_TOOLS = new Set(['git', 'npm', 'npx', 'pnpm', 'yarn', 'bun', 'make', 'just', 'cargo', 'go', 'uv', 'poetry', 'pipenv', 'dotnet', 'composer', 'bundle', 'mix', 'gradle', 'mvn']);
-export const STANDALONE_TOOLS = new Set(['pytest', 'ruff', 'mypy', 'flake8', 'black', 'isort', 'pyright', 'eslint', 'prettier', 'tsc', 'vitest', 'jest', 'playwright', 'golangci-lint', 'clippy', 'ls', 'grep']);
 
 /**
  * CONTRACT: does the orchestrator know this kind of command? After unwrapTokens, the binary (binName) is
