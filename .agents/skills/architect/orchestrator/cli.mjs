@@ -14,6 +14,7 @@ import { validatePlan } from './plan-validate.mjs';
 import { formatMechanicsReport } from './mechanics.mjs';
 import { checkTaskCommits } from './check-task.mjs';
 import { checkSkillUpdateAvailable } from './update.mjs';
+import { checkDecisionsIndex } from './decisions-lint.mjs';
 
 const orchDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -177,7 +178,11 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
     ...planIssues,
   ];
   const notVerified = [...(gitRes.notVerified ?? []), ...(evidenceRes.notVerified ?? [])];
-  const waivers = gitRes.waivers ?? [], warnings = gitRes.warnings ?? [];
+  const waivers = gitRes.waivers ?? [];
+  const warnings = [
+    ...(gitRes.warnings ?? []),
+    ...checkDecisionsIndex({ realGit: g, cwd: workDir, baseSha: gitRes.baseSha, headSha: gitRes.headSha }),
+  ];
 
   return {
     ok: violations.length === 0,
