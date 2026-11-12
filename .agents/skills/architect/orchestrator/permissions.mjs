@@ -19,6 +19,7 @@ export { BASE_COMMANDS, WRAPPERS, FILE_BINARIES, SUBCOMMAND_TOOLS, STANDALONE_TO
 const SHELL_OPERATORS_RE = /&|\||;|>|<|\$\(|`/;
 const SHELL_OPERATORS_ERR = 'contains shell operators (; & && || | > < ` $() or newlines) — only simple commands are allowed';
 const RULE_RE = /^([a-z_]+)\((.*)\)$/;
+const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 const words = (cmd) => String(cmd).trim().split(/\s+/).filter(Boolean);
 const startsWithWords = (cmd, prefix) => {
@@ -87,12 +88,14 @@ export function commandProblem(command, blockedScripts = []) {
   if (SHELL_OPERATORS_RE.test(c)) return SHELL_OPERATORS_ERR;
   const rawWords = words(c), rawFirst = rawWords[0] ?? '';
   const unwrappedTokens = unwrapTokens(rawWords);
+  const envWord = [rawFirst, unwrappedTokens[0] ?? ''].find((w) => ENV_ASSIGNMENT_RE.test(w));
+  if (envWord) return `an environment variable prefix ("${envWord}") is not allowed: it can change what the command does`;
   if (unwrappedTokens.length === 0) return `command wrapper "${rawFirst}" is not allowed`;
   const unwrappedBin = binName(unwrappedTokens[0]);
   const unwrappedStr = [unwrappedBin, ...unwrappedTokens.slice(1)].join(' ');
   const unwrappedSecond = unwrappedTokens[1] ?? '';
   if (TOO_BROAD.has(c) || TOO_BROAD.has(unwrappedStr)) return `rule is too broad: allows any command "${c} ..."`;
-  const isPython = unwrappedBin === 'python' || unwrappedBin === 'python3';
+  const isPython = /^python\d*(\.\d+)*$/.test(unwrappedBin);
   const isPythonTestRunner = isPython && ((unwrappedSecond === '-m' && PY_SAFE_MODULES.has(unwrappedTokens[2])) || (unwrappedSecond === 'manage.py' && unwrappedTokens[2] === 'test'));
   if ((isPython || FILE_BINARIES.has(unwrappedBin)) && !isPythonTestRunner) return `"${unwrappedBin}" is forbidden in the terminal: use built-in file tools for reading and modifying files`;
   const hit = forbiddenCommands(blockedScripts).find((f) => startsWithWords(f, c) || startsWithWords(c, f) || startsWithWords(f, unwrappedStr) || startsWithWords(unwrappedStr, f));
@@ -130,7 +133,10 @@ export function commandProblem(command, blockedScripts = []) {
  * @returns {boolean}
  */
 export function isRecognizedCommand(command) {
-  throw new Error('Not implemented');
+  const tokens = unwrapTokens(words(normalizeCommand(command ?? '')));
+  if (tokens.length === 0) return false;
+  const bin = binName(tokens[0]);
+  return SUBCOMMAND_TOOLS.has(bin) || STANDALONE_TOOLS.has(bin) || bin === 'python' || bin === 'python3' || BASE_COMMANDS.some((c) => words(c)[0] === bin);
 }
 
 export function suggestAllowedCommand(command, blockedScripts = [], optsOrWorkDir = {}) {

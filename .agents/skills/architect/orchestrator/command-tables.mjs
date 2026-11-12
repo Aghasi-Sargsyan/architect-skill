@@ -10,8 +10,16 @@ export const TOO_BROAD = new Set([
 ]);
 export const WRAPPERS = new Set(['time', 'timeout', 'nice', 'nohup', 'caffeinate', 'stdbuf', 'command', 'builtin', 'arch']);
 export const FILE_BINARIES = new Set(['cat', 'head', 'tail', 'less', 'more', 'sed', 'awk', 'perl', 'python', 'python3', 'tee', 'find', 'touch', 'mkdir', 'cp', 'mv', 'shasum', 'sha256sum', 'md5']);
+/** Programs that run another program given in their arguments, bypassing the PATH shims. */
+export const LAUNCHERS = new Set([
+  'xcrun', 'busybox', 'toybox', 'doas', 'pkexec', 'runuser', 'setsid', 'flock', 'script', 'watch', 'chroot', 'unshare', 'nsenter', 'sandbox-exec', 'launchctl', 'parallel', 'expect', 'ionice', 'taskset', 'chrt', 'systemd-run', 'firejail', 'bwrap', 'proot', 'fakeroot', 'xvfb-run', 'dbus-run-session', 'sg', 'newgrp',
+]);
+/** Interpreters and shells that execute arbitrary code (sh / bash / zsh, python and node are handled elsewhere). */
+export const INTERPRETERS = new Set([
+  'ruby', 'irb', 'php', 'lua', 'luajit', 'tclsh', 'wish', 'Rscript', 'pwsh', 'powershell', 'fish', 'dash', 'ksh', 'mksh', 'csh', 'tcsh', 'jshell', 'groovy', 'nodejs', 'pypy', 'pypy3', 'python2', 'ipython', 'julia', 'guile', 'racket', 'sbcl', 'ghci', 'runghc',
+]);
 export const DENIED_BINARIES = new Set([
-  'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec', 'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript', ...WRAPPERS, ...FILE_BINARIES,
+  'sh', 'bash', 'zsh', 'env', 'xargs', 'sudo', 'su', 'eval', 'exec', 'rm', 'rmdir', 'chmod', 'chown', 'ln', 'dd', 'kill', 'pkill', 'killall', 'curl', 'wget', 'ssh', 'scp', 'nc', 'open', 'osascript', ...WRAPPERS, ...FILE_BINARIES, ...LAUNCHERS, ...INTERPRETERS,
 ]);
 export const PY_SAFE_MODULES = new Set(['pytest', 'unittest', 'mypy', 'ruff', 'flake8', 'black', 'isort', 'pyright', 'doctest']);
 

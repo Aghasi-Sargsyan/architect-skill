@@ -8,6 +8,7 @@ import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { RUNS_DIR } from './config.mjs';
 import { lockHolder } from './guards.mjs';
+import { isRecognizedCommand } from './permissions.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -61,6 +62,9 @@ export function questionText(question) {
     '',
     `**Command:** \`${question.command}\``,
   ];
+  if (!isRecognizedCommand(question.command)) {
+    lines.push('', '**Note:** the orchestrator does not recognize this command — check what it does before allowing it');
+  }
   const cleanReason = sanitizeReason(question.reason);
   if (cleanReason) {
     lines.push('', `**Why:** ${cleanReason}`);
