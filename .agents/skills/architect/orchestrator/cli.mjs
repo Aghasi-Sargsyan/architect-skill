@@ -207,7 +207,7 @@ export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = nu
 
   const violations = [...fast.violations, ...(redCheck.violations ?? [])];
   const notVerified = [...fast.notVerified, ...(redCheck.notVerified ?? [])];
-  const updateRes = checkSkillUpdateAvailable({ workDir, orchestratorDir, realGit: g, env });
+  const updateRes = checkSkillUpdateAvailable({ workDir, orchestratorDir, realGit: g, env, offline: true });
   const updateNotice = updateRes?.updateAvailable ? updateRes.notice : null;
 
   return {
