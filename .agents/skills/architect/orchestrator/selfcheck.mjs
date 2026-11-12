@@ -1,5 +1,5 @@
 // Deterministic Architect self-check (base resolution, commit scan, monotonicity, fix-frozen, WAIVER).
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { git, commitsSince, findSquashViolations } from './git.mjs';
@@ -11,6 +11,7 @@ import { scanRangeCommitMessages, scanRangeProcessWarnings } from './hooks.mjs';
 import { commandProblem } from './permissions.mjs';
 import { effectiveBlockedScripts } from './runners.mjs';
 import { resolveSelfCheckRange } from './selfcheck-base.mjs';
+import { readGitBlob } from './git-read.mjs';
 
 export { resolveSelfCheckBase } from './selfcheck-base.mjs';
 
@@ -145,13 +146,13 @@ function isNamedTestFile(filePath, patterns = DEFAULT_TEST_FILE_PATTERNS) {
 }
 
 function getModifiedOrDeletedFiles(realGit, cwd, sha) {
-  try {
-    const parents = git(realGit, cwd, ['rev-list', '--parents', '-n', '1', sha]).split(/\s+/).slice(1);
-    if (!parents.length) return [];
-    return git(realGit, cwd, ['diff-tree', '--no-commit-id', '--name-only', '-r', '--diff-filter=MD', parents[0], sha])
-      .split('\n').map((f) => f.trim().replace(/\\/g, '/').replace(/^\.\//, '')).filter(Boolean);
-  } catch { /* cleanup: abort diff-tree read */ return []; }
+  const parents = git(realGit, cwd, ['rev-list', '--parents', '-n', '1', sha]).split(/\s+/).slice(1);
+  if (!parents.length) return [];
+  return git(realGit, cwd, ['diff-tree', '--no-commit-id', '--name-only', '-r', '--diff-filter=MD', parents[0], sha])
+    .split('\n').map((f) => f.trim().replace(/\\/g, '/').replace(/^\.\//, '')).filter(Boolean);
 }
+
+const errMessage = (err) => (err instanceof Error ? err.message : String(err));
 
 export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText = null, requireFixFrozen = false, orchestratorDir = here }) {
   const range = resolveSelfCheckRange({ realGit, cwd, baseRef });
@@ -160,12 +161,13 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
 
   let effectivePlanText = planText;
   if (effectivePlanText === null) {
+    effectivePlanText = '';
     for (const rel of [config?.paths?.planPath, '.architect/PLAN.md', 'PLAN.md'].filter(Boolean)) {
-      try { effectivePlanText = readFileSync(path.join(cwd, rel), 'utf8'); break; } catch {
-        try { effectivePlanText = git(realGit, cwd, ['show', `HEAD:${rel}`]); break; } catch { /* cleanup: abort plan candidate */ }
-      }
+      if (existsSync(path.join(cwd, rel))) { effectivePlanText = readFileSync(path.join(cwd, rel), 'utf8'); break; }
+      let blob;
+      try { blob = readGitBlob(realGit, cwd, 'HEAD', rel); } catch (err) { violations.push(`cannot read ${rel} at HEAD: ${errMessage(err)}`); break; }
+      if (blob.status === 'ok') { effectivePlanText = blob.text; break; }
     }
-    if (effectivePlanText === null) effectivePlanText = '';
   }
   const waivers = parseWaivers(effectivePlanText), notVerified = [];
   if (baseSha === headSha) return { ok: violations.length === 0, baseSha, headSha, commitCount, empty, violations, warnings: [...range.warnings], waivers, notVerified };
@@ -191,8 +193,9 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       const f = norm(rawFile);
       if (!ARCHIVE_PLAN_RE.test(f) || !headFileSet.has(f) || checkedArchives.has(f)) continue;
       checkedArchives.add(f);
-      let content = '';
-      try { content = git(realGit, cwd, ['show', `HEAD:${f}`]); } catch { /* cleanup: abort reading archive */ continue; }
+      const archive = readGitBlob(realGit, cwd, 'HEAD', f);
+      if (archive.status === 'missing') continue;
+      const content = archive.text;
       if (!RETRO_HEADER_RE.test(content) || !RULES_ADDED_RE.test(content)) {
         violations.push(`cycle closure archive ${f} is missing ## Retrospective / Ретроспектива section or "Rules: added N / removed M" line`);
       }
@@ -201,17 +204,16 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   const planIdx = allCommits.findIndex((c) => PLAN_SUBJECT_RE.test(c.subject));
   const frozenTests = new Set();
   const collectFrozen = (txt) => {
-    try {
-      for (const f of parsePlan(txt).frozen ?? []) {
-        const nf = norm(f);
-        if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
-      }
-    } catch { /* cleanup: abort plan parsing */ }
+    for (const f of parsePlan(txt).frozen ?? []) {
+      const nf = norm(f);
+      if (isTestFile(nf, config?.testFilePatterns)) frozenTests.add(nf);
+    }
   };
   for (const c of allCommits) {
     if (PLAN_SUBJECT_RE.test(c.subject)) {
       for (const p of ['PLAN.md', '.architect/PLAN.md']) {
-        try { collectFrozen(git(realGit, cwd, ['show', `${c.sha}:${p}`])); } catch { /* cleanup: abort plan reading */ }
+        const planBlob = readGitBlob(realGit, cwd, c.sha, p);
+        if (planBlob.status === 'ok') collectFrozen(planBlob.text);
       }
     }
   }
@@ -257,13 +259,26 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     }
   }
 
+  const base7 = baseSha.slice(0, 7);
+  const readConfigJson = (ref, label, cfgFile) => {
+    const blob = readGitBlob(realGit, cwd, ref, cfgFile);
+    if (blob.status === 'missing') return {};
+    try {
+      const parsed = JSON.parse(blob.text);
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('expected a JSON object');
+      return parsed;
+    } catch (err) {
+      violations.push(`config ${cfgFile} at ${label} is not valid JSON: ${errMessage(err)}`);
+      return {};
+    }
+  };
   const protectedConfigFiles = resolveProtectedConfigFiles({ cwd, orchestratorDir, baseFiles, headFiles });
   for (const cfgFile of protectedConfigFiles) {
+    let headJson = {};
     if (headFileSet.has(cfgFile)) {
-      let hCfg = {};
-      try { hCfg = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch { /* cleanup: abort head config parse */ hCfg = {}; }
-      if (typeof hCfg.fullTestCommand === 'string' && hCfg.fullTestCommand.trim()) {
-        const ftProb = commandProblem(hCfg.fullTestCommand, effectiveBlockedScripts(hCfg));
+      headJson = readConfigJson('HEAD', 'HEAD', cfgFile);
+      if (typeof headJson.fullTestCommand === 'string' && headJson.fullTestCommand.trim()) {
+        const ftProb = commandProblem(headJson.fullTestCommand, effectiveBlockedScripts(headJson));
         if (ftProb) violations.push(`config ${cfgFile} has unsafe fullTestCommand: ${ftProb}`);
       }
     }
@@ -272,9 +287,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
       violations.push(`monotonicity: config file ${cfgFile} deleted on HEAD`);
       continue;
     }
-    let baseJson = {}, headJson = {};
-    try { baseJson = JSON.parse(git(realGit, cwd, ['show', `${baseSha}:${cfgFile}`])); } catch { /* cleanup: abort parse base config */ baseJson = {}; }
-    try { headJson = JSON.parse(git(realGit, cwd, ['show', `HEAD:${cfgFile}`])); } catch { /* cleanup: abort parse head config */ headJson = {}; }
+    const baseJson = readConfigJson(baseSha, base7, cfgFile);
     for (const key of CONFIG_ARRAY_KEYS) {
       const baseArr = Array.isArray(baseJson[key]) ? baseJson[key] : [], headArr = Array.isArray(headJson[key]) ? headJson[key] : [];
       for (const item of baseArr) if (!headArr.includes(item)) violations.push(`monotonicity: in ${cfgFile} array ${key} missing element "${item}" present in base`);
@@ -324,9 +337,9 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
   // 4. Rule version bump gate on SKILL.md, references/*.md, and EXECUTOR.md
   const changedFiles = [...new Set(allCommits.flatMap((c) => c.files.map(norm)))];
   if (!changedFiles.some((f) => f === '.version' || f.endsWith('/.version'))) {
-    const base7 = baseSha.slice(0, 7);
     const readBlob = (ref, f) => {
-      try { return git(realGit, cwd, ['show', `${ref}:${f}`]); } catch { /* cleanup: abort reading blob */ return ''; }
+      const blob = readGitBlob(realGit, cwd, ref, f);
+      return blob.status === 'ok' ? blob.text : '';
     };
     if (changedFiles.some((f) => f === 'SKILL.md' || f.endsWith('/SKILL.md') || /(?:^|\/)references\/[^/]+\.md$/.test(f))) {
       const sf = changedFiles.find((f) => f === 'SKILL.md' || f.endsWith('/SKILL.md')) ?? headFiles.find((f) => f.endsWith('/SKILL.md') || f === 'SKILL.md') ?? 'SKILL.md';
@@ -354,7 +367,9 @@ export function checkPostReviewSelfCheck({ realGit, cwd, baseSha, config }) {
         violations.push(`new WAIVER line added during automated cycle is forbidden: ${line.slice(1).trim()}`);
       }
     }
-  } catch { /* cleanup: abort diff inspection */ }
+  } catch (err) {
+    violations.push(`cannot inspect PLAN.md for new WAIVER lines: ${errMessage(err)}`);
+  }
 
   const sc = runSelfCheckGit({ realGit, cwd, config, baseRef: baseSha, requireFixFrozen: true });
   violations.push(...sc.violations);

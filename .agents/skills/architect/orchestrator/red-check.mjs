@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { git, commitsSince } from './git.mjs';
+import { readGitBlob } from './git-read.mjs';
 import { runTaskVerification } from './mechanics.mjs';
 import { parsePlan } from './plan.mjs';
 import { resolveEscalationResume } from './check.mjs';
@@ -17,24 +18,12 @@ function isFileNewOrModifiedSince(realGit, cwd, baseSha, file) {
   const fullPath = path.join(cwd, normFile);
   if (!existsSync(fullPath)) return false;
 
-  let existedAtBase = false;
-  try {
-    const treeOut = git(realGit, cwd, ['ls-tree', baseSha, normFile]);
-    existedAtBase = treeOut.trim().length > 0;
-  } catch {
-    existedAtBase = false;
-  }
-
+  const existedAtBase = git(realGit, cwd, ['ls-tree', baseSha, normFile]).trim().length > 0;
   if (!existedAtBase) {
     return true;
   }
 
-  try {
-    const diff = git(realGit, cwd, ['diff', '--name-only', baseSha, '--', normFile]);
-    return diff.trim().length > 0;
-  } catch {
-    return false;
-  }
+  return git(realGit, cwd, ['diff', '--name-only', baseSha, '--', normFile]).trim().length > 0;
 }
 
 /** Last reporter line of the output as `{ result, rest }`; `result` is null when absent or not valid JSON. */
@@ -97,20 +86,24 @@ export function runRedCheck({ realGit, cwd = process.cwd(), baseSha, plan, confi
     for (const rel of planCandidates) {
       const fullPath = path.join(cwd, rel);
       if (existsSync(fullPath)) {
-        try {
-          parsedPlan = parsePlan(readFileSync(fullPath, 'utf8'));
-          break;
-        } catch (err) {
-          parsedPlan = null;
-          void err;
-        }
-      }
-      try {
-        parsedPlan = parsePlan(git(realGit, cwd, ['show', `HEAD:${rel}`]));
+        parsedPlan = parsePlan(readFileSync(fullPath, 'utf8'));
         break;
+      }
+      let blob;
+      try {
+        blob = readGitBlob(realGit, cwd, 'HEAD', rel);
       } catch (err) {
-        parsedPlan = null;
-        void err;
+        return {
+          ok: false,
+          skipped: false,
+          violations: [`cannot read ${rel} at HEAD: ${err instanceof Error ? err.message : String(err)}`],
+          notVerified: [],
+          checked: [],
+        };
+      }
+      if (blob.status === 'ok') {
+        parsedPlan = parsePlan(blob.text);
+        break;
       }
     }
     if (!parsedPlan) {
