@@ -71,7 +71,7 @@ test('T-043a: parsePlan extracts verifyCommands only from backticks in Пров�
   assert.deepEqual(parsed.tasks[1].verifyCommands, [], 'Verify without backticks must produce empty verifyCommands');
   assert.deepEqual(parsed.tasks[2].verifyCommands, ['npx tsc -b', 'node --test tests/c.test.mjs']);
 
-  assert.equal(DEFAULTS.verifyTimeoutMs, 120000);
+  assert.equal(DEFAULTS.verifyTimeoutMs, 600000);
   assert.deepEqual(validateConfig(DEFAULTS), []);
   assert.match(validateConfig(withDefaults({ verifyTimeoutMs: 0 })).join('\n'), /verifyTimeoutMs/);
   assert.match(validateConfig(withDefaults({ verifyTimeoutMs: 'fast' })).join('\n'), /verifyTimeoutMs/);

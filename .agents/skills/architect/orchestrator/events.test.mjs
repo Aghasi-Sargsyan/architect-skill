@@ -56,8 +56,8 @@ test('milestonesFromEvents computes rework and accepted+next milestones independ
     { ts: '2026-10-26T10:20:01.000Z', type: 'run_stopped', category: 'all_accepted', status: 'ok', taskId: 'none' },
   ];
   assert.deepEqual(milestonesFromEvents(events), [
-    'T-011: доработка 1',
-    'T-011 принята (10 мин); дальше T-013',
+    'T-011: rework 1',
+    'T-011 accepted (10 min); next T-013',
   ]);
 
   // Stopping on needs_user produces no milestone

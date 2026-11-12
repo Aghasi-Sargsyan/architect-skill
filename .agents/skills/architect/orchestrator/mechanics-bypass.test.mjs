@@ -32,7 +32,7 @@ afterEach(() => {
 
 test('T-042: DEFAULTS in config.example.json keep bypassScanPaths=["src","tests"] and indices 0..8 untouched, adding prototype/globalThis/__proto__ mutation pattern at index 9', () => {
   assert.deepEqual(DEFAULTS.bypassScanPaths, ['src', 'tests']);
-  assert.equal(DEFAULTS.bypassPatterns.length, 10);
+  assert.equal(DEFAULTS.bypassPatterns.length, 15);
   assert.equal(DEFAULTS.bypassPatterns[5], '\\.(skip|only)\\(');
   assert.equal(DEFAULTS.bypassPatterns[6], '#\\s*noqa\\b');
   assert.equal(DEFAULTS.bypassPatterns[7], '#\\s*type:\\s*ignore');
