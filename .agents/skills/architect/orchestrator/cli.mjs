@@ -185,6 +185,8 @@ export function runFastSelfCheck({ realGit, workDir = process.cwd(), config = nu
     ok: violations.length === 0,
     baseSha: gitRes.baseSha,
     headSha: gitRes.headSha,
+    commitCount: gitRes.commitCount,
+    empty: gitRes.empty,
     violations,
     warnings,
     notVerified,
@@ -221,10 +223,11 @@ export function runFullSelfCheck({ realGit, workDir = process.cwd(), config = nu
 
 export function formatSelfCheckReport(res) {
   const lines = [];
-  const status = res.ok ? '✓ Self-check PASSED' : '✗ Self-check FAILED';
+  const status = !res.ok ? '✗ Self-check FAILED' : res.empty === true ? '✓ Self-check EMPTY' : '✓ Self-check PASSED';
   const base = res.baseSha ? res.baseSha.slice(0, 7) : 'unknown';
   const head = res.headSha ? res.headSha.slice(0, 7) : 'unknown';
-  lines.push(`${status} (${base}..${head})`);
+  const count = typeof res.commitCount === 'number' ? `, ${res.commitCount} commit${res.commitCount === 1 ? '' : 's'}` : '';
+  lines.push(`${status} (${base}..${head}${count})`);
   if (res.updateNotice) lines.push(res.updateNotice.startsWith('! ') ? res.updateNotice : `! ${res.updateNotice}`);
 
   if (res.violations && res.violations.length > 0) {

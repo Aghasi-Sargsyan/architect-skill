@@ -10,6 +10,9 @@ import { parsePlan } from './plan.mjs';
 import { scanRangeCommitMessages, scanRangeProcessWarnings } from './hooks.mjs';
 import { commandProblem } from './permissions.mjs';
 import { effectiveBlockedScripts } from './runners.mjs';
+import { resolveSelfCheckRange } from './selfcheck-base.mjs';
+
+export { resolveSelfCheckBase } from './selfcheck-base.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -42,25 +45,6 @@ const TIMER_RE = /(?:performance\.now\(|Date\.now\(|process\.hrtime\b|console\.t
 const CATCH_RE = /(?:^|[^\w.])(catch\s*(?:\([^)]*\))?\s*\{([^}]*)\})/g;
 const PROMISE_CATCH_RE = /(\.catch\s*\(\s*(?:\([^)]*\)|[a-zA-Z0-9_$]+)?\s*(?:=>|function[^{]*)\s*\{([^}]*)\}\s*\))/g;
 const CLEANUP_RE = /\b(?:stop|abort|close)\b/i;
-
-export function resolveSelfCheckBase({ realGit, cwd, baseRef = null }) {
-  if (baseRef) {
-    try { return { sha: git(realGit, cwd, ['rev-parse', `${baseRef}^{commit}`]), source: 'explicit' }; } catch {
-      // cleanup: abort base resolution with fail-closed hint
-      throw new Error(`Cannot resolve --base "${baseRef}" to a commit — ensure the branch/ref is fetched (e.g. fetch-depth: 0)`);
-    }
-  }
-  const headSha = git(realGit, cwd, ['rev-parse', 'HEAD']);
-  const log = git(realGit, cwd, ['log', '--format=%H %s', 'HEAD']).split('\n').filter(Boolean);
-  const isClose = (s) => /^arch:\s*(?:close cycle|закрытие цикла)\b/i.test(s);
-  const closes = log.filter((l) => isClose(l.slice(41)));
-  const cand = closes.find((l) => l.slice(0, 40) !== headSha);
-  if (cand) return { sha: cand.slice(0, 40), source: 'close-cycle' };
-  if (!closes.length) {
-    try { return { sha: git(realGit, cwd, ['rev-parse', '@{u}']), source: 'upstream' }; } catch { /* cleanup: abort upstream resolution */ }
-  }
-  return { sha: git(realGit, cwd, ['rev-list', '--max-parents=0', 'HEAD']).split('\n')[0].trim(), source: 'root' };
-}
 
 export function parseWaivers(planText) {
   if (!planText || typeof planText !== 'string') return [];
@@ -170,9 +154,9 @@ function getModifiedOrDeletedFiles(realGit, cwd, sha) {
 }
 
 export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText = null, requireFixFrozen = false, orchestratorDir = here }) {
-  const { sha: baseSha } = resolveSelfCheckBase({ realGit, cwd, baseRef });
-  const headSha = git(realGit, cwd, ['rev-parse', 'HEAD']);
-  const violations = [];
+  const range = resolveSelfCheckRange({ realGit, cwd, baseRef });
+  const { baseSha, headSha, commitCount, empty } = range;
+  const violations = [...range.violations];
 
   let effectivePlanText = planText;
   if (effectivePlanText === null) {
@@ -184,10 +168,11 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     if (effectivePlanText === null) effectivePlanText = '';
   }
   const waivers = parseWaivers(effectivePlanText), notVerified = [];
-  if (baseSha === headSha) return { ok: true, baseSha, headSha, violations, warnings: [], waivers, notVerified };
+  if (baseSha === headSha) return { ok: violations.length === 0, baseSha, headSha, commitCount, empty, violations, warnings: [...range.warnings], waivers, notVerified };
 
   const warnings = scanRangeCommitMessages({ realGit, cwd, baseSha, headSha, commitLanguage: config?.commitLanguage });
   if (config?.team === true && warnings.length > 0) violations.push(...warnings);
+  warnings.push(...range.warnings);
   const allCommits = commitsSince(realGit, cwd, baseSha);
   const nonMergeCommits = allCommits.filter((c) => !c.isMerge);
   const nonExecCommits = nonMergeCommits.filter((c) => !TASK_SUBJECT_RE.test(c.subject));
@@ -357,7 +342,7 @@ export function runSelfCheckGit({ realGit, cwd, config, baseRef = null, planText
     }
   }
 
-  return { ok: violations.length === 0, baseSha, headSha, violations, warnings, waivers, notVerified };
+  return { ok: violations.length === 0, baseSha, headSha, commitCount, empty, violations, warnings, waivers, notVerified };
 }
 
 export function checkPostReviewSelfCheck({ realGit, cwd, baseSha, config }) {
