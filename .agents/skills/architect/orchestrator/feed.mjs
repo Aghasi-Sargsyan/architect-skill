@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { RUNS_DIR } from './config.mjs';
 import { lockHolder } from './guards.mjs';
-import { questionPath, questionText } from './ask.mjs';
+import { questionText, readPendingQuestion } from './ask.mjs';
 import { EVENTS_FILE, milestonesFromEvents, readEvents } from './events.mjs';
 import { readPlan } from './plan.mjs';
 
@@ -185,7 +185,7 @@ export function statusText(workDir, now = Date.now()) {
   }
   const minutes = Math.max(0, Math.round((now - runStart(run.name)) / 60_000));
   const lines = [`running ${minutes} min${task ? `: ${task}` : ''}`];
-  if (existsSync(questionPath(workDir))) lines.push('waiting for an answer to a permission question (see --watch)');
+  if (readPendingQuestion(workDir).question) lines.push('waiting for an answer to a permission question (see --watch)');
   const steps = lastLines(readIf(path.join(run.dir, 'feed.log')), 3);
   if (steps.length) lines.push('recent steps:', ...steps.map((s) => `  ${s}`));
   return lines.join('\n');
@@ -217,7 +217,7 @@ export function printStatus({ workDir = process.cwd(), planPath = 'PLAN.md', out
     }
   }
 
-  const hasQuestion = existsSync(questionPath(workDir));
+  const hasQuestion = Boolean(readPendingQuestion(workDir).question);
   const summary = run ? readIf(path.join(run.dir, 'summary.md')).trimEnd() : '';
 
   out.write('=== Agent loop ===\n');
@@ -318,10 +318,11 @@ export async function watch({ workDir, minutes = 25, since = null, pollMs, grace
     const seen = now.list;
     const isRu = seen.some((s) => /[А-Яа-яЁё]/.test(s));
     const count = isRu ? `(вех: ${seen.length})` : `(milestones: ${seen.length})`;
-    if (existsSync(questionPath(workDir))) {
-      const question = JSON.parse(readFileSync(questionPath(workDir), 'utf8'));
-      const answers = [...question.options.map((o) => o.answer), '3'].join('|');
-      return { code: 2, text: `${questionText(question)}\n\npass the user's answer: --answer <${answers}> ${count}` };
+    const pending = readPendingQuestion(workDir);
+    if (pending.error) return { code: 3, text: `permission question cannot be read: ${pending.error}` };
+    if (pending.question) {
+      const answers = [...pending.question.options.map((o) => o.answer), '3'].join('|');
+      return { code: 2, text: `${questionText(pending.question)}\n\npass the user's answer: --answer <${answers}> ${count}` };
     }
     if (lockHolder(runs) === null && Date.now() - started >= effGraceMs) {
       const run = latestRun(workDir);

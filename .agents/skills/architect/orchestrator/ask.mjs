@@ -1,11 +1,13 @@
 // Asking the person whether a denied command may run. In a terminal: a prompt right there. Without one
 // (--background): the question goes to .agent-runs/question.json and the answer comes back through
 // `run.mjs --answer <n>` (any terminal, or the interactive Architect relaying the person's answer).
+import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { RUNS_DIR } from './config.mjs';
+import { lockHolder } from './guards.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -183,9 +185,14 @@ export async function askPermission(optsOrQuestion, maybeOpts) {
   const qFile = opts.workDir ? questionPath(workDir) : path.join(runDir, 'question.json');
   const aFile = opts.workDir ? answerPath(workDir) : path.join(runDir, 'answer.json');
 
-  writeAtomic(qFile, `${JSON.stringify(question, null, 2)}\n`);
+  // The caller's id is only a label: the id in question.json carries a random part that exists nowhere but in
+  // this process and the file, so an answer placed before the question cannot match it.
+  const label = question.id;
+  const asked = { ...question, id: `${label}-${randomBytes(12).toString('hex')}` };
+  rmSync(aFile, { force: true });
+  writeAtomic(qFile, `${JSON.stringify(asked, null, 2)}\n`);
   if (runDir && runDir !== path.dirname(qFile)) {
-    copyFileSync(qFile, path.join(runDir, `${question.id}.question.json`));
+    copyFileSync(qFile, path.join(runDir, `${label}.question.json`));
   }
 
   const runAbs = path.resolve(orchestratorDir, 'run.mjs');
@@ -207,9 +214,9 @@ export async function askPermission(optsOrQuestion, maybeOpts) {
         } catch (err) {
           opts.log?.(`answer.json cannot be read (${errText(err)}) — waiting for reply`);
         }
-        if (answer && answer.id === question.id && valid.includes(answer.answer)) {
+        if (answer && answer.id === asked.id && valid.includes(answer.answer)) {
           if (runDir && runDir !== path.dirname(aFile)) {
-            copyFileSync(aFile, path.join(runDir, `${question.id}.answer.json`));
+            copyFileSync(aFile, path.join(runDir, `${label}.answer.json`));
           }
           if (isDirect) {
             if (answer.answer === '3') return { allow: false, reason: 'denied by user' };
@@ -250,6 +257,10 @@ export function writeAnswer({ workDir, answer }) {
   return question;
 }
 
+const isQuestion = (q) => q !== null && typeof q === 'object' && !Array.isArray(q)
+  && typeof q.id === 'string' && typeof q.command === 'string' && Array.isArray(q.options)
+  && q.options.every((o) => o !== null && typeof o === 'object' && typeof o.answer === 'string');
+
 /**
  * CONTRACT: the permission question the running loop waits on. Read-only.
  * - no `<workDir>/.agent-runs/question.json` → `{ question: null, stale: false }`;
@@ -263,7 +274,20 @@ export function writeAnswer({ workDir, answer }) {
  * @returns {{ question: object | null, stale: boolean, error?: string }}
  */
 export function readPendingQuestion(workDir) {
-  throw new Error('Not implemented');
+  const file = questionPath(workDir);
+  if (!existsSync(file)) return { question: null, stale: false };
+  if (lockHolder(path.join(workDir, RUNS_DIR)) === null) return { question: null, stale: true };
+  let question;
+  try {
+    question = JSON.parse(readFileSync(file, 'utf8'));
+  } catch (err) {
+    if (err?.code === 'ENOENT') return { question: null, stale: false }; // answered and withdrawn meanwhile
+    return { question: null, stale: false, error: `${RUNS_DIR}/question.json is unreadable: ${errText(err).replace(/\s+/g, ' ')}` };
+  }
+  if (!isQuestion(question)) {
+    return { question: null, stale: false, error: `${RUNS_DIR}/question.json has no valid id, command and options` };
+  }
+  return { question, stale: false };
 }
 
 /**
@@ -275,5 +299,9 @@ export function readPendingQuestion(workDir) {
  * @returns {object} the question
  */
 export function submitAnswer({ workDir, answer }) {
-  throw new Error('Not implemented');
+  const { question, stale, error } = readPendingQuestion(workDir);
+  if (error) throw new Error(`the permission question cannot be read: ${error}`);
+  if (stale) throw new Error(`the loop is not asking anything (the loop is not running: ${RUNS_DIR}/question.json is left over)`);
+  if (!question) throw new Error(`the loop is not asking anything (missing ${RUNS_DIR}/question.json)`);
+  return writeAnswer({ workDir, answer });
 }

@@ -17,7 +17,7 @@ import { realOrResolved } from './permissions.mjs';
 import { installCommitMsgHook } from './hooks.mjs';
 import { handleWritePermissionsCli } from './permissions-cli.mjs';
 import { runView } from './feed.mjs';
-import { writeAnswer } from './ask.mjs';
+import { submitAnswer } from './ask.mjs';
 import { findBinary, runCheckCommand } from './check.mjs';
 import { detectInitRunner, ensureClaudeSkillLink } from './claude-setup.mjs';
 
@@ -144,8 +144,9 @@ export async function dispatchCliSubcommand({
   }
 
   if (opts.answer !== null) {
-    // Checked after AGENT_LOOP in caller: an agent inside the loop can never answer its own permission request.
-    const question = writeAnswer({ workDir, answer: opts.answer });
+    // --answer is unavailable to the agent (AGENT_LOOP is checked in the caller), and an answer.json placed
+    // earlier does not match the random id of the question, so only the person's reply is accepted.
+    const question = submitAnswer({ workDir, answer: opts.answer });
     console.log(`• answer "${opts.answer}" sent to the loop: ${question.command}`);
     return { handled: true };
   }
