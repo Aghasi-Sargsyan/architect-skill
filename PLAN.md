@@ -87,7 +87,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed tests stay green; `run.mjs` stays ≤ 370 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/waivers.test.mjs .agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs .agents/skills/architect/orchestrator/selfcheck-base.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/selfcheck-range.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/run-acceptance.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs`
 
-- [ ] T-124: Strict catch scanner on every orchestrator module
+- [x] T-124: Strict catch scanner on every orchestrator module
   - Risk: high.
   - Depends on: T-121, T-122, T-123
   - Read: `.agents/skills/architect/orchestrator/catch-scan.test.mjs`, `.agents/skills/architect/orchestrator/catch-scan.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`CATCH_RE`…`CLEANUP_RE`, `splitDiffByFiles`, `findEmptyCatches`, the remediability scan), `.agents/skills/architect/orchestrator/packaging-clean.test.mjs` (T-062, lines 202–262), each module in `Change` at the sites the frozen sweep reports (grep `catch`).
