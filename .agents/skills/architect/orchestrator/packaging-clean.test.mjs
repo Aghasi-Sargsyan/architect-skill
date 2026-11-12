@@ -78,7 +78,8 @@ test('T-054: skill test suite passes in an isolated temporary directory containi
       cwd: tmp,
       env: cleanEnv,
       encoding: 'utf8',
-      timeout: 120000,
+      // The isolated suite alone takes ~100 s; under the load of the outer run 120 s was not enough (C-30).
+      timeout: 300000,
     });
     assert.equal(
       res.status,
