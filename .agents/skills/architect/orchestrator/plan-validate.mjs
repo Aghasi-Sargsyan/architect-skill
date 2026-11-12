@@ -1,6 +1,7 @@
 // Validates parsed PLAN.md structure, closed Risk enum, Frozen paths/globs, and high-risk referenceTests gates.
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { isAlwaysFrozenFile } from './layout.mjs';
 
 const NON_EXEC_EXTENSIONS = new Set([
   '.md', '.mdx', '.txt', '.rst',
@@ -162,6 +163,9 @@ export function validatePlan(plan, opts = {}) {
       const norm = String(f).replace(/\\/g, '/').replace(/^\.\//, '');
       if (norm === 'PLAN.md' || norm === '.architect/PLAN.md') {
         changeIssues.push(`task ${t.id}: ${norm} must not be listed in Change (plan edits belong to the Architect)`);
+      }
+      if (isAlwaysFrozenFile(norm, { workDir: opts.workDir ?? process.cwd() })) {
+        changeIssues.push(`task ${t.id}: ${norm} is always frozen for the Executor — change it in an Architect commit (arch: …), not in Change`);
       }
     }
 
