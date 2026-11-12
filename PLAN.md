@@ -113,7 +113,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/audit-hardening.test.mjs .agents/skills/architect/orchestrator/commit-hooks.test.mjs .agents/skills/architect/orchestrator/evals-permissions.test.mjs .agents/skills/architect/orchestrator/events-en.test.mjs .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/permissions-readonly.test.mjs .agents/skills/architect/orchestrator/adapters/index.test.mjs .agents/skills/architect/orchestrator/audit.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/run-acceptance.test.mjs`
 
-- [ ] T-104: Авто-отказ для `KEY=VALUE`, запускателей и интерпретаторов; пометка незнакомой команды
+- [x] T-104: Авто-отказ для `KEY=VALUE`, запускателей и интерпретаторов; пометка незнакомой команды
   - Риск: высокий.
   - Зависит от: T-101, T-102.
   - Читать: `.agents/skills/architect/orchestrator/permissions-launchers.test.mjs`, `.agents/skills/architect/orchestrator/permissions.mjs` (`commandProblem`, `unwrapTokens`, заглушка `isRecognizedCommand`), `.agents/skills/architect/orchestrator/command-tables.mjs`, `.agents/skills/architect/orchestrator/ask.mjs` (символ `questionText`).
