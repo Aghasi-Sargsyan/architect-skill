@@ -1,19 +1,22 @@
 // Asking the person whether a denied command may run. In a terminal: a prompt right there. Without one
-// (--background): the question goes to .agent-runs/question.json and the answer comes back through
+// (--background): the question goes to question.json in the control directory outside the project
+// (~/.config/architect/runs/<key>/, see control-dir.mjs) and the answer comes back through
 // `run.mjs --answer <n>` (any terminal, or the interactive Architect relaying the person's answer).
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { RUNS_DIR } from './config.mjs';
+import { controlDirFor, ensureControlDir } from './control-dir.mjs';
 import { lockHolder } from './guards.mjs';
 import { isRecognizedCommand } from './permissions.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-export const questionPath = (workDir) => path.join(workDir, RUNS_DIR, 'question.json');
-export const answerPath = (workDir) => path.join(workDir, RUNS_DIR, 'answer.json');
+export const questionPath = (workDir, home = os.homedir()) => path.join(controlDirFor({ workDir, home }), 'question.json');
+export const answerPath = (workDir, home = os.homedir()) => path.join(controlDirFor({ workDir, home }), 'answer.json');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const errText = (err) => (err instanceof Error ? err.message : String(err));
 
@@ -81,9 +84,9 @@ export function questionText(question) {
 }
 
 /** Removes the fixed question and answer files (after an answer, on timeout, on stop). */
-export function clearQuestion(workDir) {
-  rmSync(questionPath(workDir), { force: true });
-  rmSync(answerPath(workDir), { force: true });
+export function clearQuestion(workDir, home = os.homedir()) {
+  rmSync(questionPath(workDir, home), { force: true });
+  rmSync(answerPath(workDir, home), { force: true });
 }
 
 /**
@@ -92,17 +95,17 @@ export function clearQuestion(workDir) {
  * @param {string} answer '1' | '2' | '3'
  * @returns {{ id: string, answer: string, rule: string | null, label: string, command: string }}
  */
-export function answerPendingPermission(targetDir, answer) {
+export function answerPendingPermission(targetDir, answer, home = os.homedir()) {
   const candidateFiles = [
     path.join(targetDir, 'question.json'),
-    questionPath(targetDir),
+    questionPath(targetDir, home),
   ];
   const qFile = candidateFiles.find((f) => existsSync(f));
   if (!qFile) {
     throw new Error(`No active permission request in ${targetDir}`);
   }
-  const aFile = qFile.endsWith(path.join(RUNS_DIR, 'question.json'))
-    ? answerPath(targetDir)
+  const aFile = qFile === questionPath(targetDir, home)
+    ? answerPath(targetDir, home)
     : path.join(path.dirname(qFile), 'answer.json');
 
   const question = JSON.parse(readFileSync(qFile, 'utf8'));
@@ -186,8 +189,10 @@ export async function askPermission(optsOrQuestion, maybeOpts) {
     }
   }
 
-  const qFile = opts.workDir ? questionPath(workDir) : path.join(runDir, 'question.json');
-  const aFile = opts.workDir ? answerPath(workDir) : path.join(runDir, 'answer.json');
+  const home = opts.home ?? os.homedir();
+  if (opts.workDir) ensureControlDir({ workDir, home });
+  const qFile = opts.workDir ? questionPath(workDir, home) : path.join(runDir, 'question.json');
+  const aFile = opts.workDir ? answerPath(workDir, home) : path.join(runDir, 'answer.json');
 
   // The caller's id is only a label: the id in question.json carries a random part that exists nowhere but in
   // this process and the file, so an answer placed before the question cannot match it.
@@ -236,7 +241,7 @@ export async function askPermission(optsOrQuestion, maybeOpts) {
     if (isDirect) return { allow: false, reason: 'permission wait timeout' };
     return null;
   } finally {
-    if (opts.workDir) clearQuestion(workDir);
+    if (opts.workDir) clearQuestion(workDir, home);
     else {
       rmSync(qFile, { force: true });
       rmSync(aFile, { force: true });
@@ -248,16 +253,16 @@ export async function askPermission(optsOrQuestion, maybeOpts) {
  * `--answer <n>`: passes the person's answer to the waiting loop. Throws when there is no question or the
  * answer is not one of its options. Returns the question for the console.
  */
-export function writeAnswer({ workDir, answer }) {
-  if (!existsSync(questionPath(workDir))) {
-    throw new Error(`the loop is not asking anything (is not asking anything: missing ${RUNS_DIR}/question.json)`);
+export function writeAnswer({ workDir, answer, home = os.homedir() }) {
+  if (!existsSync(questionPath(workDir, home))) {
+    throw new Error('the loop is not asking anything (is not asking anything: missing question.json)');
   }
-  const question = JSON.parse(readFileSync(questionPath(workDir), 'utf8'));
+  const question = JSON.parse(readFileSync(questionPath(workDir, home), 'utf8'));
   const valid = validAnswers(question);
   if (!valid.includes(answer)) {
     throw new Error(`answer "${answer}" is not one of the options ${valid.join(', ')}`);
   }
-  writeAtomic(answerPath(workDir), `${JSON.stringify({ id: question.id, answer, at: new Date().toISOString() })}\n`);
+  writeAtomic(answerPath(workDir, home), `${JSON.stringify({ id: question.id, answer, at: new Date().toISOString() })}\n`);
   return question;
 }
 
@@ -267,7 +272,7 @@ const isQuestion = (q) => q !== null && typeof q === 'object' && !Array.isArray(
 
 /**
  * CONTRACT: the permission question the running loop waits on. Read-only.
- * - no `<workDir>/.agent-runs/question.json` → `{ question: null, stale: false }`;
+ * - no `question.json` in the control directory (`questionPath(workDir, home)`) → `{ question: null, stale: false }`;
  * - the file exists but lockHolder(`<workDir>/.agent-runs`) is null (no lock or a dead PID) →
  *   `{ question: null, stale: true }` — the file is left in place;
  * - live holder, but the file is not JSON, or not an object with a string `id`, a string `command` and an
@@ -275,10 +280,11 @@ const isQuestion = (q) => q !== null && typeof q === 'object' && !Array.isArray(
  *   `{ question: null, stale: false, error: '<one-line reason>' }`;
  * - otherwise `{ question: <parsed object>, stale: false }`.
  * @param {string} workDir
+ * @param {string} [home]
  * @returns {{ question: object | null, stale: boolean, error?: string }}
  */
-export function readPendingQuestion(workDir) {
-  const file = questionPath(workDir);
+export function readPendingQuestion(workDir, home = os.homedir()) {
+  const file = questionPath(workDir, home);
   if (!existsSync(file)) return { question: null, stale: false };
   if (lockHolder(path.join(workDir, RUNS_DIR)) === null) return { question: null, stale: true };
   let question;
@@ -286,10 +292,10 @@ export function readPendingQuestion(workDir) {
     question = JSON.parse(readFileSync(file, 'utf8'));
   } catch (err) {
     if (err?.code === 'ENOENT') return { question: null, stale: false }; // answered and withdrawn meanwhile
-    return { question: null, stale: false, error: `${RUNS_DIR}/question.json is unreadable: ${errText(err).replace(/\s+/g, ' ')}` };
+    return { question: null, stale: false, error: `question.json is unreadable: ${errText(err).replace(/\s+/g, ' ')}` };
   }
   if (!isQuestion(question)) {
-    return { question: null, stale: false, error: `${RUNS_DIR}/question.json has no valid id, command and options` };
+    return { question: null, stale: false, error: 'question.json has no valid id, command and options' };
   }
   return { question, stale: false };
 }
@@ -299,13 +305,13 @@ export function readPendingQuestion(workDir) {
  * error → message contains `cannot be read` and the reason; stale → contains `is not asking anything` and
  * `not running`; no question → contains `is not asking anything`. Then delegates to writeAnswer (same return
  * value and the same error for an answer that is not one of the options). Writes nothing when it throws.
- * @param {{ workDir: string, answer: string }} args
+ * @param {{ workDir: string, answer: string, home?: string }} args
  * @returns {object} the question
  */
-export function submitAnswer({ workDir, answer }) {
-  const { question, stale, error } = readPendingQuestion(workDir);
+export function submitAnswer({ workDir, answer, home = os.homedir() }) {
+  const { question, stale, error } = readPendingQuestion(workDir, home);
   if (error) throw new Error(`the permission question cannot be read: ${error}`);
-  if (stale) throw new Error(`the loop is not asking anything (the loop is not running: ${RUNS_DIR}/question.json is left over)`);
-  if (!question) throw new Error(`the loop is not asking anything (missing ${RUNS_DIR}/question.json)`);
-  return writeAnswer({ workDir, answer });
+  if (stale) throw new Error('the loop is not asking anything (the loop is not running: question.json is left over)');
+  if (!question) throw new Error('the loop is not asking anything (missing question.json)');
+  return writeAnswer({ workDir, answer, home });
 }

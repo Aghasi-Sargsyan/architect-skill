@@ -167,7 +167,7 @@ const readIf = (file) => (existsSync(file) ? readFileSync(file, 'utf8').split(os
 const lastLines = (text, n) => text.trimEnd().split('\n').filter(Boolean).slice(-n);
 
 /** `--status`: one short state for checking status. Read-only. */
-export function statusText(workDir, now = Date.now()) {
+export function statusText(workDir, now = Date.now(), home = os.homedir()) {
   const run = latestRun(workDir);
   const holder = lockHolder(path.join(workDir, RUNS_DIR));
   if (holder === null) {
@@ -185,13 +185,13 @@ export function statusText(workDir, now = Date.now()) {
   }
   const minutes = Math.max(0, Math.round((now - runStart(run.name)) / 60_000));
   const lines = [`running ${minutes} min${task ? `: ${task}` : ''}`];
-  if (readPendingQuestion(workDir).question) lines.push('waiting for an answer to a permission question (see --watch)');
+  if (readPendingQuestion(workDir, home).question) lines.push('waiting for an answer to a permission question (see --watch)');
   const steps = lastLines(readIf(path.join(run.dir, 'feed.log')), 3);
   if (steps.length) lines.push('recent steps:', ...steps.map((s) => `  ${s}`));
   return lines.join('\n');
 }
 
-export function printStatus({ workDir = process.cwd(), planPath = 'PLAN.md', out = process.stdout } = {}) {
+export function printStatus({ workDir = process.cwd(), planPath = 'PLAN.md', out = process.stdout, home = os.homedir() } = {}) {
   const runsDir = path.join(workDir, RUNS_DIR);
   const holder = lockHolder(runsDir);
   const running = holder !== null;
@@ -217,7 +217,7 @@ export function printStatus({ workDir = process.cwd(), planPath = 'PLAN.md', out
     }
   }
 
-  const hasQuestion = Boolean(readPendingQuestion(workDir).question);
+  const hasQuestion = Boolean(readPendingQuestion(workDir, home).question);
   const summary = run ? readIf(path.join(run.dir, 'summary.md')).trimEnd() : '';
 
   out.write('=== Agent loop ===\n');
@@ -290,7 +290,7 @@ export function resolveInterval(val, envKey, def) {
  * missing lock counts as a stop only after `graceMs`.
  * @returns {Promise<{ code: 0 | 2 | 3 | 4, text: string }>}
  */
-export async function watch({ workDir, minutes = 25, since = null, pollMs, graceMs }) {
+export async function watch({ workDir, minutes = 25, since = null, pollMs, graceMs, home = os.homedir() }) {
   const effPollMs = resolveInterval(pollMs, 'AGENT_LOOP_WATCH_POLL_MS', 2000);
   const effGraceMs = resolveInterval(graceMs, 'AGENT_LOOP_WATCH_GRACE_MS', 2000);
   const started = Date.now();
@@ -318,7 +318,7 @@ export async function watch({ workDir, minutes = 25, since = null, pollMs, grace
     const seen = now.list;
     const isRu = seen.some((s) => /[А-Яа-яЁё]/.test(s));
     const count = isRu ? `(вех: ${seen.length})` : `(milestones: ${seen.length})`;
-    const pending = readPendingQuestion(workDir);
+    const pending = readPendingQuestion(workDir, home);
     if (pending.error) return { code: 3, text: `permission question cannot be read: ${pending.error}` };
     if (pending.question) {
       const answers = [...pending.question.options.map((o) => o.answer), '3'].join('|');
@@ -330,7 +330,7 @@ export async function watch({ workDir, minutes = 25, since = null, pollMs, grace
       return { code: 3, text: summary || 'loop is not running' };
     }
     if (seen.length > base) return { code: 4, text: `${seen.slice(base).join('\n')} ${count}` };
-    if (Date.now() >= deadline) return { code: 0, text: `${statusText(workDir).split('\n')[0]} ${count}` };
+    if (Date.now() >= deadline) return { code: 0, text: `${statusText(workDir, Date.now(), home).split('\n')[0]} ${count}` };
     await sleep(effPollMs);
   }
 }
