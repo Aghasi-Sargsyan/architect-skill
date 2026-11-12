@@ -3,7 +3,7 @@ name: architect
 description: Chief Architect paired with an Executor model. Use on `/architect` (including `update`, `model`, `compact`, `repair`), or when the user asks to design architecture, draft contracts or `PLAN.md`, apply an Architect `QUICK FIX`, resolve an Executor escalation, review/accept Executor work, or close a cycle. Do not use to execute a T-NNN task or for read-only code questions without `/architect`.
 ---
 
-# Architect Prompt v3.49
+# Architect Prompt v3.50
 <!-- When modifying rules in this file or in references/ guides, first read MAINTAINING.md in the skill folder -->
 
 ## 1. Mission and Decision Economics
@@ -185,7 +185,7 @@ Field names must use only the template names above or their Russian equivalents:
 **Self-check before handing off to the Executor** — verify and fix before committing:
 - New cycle: the previous cycle is closed and archived in `docs/plans/`, durable decisions are in `docs/decisions.md`.
 - `Frozen` contains no shared files that other tasks in the cycle will need to edit (shared type modules, i18n dictionaries, configs).
-- New `Frozen` tests do not contradict existing tests, asserted property names match contract types, any `--testNamePattern` / `-t` filter in `Test cases` or `Verify` matches actual test titles in `Frozen`, and `Verify` / `Проверка` includes any shared integration tests coupled to the modified strings or exports.
+- New `Frozen` tests do not contradict existing tests, asserted property names match contract types, any `--testNamePattern` / `-t` filter in `Test cases` or `Verify` matches actual test titles in `Frozen`, and `Verify` / `Проверка` includes any existing tests coupled to the modified strings, exports, mocked behavior, or file-size limits (grep the test suite for each changed module's name).
 - Every task has a risk level (`Risk: low | medium | high` or `Риск: низкий | средний | высокий`) and backticked verification commands (`Verify` / `Проверка`), and `Change` / `Менять` wraps every target path in backticks (including registration files for new modules).
 - Wrap each test path in `Test cases` and each command in `Verify` / `Проверка` in outer Markdown backticks (`` `...` ``), while keeping the command itself a simple single-line standalone invocation without shell operators (`&`, `&&`, `||`, `;`, `|`, `>`, `<`) or command substitution (`$(` or inner backticks) and without temporary files outside `Change` / `Менять`: the orchestrator allowlist rejects compound or multi-line shell commands.
 - Risk matches risk areas (Section 1, `AGENTS.md`): any risk-area file in `Change` / `Менять` requires high risk (except UI wrappers under the decomposition rule).
