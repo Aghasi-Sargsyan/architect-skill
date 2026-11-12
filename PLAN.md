@@ -152,7 +152,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/accept.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/commit-hooks.test.mjs`
 
-- [ ] T-099: Цикл: проверка диапазона, ревью только на чтение, приёмка оркестратором
+- [x] T-099: Цикл: проверка диапазона, ревью только на чтение, приёмка оркестратором
   - Риск: высокий.
   - Зависит от: T-095, T-097, T-098.
   - Читать: `.agents/skills/architect/orchestrator/run-acceptance.test.mjs`, `.agents/skills/architect/orchestrator/mechanics.test.mjs` (строки 100–130), `.agents/skills/architect/orchestrator/mechanics-verify.test.mjs` (строки 159–270), `.agents/skills/architect/orchestrator/run.mjs` (строки 1–30, 195–330), `.agents/skills/architect/orchestrator/mechanics.mjs` (символ `checkArchitectRun`), `.agents/skills/architect/orchestrator/prompts.mjs` (строки 10–20, 100–134), `.agents/skills/architect/orchestrator/task-range.mjs`, `.agents/skills/architect/orchestrator/accept.mjs`, `.agents/skills/architect/orchestrator/monotonicity.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs` (символ `parseWaivers`).
