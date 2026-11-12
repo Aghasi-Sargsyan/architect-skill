@@ -69,7 +69,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed tests stay green; `update.mjs` and `update-tags.mjs` are each ≤ 400 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/update-tags.test.mjs .agents/skills/architect/orchestrator/update.test.mjs .agents/skills/architect/orchestrator/skill-targets.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/selfcheck-base.test.mjs .agents/skills/architect/orchestrator/commit-hooks.test.mjs`
 
-- [ ] T-126: Self-update installs all or nothing and keeps untracked skill files
+- [x] T-126: Self-update installs all or nothing and keeps untracked skill files
   - Risk: high.
   - Depends on: T-125
   - Read: `.agents/skills/architect/orchestrator/update-swap.test.mjs`, `.agents/skills/architect/orchestrator/update-swap.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/update.mjs` (`updateSkill`), `.agents/skills/architect/orchestrator/skill-targets.test.mjs`.
