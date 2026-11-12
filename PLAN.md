@@ -66,7 +66,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/guards.test.mjs .agents/skills/architect/orchestrator/guards-git.test.mjs .agents/skills/architect/orchestrator/guards-git-path.test.mjs .agents/skills/architect/orchestrator/guards-read.test.mjs .agents/skills/architect/orchestrator/guards-recovery.test.mjs .agents/skills/architect/orchestrator/guards-runners.test.mjs .agents/skills/architect/orchestrator/git-shim-policy.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/run-acceptance.test.mjs`
 
-- [ ] T-106: Вопрос и ответ о разрешении — в управляющем каталоге вне проекта
+- [x] T-106: Вопрос и ответ о разрешении — в управляющем каталоге вне проекта
   - Риск: высокий.
   - Зависит от: T-105.
   - Читать: `.agents/skills/architect/orchestrator/ask-control-dir.test.mjs`, `.agents/skills/architect/orchestrator/control-dir.mjs`, `.agents/skills/architect/orchestrator/ask.mjs`, `.agents/skills/architect/orchestrator/feed.mjs` (символы `statusText`, `printStatus`, `watch`, `runView`), `.agents/skills/architect/orchestrator/cli-dispatch.mjs` (строки 140–152), `.agents/skills/architect/orchestrator/ask-question.test.mjs`.
