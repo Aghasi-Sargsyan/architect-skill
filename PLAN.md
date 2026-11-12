@@ -1,101 +1,43 @@
 # План
 
 ## Цель / Требования
-Цикл 37 — Аудит-цикл 6 «Self-check и fail-closed» (`ADR-073`, `T-120`…`T-124`; находки `C-31`…`C-34` и шум `C-45` из `docs/audits/2026-11-11-{brief,findings}.md`). Пользователь — Архитектор и человек, который перед push и запуском цикла полагается на `--self-check` и red-check. Проблема: часть проверок печатает `PASSED` или «red» там, где ничего не подтверждено (любой ненулевой выход теста, пустой диапазон, мелкий клон, проглоченные ошибки git и JSON, `WAIVER` из рабочего дерева, слово в комментарии `catch`). Критерий успеха: каждый из этих случаев либо явно подтверждён, либо даёт `✗` / `NOT VERIFIED`; полный набор зелёный.
+Цикл 37 (Аудит-цикл 6 «Self-check и fail-closed», `ADR-073`, `T-120`…`T-124`) завершён и заархивирован в `docs/plans/2026-11-13-cycle-37-audit-cycle-6-self-check-and-fail-closed.md`. Следующий горизонт — планирование Цикла 38 (Аудит-цикл 7 «Инструкции и периферия»: `C-35`…`C-46` из `docs/audits/2026-11-11-{brief,findings}.md`, риск medium; нумерация продолжается с `T-125` и `ADR-074`).
 
-Подтверждённые требования (решение пользователя: «Зафиксировать», ответ на предложение Phase 1):
-- `C-34` — red только при подтверждённом падении тест-кейса; падение файла целиком, `process.exit`, отсутствие результата → `NOT VERIFIED` и `✗` для high-risk; свой `redCheckCommand` подтверждается только `redCheckConfirmPattern` (иначе блокирует).
-- `C-31` — отчёт показывает число коммитов; пустой диапазон — статус `EMPTY`; мелкий клон без `--base` — `✗`; пустой коммит закрытия не сдвигает базу.
-- `C-33` — ошибка git / JSON в проверках — нарушение; `catch` освобождается только формой cleanup-вызова; сканер на всех модулях.
-- `C-32` — `WAIVER` только из закоммиченного `PLAN.md`, только своё правило и свой коммит; маски `Frozen` через `matchesFrozenPath`.
+Что Цикл 37 изменил в оркестраторе (для планирования Цикла 38):
+- Red-check (`red-check.mjs`, репортёр `red-check-reporter.mjs`): red — только упавший тест-кейс; падение файла целиком — нарушение + `NOT VERIFIED`; свой `redCheckCommand` требует `redCheckConfirmPattern`.
+- Self-check: отчёт `(<base>..<head>, N commits)`, статус `EMPTY`, мелкий клон без `--base` — `✗`; пустой коммит `arch: close cycle` не сдвигает базу, закрытие без архива — предупреждение (`selfcheck-base.mjs`).
+- Чтение закоммиченных файлов — `git-read.mjs` `readGitBlob` (без шума `fatal:`); `WAIVER` — `waivers.mjs` (только закоммиченный план, своё правило и коммит); маски `Frozen` — через `matchesFrozenPath`; строгий сканер `catch` — `catch-scan.mjs` на всех модулях.
+- Правила `v3.54`; набор тестов 457, ~39 с. Модули у предела: `run.mjs` 364 из 370 строк, `feed.mjs` 394, `README.ru.md` 25 585 из 25 600 байт, `SKILL.md` 33 778 из 33 792.
 
-Отклонения от предложения Phase 1 (найдены черновым прогоном на клоне, см. `ADR-073` п. 6):
-- Коммит `arch: close cycle` без архива остаётся базой (эталонный тест `T-046`, `selfcheck.test.mjs:42`, требует этого) — вместо запрета он даёт предупреждение; база не сдвигается только пустым коммитом.
-- Исключение пустых утверждений (`assert.ok(true)`) из счёта не делается: эталонный тест `C-10` (`selfcheck-range.test.mjs:105`) ожидает «from 2 to 1» при `assert.ok(true)`; предел эвристики опишет правило `v3.54`.
-
-Порядок: `T-120` и `T-121` независимы; `T-122` после обоих; `T-123` после `T-122`; `T-124` последней (чистит все модули, полный `npm test`). Пока эталонные тесты следующих задач красные, `Verify` задач не включает полный `npm test` (`ADR-072` п. 1).
-
-Архитектор при закрытии цикла: правила `v3.54` (`references/orchestrator.md` — `WAIVER` по правилу и коммиту, статус `EMPTY`, мелкий клон; `references/stacks.md` — `redCheckConfirmPattern` по стекам; пределы эвристики монотонности), синхронизация `README.en.md`, `README.ru.md` (запас 15 байт), корневого `README.md`, `CHANGELOG.md`, `package.json`; `SKILL.md` — только номер версии (запас 14 байт).
+В Цикл 38 из ретро Циклов 36–37 (кандидаты в правила, нужно согласие пользователя):
+- Не предлагать промпт для нового чата, пока в сессии ждёт фоновый `--watch`.
+- Самопроверка плана: `Verify` задачи без полного набора, пока эталонные тесты другой открытой задачи красные по плану; grep фикстур набора по путям, которые новое правило валидатора отклоняет.
+- Для high-risk изменения существующего поведения — черновая реализация против полного набора до `arch: plan`.
+- `--audit-plan` не использовался 4 цикла (34–37) — удалить или упростить `references/plan-audit.md`.
+- Внутри песочницы `claude` `npm test` даёт 3 падения `EPERM` на `~/.gemini/…` (`T-115` probe, `T-045`, `T-060`) — среда (`ADR-072`).
 
 Перенесено из предыдущих циклов (`NOT VERIFIED`):
+- `T-124`: новые ветки обработки ошибок (`check.mjs`, `events.mjs`, `guards-recovery.mjs`, `layout.mjs`, `update.mjs`, `adapters/agy.mjs`) не покрыты отдельными тестами — проверено только, что существующие тесты зелёные.
+- Red-check с новым репортёром вживую на плане цикла не запускался (стартовый red-check Цикла 37 шёл старым кодом); шаблоны `redCheckConfirmPattern` для `pytest` / Vitest / Jest / `go test` / `cargo test` в `references/stacks.md` на живых раннерах не проверялись.
 - `T-110`: остановка цикла по таймауту `Verify` в `run.mjs` не покрыта тестом (покрыт только `kind: "timeout"` в `mechanics.mjs`).
 - `T-112`: `--stop` вживую на настоящем цикле не запускался; `killTrackedChildren` завершает только прямой процесс агента, его внуки — нет.
 - macOS-уведомление: `osascript` завершается с кодом 0, показ баннера на экране не проверялся.
 - Тесты на Node 22 не прогонялись (Циклы 35–37: только Node 24.22.2); формат событий `node --test` для репортёра red-check проверен только на Node 24.
-- Живые замеры промпта (`evals.mjs`) на `v3.51`…`v3.53` (по согласию пользователя, бриф §8).
+- Живые замеры промпта (`evals.mjs`) на `v3.51`…`v3.54` (по согласию пользователя, бриф §8).
 - Авто-отказы `C-16` и пометка «the orchestrator does not recognize this command» проверены только тестами.
 - `agy --settings` и `agy --sandbox` вживую не проверялись по решению пользователя; `agy` работает без ОС-песочницы.
-- Отложено в Аудит-цикл 7: adversarial eval-сценарий (`C-20` → `C-42`), уведомление об обновлении (`C-22` → `C-39`); кандидаты в правила из ретро Цикла 36.
+- Отложено в Аудит-цикл 7: adversarial eval-сценарий (`C-20` → `C-42`), уведомление об обновлении (`C-22` → `C-39`).
 
 ## Решения
-См. `docs/decisions.md` (`ADR-001`…`ADR-073`; решения этого цикла — `ADR-073`).
+См. `docs/decisions.md` (`ADR-001`…`ADR-073`).
 
 ## Заморожено (Frozen — Исполнителю не трогать)
 - `EXECUTOR.md`
-- `.agents/skills/architect/orchestrator/red-check.test.mjs`
-- `.agents/skills/architect/orchestrator/selfcheck-base.test.mjs`
-- `.agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs`
-- `.agents/skills/architect/orchestrator/waivers.test.mjs`
-- `.agents/skills/architect/orchestrator/catch-scan.test.mjs`
 
 ## Rules
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
 
 ## Задачи
-
-- [x] T-120: Honest red-check — red only on a confirmed test-case failure
-  - Risk: high.
-  - Depends on: —
-  - Read: `.agents/skills/architect/orchestrator/red-check.test.mjs`, `.agents/skills/architect/orchestrator/red-check.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/red-check-reporter.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/evidence.mjs` (`isFileNewOrModifiedSince` lines 28–51, `runRedCheck` lines 195–331), `.agents/skills/architect/orchestrator/mechanics.mjs` (`runTaskVerification`, `extractOutputTail`, lines 312–360), `.agents/skills/architect/orchestrator/config.mjs` (`validateConfig`, `redCheckCommand` lines 147–156), `.agents/skills/architect/orchestrator/evidence.test.mjs` (T-047, lines 115–228), `.agents/skills/architect/orchestrator/stack-config.test.mjs` (T-053, lines 114–175).
-  - Change: `.agents/skills/architect/orchestrator/red-check.mjs`, `.agents/skills/architect/orchestrator/red-check-reporter.mjs`, `.agents/skills/architect/orchestrator/evidence.mjs`, `.agents/skills/architect/orchestrator/config.mjs`.
-  - Task & invariants: implement the two stub contracts. Move `runRedCheck` and `isFileNewOrModifiedSince` (used only by it) from `evidence.mjs` to `red-check.mjs` verbatim, then add the classification; `evidence.mjs` keeps `export { runRedCheck } from './red-check.mjs';` (callers and tests import it from there) and `red-check.mjs` never imports `evidence.mjs`. The default template still runs through `runTaskVerification` (allowlist, `shell: false`, `NODE_TEST_CONTEXT` stripped); the reporter is passed as `pathToFileURL(<orchestrator dir>/red-check-reporter.mjs).href` so the command has no spaces; its destination is `stderr`, so its line is the last line of the 40-line output tail. Red needs a non-zero exit AND ≥1 `caseFailures` AND 0 `otherFailures`. `config.mjs`: `redCheckConfirmPattern` is optional; when present it must be a string, and a non-empty value must compile as `new RegExp(value, 'm')`; each problem names the field. `config.example.json` already has `"redCheckConfirmPattern": ""` (Architect, plan commit).
-  - Edge cases: the reporter yields exactly one line even with no events; `subtestsFailed` (suite aggregate) is ignored; a whole-file failure arrives as `testCodeFailure` with `cause === 'test failed'` (a string) and is an `otherFailure` (verified on Node 24). Keep the existing violation strings for green, timeout, disallowed, `ERR_MODULE_NOT_FOUND`, `SyntaxError`; the unsuitable-template case stays a non-blocking `NOT VERIFIED` (`stack-config.test.mjs` T-053); `checked` entries keep `file`, `status`, `exitCode`, `outputTail`. A test-case failure whose message contains `SyntaxError` is still red (structured result first, text markers only for unconfirmed results). Baseline run of every Verify command in the project itself before the first edit (not via `git worktree`).
-  - Test cases: `.agents/skills/architect/orchestrator/red-check.test.mjs`
-  - Done when: the frozen test is green; `evidence.test.mjs`, `stack-config.test.mjs`, `plan-gates.test.mjs`, `field-selfcheck-retro.test.mjs`, `config.test.mjs`, `cli.test.mjs`, `packaging-clean.test.mjs` stay green; no comment-only `catch` added.
-  - Verify: `node --test .agents/skills/architect/orchestrator/red-check.test.mjs .agents/skills/architect/orchestrator/evidence.test.mjs .agents/skills/architect/orchestrator/stack-config.test.mjs .agents/skills/architect/orchestrator/plan-gates.test.mjs .agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs .agents/skills/architect/orchestrator/config.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs`
-
-- [x] T-121: Honest self-check range — commit count, EMPTY status, shallow clone, empty close commit
-  - Risk: high.
-  - Depends on: —
-  - Read: `.agents/skills/architect/orchestrator/selfcheck-base.test.mjs`, `.agents/skills/architect/orchestrator/selfcheck-base.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`resolveSelfCheckBase` lines 46–63, `runSelfCheckGit` lines 172–196 and the final `return`), `.agents/skills/architect/orchestrator/cli.mjs` (`runFastSelfCheck` lines 146–197, `formatSelfCheckReport` lines 221–258), `.agents/skills/architect/orchestrator/audit.mjs` (lines 136–146), `.agents/skills/architect/orchestrator/selfcheck.test.mjs` (T-046 base priority, lines 42–100).
-  - Change: `.agents/skills/architect/orchestrator/selfcheck-base.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`, `.agents/skills/architect/orchestrator/cli.mjs`.
-  - Task & invariants: implement the stub contracts. Move `resolveSelfCheckBase` to `selfcheck-base.mjs`; `selfcheck.mjs` re-exports it (`audit.mjs` and tests import it from `selfcheck.mjs`). A close commit that changes no files is never a base candidate; a close commit without an archive still is (T-046) and only yields the warning. The `@{u}` probe writes nothing to stderr and has no comment-only `catch` (e.g. a piped-stdio `spawnSync`, non-zero exit = no upstream). `runSelfCheckGit` takes base, head, `commitCount`, `empty`, violations and warnings from `resolveSelfCheckRange`; range warnings are appended after the commit-message warnings (so `team: true` does not turn the archive warning into a violation); it returns `commitCount` and `empty` also on the early empty-range return, where `ok` reflects the range violations. `runFastSelfCheck` passes `commitCount` and `empty` through. `formatSelfCheckReport`: `✗ Self-check FAILED` when `!ok`, else `✓ Self-check EMPTY` only when `res.empty === true`, else `✓ Self-check PASSED`; the suffix `, N commits` / `, 1 commit` is added inside the parentheses only when `commitCount` is a number.
-  - Edge cases: an explicit `--base` never gets the shallow violation; an unresolvable `--base` still throws with the fetch-depth hint; `.architect/plans/*.md` counts as an archive. Baseline run of every Verify command in the project itself before the first edit (not via `git worktree`).
-  - Test cases: `.agents/skills/architect/orchestrator/selfcheck-base.test.mjs`
-  - Done when: the frozen test is green; the listed existing tests stay green; `selfcheck.mjs`, `selfcheck-base.mjs`, `cli.mjs` ≤ 400 lines.
-  - Verify: `node --test .agents/skills/architect/orchestrator/selfcheck-base.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/selfcheck-range.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs .agents/skills/architect/orchestrator/audit.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs .agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs .agents/skills/architect/orchestrator/commit-hooks.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/team-git.test.mjs`
-
-- [x] T-122: Fail-closed git and JSON reads in the self-check and the red-check
-  - Risk: high.
-  - Depends on: T-120, T-121
-  - Read: `.agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs`, `.agents/skills/architect/orchestrator/git-read.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`getModifiedOrDeletedFiles`, `runSelfCheckGit`, `checkPostReviewSelfCheck` — grep `catch`), `.agents/skills/architect/orchestrator/red-check.mjs` (plan candidates, `isFileNewOrModifiedSince`), `.agents/skills/architect/orchestrator/git.mjs` (`git`, lines 1–12).
-  - Change: `.agents/skills/architect/orchestrator/git-read.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`, `.agents/skills/architect/orchestrator/red-check.mjs`.
-  - Task & invariants: implement `readGitBlob` per the stub. Every read of a committed file in `selfcheck.mjs` and `red-check.mjs` goes through it: plan candidates (working tree first via `existsSync` + `readFileSync` as today, then HEAD; `missing` → next candidate; an error → violation `cannot read <rel> at HEAD: <message>`; in the red-check the result is `ok: false` with that violation), `PLAN.md` / `.architect/PLAN.md` of plan commits in the range (`missing` → skip), closure archives, rule-version blobs (`missing` → ''). `JSON.parse` failure of a protected config → violation `config <file> at <HEAD|base7> is not valid JSON: <message>`, then continue with `{}`. `checkPostReviewSelfCheck`: a failing `git diff` → violation `cannot inspect PLAN.md for new WAIVER lines: <message>`. Drop the `try`/`catch` around `parsePlan` (it never throws) and around the git calls of `getModifiedOrDeletedFiles` and `isFileNewOrModifiedSince` (errors propagate). No `void err`.
-  - Edge cases: an absent `.architect/PLAN.md` in a classic project is `missing`, never an error and never `fatal:` on stderr (`C-45`); violation strings that exist today stay unchanged. Baseline run of every Verify command in the project itself before the first edit (not via `git worktree`).
-  - Test cases: `.agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs`
-  - Done when: the frozen test is green; the listed existing tests and the `T-120` / `T-121` reference tests stay green.
-  - Verify: `node --test .agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs .agents/skills/architect/orchestrator/red-check.test.mjs .agents/skills/architect/orchestrator/selfcheck-base.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/selfcheck-range.test.mjs .agents/skills/architect/orchestrator/evidence.test.mjs .agents/skills/architect/orchestrator/stack-config.test.mjs .agents/skills/architect/orchestrator/plan-gates.test.mjs .agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs`
-
-- [x] T-123: WAIVER narrowed to its rule and commit; Frozen masks in the self-check
-  - Risk: high.
-  - Depends on: T-122
-  - Read: `.agents/skills/architect/orchestrator/waivers.test.mjs`, `.agents/skills/architect/orchestrator/waivers.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`parseWaivers`, `collectFrozen`, `isProtected`, fix-frozen section), `.agents/skills/architect/orchestrator/monotonicity.mjs` (`checkTestMonotonicity`), `.agents/skills/architect/orchestrator/plan.mjs` (`matchesFrozenPath`, lines 18–34), `.agents/skills/architect/orchestrator/run.mjs` (lines 24 and 326), `.agents/skills/architect/orchestrator/selfcheck-range.test.mjs` (C-10, lines 105–133).
-  - Change: `.agents/skills/architect/orchestrator/waivers.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`, `.agents/skills/architect/orchestrator/monotonicity.mjs`, `.agents/skills/architect/orchestrator/run.mjs`.
-  - Task & invariants: implement the stub contracts; move `parseWaivers` verbatim (`selfcheck.mjs` re-exports it). `runSelfCheckGit` takes WAIVERs only from `readCommittedWaivers` (`planText` / the working tree remain the source of `Frozen` only); both fix-frozen exemptions (`commitsToCheck` and task-dirty files) use `waiverCovers(w, sha, 'fix-frozen')`. Keep every normalized `Frozen` entry; a file is a frozen test when `isTestFile(...)` and `matchesFrozenPath(file, entries)` — use it in `isProtected` and in the 0-assertion check. `checkTestMonotonicity`: for each base test file, the baseline is the last commit in `commits` covered by `waiverCovers(…, 'monotonicity')` that touches it (else `baseSha`); counts compare `<baseline>:file` → HEAD (absent at the baseline → 0); a deletion at HEAD is exempt only when the file is absent at that waived commit; violation strings unchanged. `run.mjs`: the pre-acceptance check takes `readCommittedWaivers({ realGit, cwd: workDir, config })` instead of parsing the working-tree plan, with zero line growth (`ADR-069`).
-  - Edge cases: `parseWaivers` output is unchanged; an unknown rule covers nothing; existing WAIVER tests (`selfcheck.test.mjs` T-046, `selfcheck-range.test.mjs` C-10, `audit-hardening.test.mjs`, `cli.test.mjs`, `layout.test.mjs`) stay green. Baseline run of every Verify command in the project itself before the first edit (not via `git worktree`).
-  - Test cases: `.agents/skills/architect/orchestrator/waivers.test.mjs`
-  - Done when: the frozen test is green; the listed tests stay green; `run.mjs` stays ≤ 370 lines.
-  - Verify: `node --test .agents/skills/architect/orchestrator/waivers.test.mjs .agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs .agents/skills/architect/orchestrator/selfcheck-base.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/selfcheck-range.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/run-acceptance.test.mjs .agents/skills/architect/orchestrator/run.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs`
-
-- [x] T-124: Strict catch scanner on every orchestrator module
-  - Risk: high.
-  - Depends on: T-121, T-122, T-123
-  - Read: `.agents/skills/architect/orchestrator/catch-scan.test.mjs`, `.agents/skills/architect/orchestrator/catch-scan.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`CATCH_RE`…`CLEANUP_RE`, `splitDiffByFiles`, `findEmptyCatches`, the remediability scan), `.agents/skills/architect/orchestrator/packaging-clean.test.mjs` (T-062, lines 202–262), each module in `Change` at the sites the frozen sweep reports (grep `catch`).
-  - Change: `.agents/skills/architect/orchestrator/catch-scan.mjs`, `.agents/skills/architect/orchestrator/selfcheck.mjs`, `.agents/skills/architect/orchestrator/selfcheck-base.mjs`, `.agents/skills/architect/orchestrator/check.mjs`, `.agents/skills/architect/orchestrator/events.mjs`, `.agents/skills/architect/orchestrator/guards-recovery.mjs`, `.agents/skills/architect/orchestrator/layout.mjs`, `.agents/skills/architect/orchestrator/runners.mjs`, `.agents/skills/architect/orchestrator/update.mjs`, `.agents/skills/architect/orchestrator/adapters/agy.mjs`.
-  - Task & invariants: implement the stub contract. Move `CATCH_RE`, `PROMISE_CATCH_RE`, `CLEANUP_RE`, `splitDiffByFiles` and `findEmptyCatches` verbatim to `catch-scan.mjs` (`selfcheck.mjs` re-exports `splitDiffByFiles` and `findEmptyCatches`; `evidence.mjs` keeps importing from `selfcheck.mjs`; `catch-scan.mjs` imports nothing from `selfcheck.mjs`). The self-check remediability scan uses `findSilentCatches` with the same violation string. Rewrite every site the frozen sweep reports (at plan time: `adapters/agy.mjs` ×4, `check.mjs`, `events.mjs`, `guards-recovery.mjs` ×3, `layout.mjs` ×3, `runners.mjs`, `update.mjs`, plus any left in `selfcheck*.mjs`): a real cleanup becomes the cleanup shape with exactly one cleanup call in `try`; anything else handles the error explicitly in the `catch` body — a fallback value, a recorded note or log line through a channel the function already has, or a typed result — and a git or JSON failure in a check is never turned into success. Observable behavior stays as the existing tests expect.
-  - Edge cases: `findEmptyCatches` keeps its lenient semantics (`packaging-clean.test.mjs` T-062 allows `try { f(); } catch { /* cleanup: close resource */ }`); `catch (err) { void err; }` is silent; `evals.mjs` already passes. Inside the `claude` sandbox `npm test` also fails `T-115` probe, `T-045`, `T-060` with `EPERM` on `~/.gemini/…` — environment (`ADR-072` п. 3), compare before/after by test names. Baseline run of every Verify command in the project itself before the first edit (not via `git worktree`).
-  - Test cases: `.agents/skills/architect/orchestrator/catch-scan.test.mjs`
-  - Done when: the frozen test is green; `npm test` is green (outside the sandbox) with all five Cycle 37 reference tests.
-  - Verify: `node --test .agents/skills/architect/orchestrator/catch-scan.test.mjs .agents/skills/architect/orchestrator/packaging-clean.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/models.test.mjs`, `npm test`
+—
 
 <!-- executor-policy-version: 1.9 -->
