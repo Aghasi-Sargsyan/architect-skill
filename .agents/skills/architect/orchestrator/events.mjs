@@ -71,7 +71,7 @@ export function milestonesFromEvents(events) {
     if (!event || typeof event !== 'object') continue;
     if (event.type === 'task_started') {
       if (accepted) {
-        out.push(`${accepted.task} принята (${accepted.minutes} мин); дальше ${event.taskId}`);
+        out.push(`${accepted.task} accepted (${accepted.minutes} min); next ${event.taskId}`);
         accepted = null;
       }
       task = { id: event.taskId, startedMs: Date.parse(event.ts) };
@@ -81,7 +81,7 @@ export function milestonesFromEvents(events) {
       if (event.verdict === 'rework') {
         const count = (reworks.get(task.id) ?? 0) + 1;
         reworks.set(task.id, count);
-        out.push(`${task.id}: доработка ${count}`);
+        out.push(`${task.id}: rework ${count}`);
       } else if (event.verdict === 'accepted') {
         const elapsedMs = Math.max(0, Date.parse(event.ts) - task.startedMs);
         const minutes = Math.max(1, Math.round(elapsedMs / 60_000));

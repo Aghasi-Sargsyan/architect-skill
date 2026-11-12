@@ -165,6 +165,7 @@ export function latestRun(workDir) {
 const runStart = (name) => Date.parse(name.replace(/T(\d\d)-(\d\d)-(\d\d)-(\d{3})Z$/, 'T$1:$2:$3.$4Z'));
 const readIf = (file) => (existsSync(file) ? readFileSync(file, 'utf8').split(os.homedir()).join('~') : '');
 const lastLines = (text, n) => text.trimEnd().split('\n').filter(Boolean).slice(-n);
+const runMilestones = (run) => (existsSync(path.join(run.dir, EVENTS_FILE)) ? milestonesFromEvents(readEvents(run.dir)) : milestones(readIf(path.join(run.dir, 'run.log'))));
 
 /** `--status`: one short state for checking status. Read-only. */
 export function statusText(workDir, now = Date.now(), home = os.homedir()) {
@@ -184,7 +185,7 @@ export function statusText(workDir, now = Date.now(), home = os.homedir()) {
     if (raw) task = raw.replace(/^\[[^\]]*\]\s*▶\s*/, '');
   }
   const minutes = Math.max(0, Math.round((now - runStart(run.name)) / 60_000));
-  const lines = [`running ${minutes} min${task ? `: ${task}` : ''}`];
+  const lines = [`running ${minutes} min${task ? `: ${task}` : ''} (milestones: ${runMilestones(run).length})`];
   if (readPendingQuestion(workDir, home).question) lines.push('waiting for an answer to a permission question (see --watch)');
   const steps = lastLines(readIf(path.join(run.dir, 'feed.log')), 3);
   if (steps.length) lines.push('recent steps:', ...steps.map((s) => `  ${s}`));
@@ -298,15 +299,13 @@ export async function watch({ workDir, minutes = 25, since = null, pollMs, grace
   const runs = path.join(workDir, RUNS_DIR);
   const current = () => {
     const run = latestRun(workDir);
-    if (!run) return { name: null, list: [] };
-    const list = existsSync(path.join(run.dir, EVENTS_FILE))
-      ? milestonesFromEvents(readEvents(run.dir))
-      : milestones(readIf(path.join(run.dir, 'run.log')));
-    return { name: run.name, list };
+    return run ? { name: run.name, list: runMilestones(run) } : { name: null, list: [] };
   };
   const first = current();
+  // A finished run (no live lock, summary written) is not replayed by a restart with `--since 0`.
+  const finished = since !== null && first.name !== null && lockHolder(runs) === null && existsSync(path.join(runs, first.name, 'summary.md'));
   // A `since` beyond this run's count belongs to an earlier run: start from now.
-  let base = since !== null && since <= first.list.length ? since : first.list.length;
+  let base = since !== null && !finished && since <= first.list.length ? since : first.list.length;
   let baseRun = first.name;
   for (;;) {
     const now = current();
@@ -316,8 +315,7 @@ export async function watch({ workDir, minutes = 25, since = null, pollMs, grace
       base = 0;
     }
     const seen = now.list;
-    const isRu = seen.some((s) => /[А-Яа-яЁё]/.test(s));
-    const count = isRu ? `(вех: ${seen.length})` : `(milestones: ${seen.length})`;
+    const count = `(milestones: ${seen.length})`;
     const pending = readPendingQuestion(workDir, home);
     if (pending.error) return { code: 3, text: `permission question cannot be read: ${pending.error}` };
     if (pending.question) {
@@ -330,7 +328,7 @@ export async function watch({ workDir, minutes = 25, since = null, pollMs, grace
       return { code: 3, text: summary || 'loop is not running' };
     }
     if (seen.length > base) return { code: 4, text: `${seen.slice(base).join('\n')} ${count}` };
-    if (Date.now() >= deadline) return { code: 0, text: `${statusText(workDir, Date.now(), home).split('\n')[0]} ${count}` };
+    if (Date.now() >= deadline) { const head = statusText(workDir, Date.now(), home).split('\n')[0]; return { code: 0, text: /\(milestones: \d+\)$/.test(head) ? head : `${head} ${count}` }; }
     await sleep(effPollMs);
   }
 }
