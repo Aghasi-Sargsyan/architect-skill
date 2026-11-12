@@ -58,7 +58,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-125: Self-update follows release tags; the update notice is offline outside --check
+- [x] T-125: Self-update follows release tags; the update notice is offline outside --check
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/update-tags.test.mjs`, `.agents/skills/architect/orchestrator/update-tags.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/update.mjs`, `.agents/skills/architect/orchestrator/cli.mjs` (`runFullSelfCheck`, lines 200–225), `.agents/skills/architect/orchestrator/update.test.mjs`.
