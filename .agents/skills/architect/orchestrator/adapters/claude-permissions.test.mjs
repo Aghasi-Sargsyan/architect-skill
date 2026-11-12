@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DEFAULTS } from '../config.mjs';
 import { GUARDED_UNTRACKED_FILES } from '../guards.mjs';
+import { controlShimDir } from '../control-dir.mjs';
 import {
   claudePermissionsCheck,
   claudeRulesFor,
@@ -122,10 +123,13 @@ test('T-028 & T-029 (3): external skill adds additionalDirectories: [skillDir], 
   const intRead = `Read(${toAbsPattern(internalSkillDir)}/**)`;
 
   // Skill inside workDir -> no Read rule, no additionalDirectories, no extra skill deny:
+  // ADR-066 (C-22): the shim directory in the control directory is always readable; nothing else is added.
+  const shimDir = controlShimDir({ workDir, home });
+  const shimRead = `Read(${toAbsPattern(shimDir)}/**)`;
   const intRules = claudeRulesFor(config(), workDir, home, { skillDir: internalSkillDir });
   assert.ok(!intRules.allow.includes(intRead), 'internal skill dir must not add Read rule');
-  assert.ok(!intRules.allow.some((r) => r.startsWith('Read(')), 'no Read rule when skill is inside workDir');
-  assert.deepEqual(intRules.additionalDirectories ?? [], []);
+  assert.ok(!intRules.allow.some((r) => r.startsWith('Read(') && r !== shimRead), 'no Read rule but the shim directory when skill is inside workDir');
+  assert.deepEqual(intRules.additionalDirectories ?? [], [shimDir]);
 
   // Skill outside workDir -> Read in allow, Edit/Write in deny, and additionalDirectories: [externalSkillDir]:
   const extRules = claudeRulesFor(config(), workDir, home, {
@@ -134,7 +138,7 @@ test('T-028 & T-029 (3): external skill adds additionalDirectories: [skillDir], 
   assert.ok(extRules.allow.includes(extRead), `external skill must add ${extRead} to allow`);
   assert.ok(extRules.deny.includes(extEditDeny), `external skill must add ${extEditDeny} to deny`);
   assert.ok(extRules.deny.includes(extWriteDeny), `external skill must add ${extWriteDeny} to deny`);
-  assert.deepEqual(extRules.additionalDirectories, [externalSkillDir]);
+  assert.deepEqual(extRules.additionalDirectories, [externalSkillDir, shimDir]);
 
   const settingsPath = claudeSettingsPath(home, workDir);
   writeClaudeAllowlist({ settingsPath, ...extRules });

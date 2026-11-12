@@ -6,30 +6,35 @@ import path from 'node:path';
 import { answerPath, askPermission, questionPath, questionText, writeAnswer } from './ask.mjs';
 
 let workDir;
+let home;
 let runDir;
 const question = { id: 'T-001-exec-q', who: 'Исполнитель', taskId: 'T-001', command: 'npm run lint -- --fix', options: [{ answer: '1', rule: 'npm run lint' }, { answer: '2', rule: 'npm run lint -- --fix' }] };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 beforeEach(() => {
   workDir = mkdtempSync(path.join(os.tmpdir(), 'orch-ask-'));
+  home = mkdtempSync(path.join(os.tmpdir(), 'orch-ask-home-'));
   runDir = path.join(workDir, '.agent-runs', 'run1');
   mkdirSync(runDir, { recursive: true });
 });
-afterEach(() => rmSync(workDir, { recursive: true, force: true }));
+afterEach(() => {
+  rmSync(workDir, { recursive: true, force: true });
+  rmSync(home, { recursive: true, force: true });
+});
 
 test('without a terminal: question file, --answer, answer returned, both files removed and kept in the run folder', async () => {
   const logs = [];
-  const asked = askPermission({ question, workDir, runDir, tty: false, timeoutMs: 5000, log: (m) => logs.push(m), pollMs: 20 });
+  const asked = askPermission({ question, workDir, runDir, home, tty: false, timeoutMs: 5000, log: (m) => logs.push(m), pollMs: 20 });
   await sleep(50);
-  assert.ok(existsSync(questionPath(workDir)));
-  assert.throws(() => writeAnswer({ workDir, answer: '4' }), /не из вариантов 1, 2, 3|not one of the options 1, 2, 3/);
-  writeFileSync(answerPath(workDir), JSON.stringify({ id: 'other-question', answer: '1' }));
+  assert.ok(existsSync(questionPath(workDir, home)));
+  assert.throws(() => writeAnswer({ workDir, home, answer: '4' }), /не из вариантов 1, 2, 3|not one of the options 1, 2, 3/);
+  writeFileSync(answerPath(workDir, home), JSON.stringify({ id: 'other-question', answer: '1' }));
   await sleep(60);
-  assert.equal(existsSync(answerPath(workDir)), false, 'an answer to another question is dropped');
-  assert.equal(writeAnswer({ workDir, answer: '1' }).command, question.command);
+  assert.equal(existsSync(answerPath(workDir, home)), false, 'an answer to another question is dropped');
+  assert.equal(writeAnswer({ workDir, home, answer: '1' }).command, question.command);
   assert.equal(await asked, '1');
-  assert.equal(existsSync(questionPath(workDir)), false);
-  assert.equal(existsSync(answerPath(workDir)), false);
+  assert.equal(existsSync(questionPath(workDir, home)), false);
+  assert.equal(existsSync(answerPath(workDir, home)), false);
   assert.deepEqual(readdirSync(runDir).sort(), ['T-001-exec-q.answer.json', 'T-001-exec-q.question.json']);
   assert.match(logs.join('\n'), /--answer <1\|2\|3>/);
   const qText = questionText(question);
@@ -70,8 +75,8 @@ test('without a terminal: question file, --answer, answer returned, both files r
 });
 
 test('no answer in time → null and the question is withdrawn; --answer without a question fails', async () => {
-  assert.equal(await askPermission({ question, workDir, runDir, tty: false, timeoutMs: 100, log: () => {}, pollMs: 20 }), null);
-  assert.equal(existsSync(questionPath(workDir)), false);
-  assert.throws(() => writeAnswer({ workDir, answer: '1' }), /ничего не спрашивает|is not asking anything/);
+  assert.equal(await askPermission({ question, workDir, runDir, home, tty: false, timeoutMs: 100, log: () => {}, pollMs: 20 }), null);
+  assert.equal(existsSync(questionPath(workDir, home)), false);
+  assert.throws(() => writeAnswer({ workDir, home, answer: '1' }), /ничего не спрашивает|is not asking anything/);
   assert.equal(readFileSync(path.join(runDir, 'T-001-exec-q.question.json'), 'utf8').includes('npm run lint'), true);
 });

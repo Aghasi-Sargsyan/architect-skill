@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS } from './config.mjs';
+import { answerPath, questionPath } from './ask.mjs';
 import { agySettingsPath, rulesFor, writeAgyAllowlist } from './permissions.mjs';
 
 const RUN = path.join(path.dirname(fileURLToPath(import.meta.url)), 'run.mjs');
@@ -109,7 +110,7 @@ else process.stdout.write(JSON.stringify({ status: 'SUCCESS', conversation_id: '
   const started = run('--background');
   assert.equal(started.status, 0, started.stderr);
   const runs = path.join(work, '.agent-runs');
-  const question = path.join(runs, 'question.json');
+  const question = questionPath(work, env.HOME);
   for (let i = 0; i < 100 && !existsSync(question); i++) sleep(100);
   assert.ok(existsSync(question), 'the loop asked about npm run lint');
   assert.match(readFileSync(question, 'utf8'), /"command": "npm run lint"/);
@@ -158,5 +159,5 @@ else process.stdout.write(JSON.stringify({ status: 'SUCCESS', conversation_id: '
   assert.ok(settings.permissions.allow.includes('command(npm run lint)'));
   assert.ok(!settings.permissions.allow.some((r) => r.startsWith('command(cat')), 'cat is never added');
   assert.equal(existsSync(question), false);
-  assert.equal(existsSync(path.join(runs, 'answer.json')), false);
+  assert.equal(existsSync(answerPath(work, env.HOME)), false);
 });

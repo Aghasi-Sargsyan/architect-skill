@@ -181,7 +181,7 @@ test('F-03: shims/node blocks non-PATH scripts and pre-flag --test escapes, and 
   }
 });
 
-test('F-04 & F-05: runCheckCommand skips Husky core.hooksPath without failing, and handleWritePermissionsCli writes non-overwriting .orig.bak and cumulative .pruned.json', async () => {
+test('F-04 & F-05: runCheckCommand skips Husky core.hooksPath without failing, and handleWritePermissionsCli writes non-overwriting .orig.bak and never prunes the shared agy file (ADR-066)', async () => {
   const repo = path.join(tmpRoot, 'husky-repo');
   const fakeHome = path.join(tmpRoot, 'home');
   const otherProjA = path.join(tmpRoot, 'other-a');
@@ -227,7 +227,7 @@ test('F-04 & F-05: runCheckCommand skips Husky core.hooksPath without failing, a
     else process.env.AGENT_LOOP_SANDBOX_ROOT = prevSandbox;
   }
 
-  // Test --write-permissions .orig.bak preservation and cumulative .pruned.json
+  // Test --write-permissions .orig.bak preservation; the shared agy file keeps every rule (ADR-066, was: cumulative .pruned.json)
   const agySettingsDir = path.join(fakeHome, '.gemini', 'antigravity-cli');
   mkdirSync(agySettingsDir, { recursive: true });
   const settingsFile = path.join(agySettingsDir, 'settings.json');
@@ -236,7 +236,7 @@ test('F-04 & F-05: runCheckCommand skips Husky core.hooksPath without failing, a
 
   const cfgAgy = { ...DEFAULTS, executor: { model: 'm1' }, architect: { model: 'm1' } };
   const res1 = handleWritePermissionsCli({ config: cfgAgy, workDir: repo, home: fakeHome, log: () => {} });
-  assert.equal(res1.ok, true);
+  assert.equal(res1.ok, false, 'a rule of a plain directory outside the project is unsafe and stays');
   assert.equal(res1.origBackup, true);
   assert.equal(readFileSync(`${settingsFile}.orig.bak`, 'utf8'), initialRaw);
 
@@ -248,9 +248,10 @@ test('F-04 & F-05: runCheckCommand skips Husky core.hooksPath without failing, a
   const res2 = handleWritePermissionsCli({ config: cfgAgy, workDir: repo, home: fakeHome, log: () => {} });
   assert.equal(res2.origBackup, false, '.orig.bak must never be overwritten on subsequent runs');
   assert.equal(readFileSync(`${settingsFile}.orig.bak`, 'utf8'), initialRaw);
-  const pruned = JSON.parse(readFileSync(`${settingsFile}.pruned.json`, 'utf8'));
-  assert.ok(pruned.rules.includes(`write_file(${otherProjA})`));
-  assert.ok(pruned.rules.includes(`read_file(${otherProjB})`));
+  const kept = JSON.parse(readFileSync(settingsFile, 'utf8')).permissions.allow;
+  assert.ok(kept.includes(`write_file(${otherProjA})`), 'the shared agy file is never pruned');
+  assert.ok(kept.includes(`read_file(${otherProjB})`));
+  assert.equal(existsSync(`${settingsFile}.pruned.json`), false, 'nothing pruned — no archive');
 });
 
 test('F-07: SIGKILL crash recovery restores pushurl, foreign pre-push hook, and stale .lock via recoverCrashedGuards / --repair, and checkExecutorRun normalizes ./ paths', () => {

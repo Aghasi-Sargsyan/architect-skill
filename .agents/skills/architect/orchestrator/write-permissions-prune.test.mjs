@@ -17,7 +17,8 @@ const makeConfig = (extra = {}) => ({
   ...extra,
 });
 
-test('writeAgyAllowlist with pruneCtx removes cross-project and forbidden rules, merges deny before ruleProblem, preserves safe custom rules, and stays idempotent', () => {
+// ADR-066 (C-21, ADR-061 item 4): the shared agy settings file is never pruned; this test replaced the ADR-060 pruning expectations.
+test('writeAgyAllowlist with pruneCtx never removes rules from the shared settings file: unsafe and other-project rules stay and keep the check red; idempotent', () => {
   const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'arch-prune-agy-')));
   try {
     const home = path.join(root, 'home');
@@ -57,14 +58,7 @@ test('writeAgyAllowlist with pruneCtx removes cross-project and forbidden rules,
     const first = writeAgyAllowlist({ settingsPath, ...wanted, pruneCtx });
     assert.equal(first.backup, true);
     assert.equal(readFileSync(`${settingsPath}.bak`, 'utf8'), beforeText);
-    assert.deepEqual(first.removedAllow, [
-      'command(git restore)',
-      'command(git checkout scripts/harvest-native-client.ts)',
-      'command(git switch main)',
-      'command(npm run ship)',
-      `write_file(${workB})`,
-      `read_file(${workB})`,
-    ]);
+    assert.deepEqual(first.removedAllow, []);
     assert.ok(!first.removedAllow.includes(`write_file(${workA})`), 'deny must be merged before ruleProblem so current project write_file is kept');
 
     const parsed = JSON.parse(readFileSync(settingsPath, 'utf8'));
@@ -73,11 +67,12 @@ test('writeAgyAllowlist with pruneCtx removes cross-project and forbidden rules,
     assert.ok(parsed.permissions.allow.includes('command(adb)'));
     assert.ok(parsed.permissions.allow.includes('mcp(context7)'));
     assert.ok(parsed.permissions.allow.includes(`write_file(${workA})`));
-    assert.ok(!parsed.permissions.allow.includes(`write_file(${workB})`));
-    assert.ok(!parsed.permissions.allow.includes('command(git restore)'));
+    assert.ok(parsed.permissions.allow.includes(`write_file(${workB})`), 'a rule of another directory is kept');
+    assert.ok(parsed.permissions.allow.includes('command(git restore)'), 'a rule of the person is kept even when unsafe');
 
     const checkRes = permissionsCheck({ config: cfg, settingsPath, workDir: workA, home });
-    assert.equal(checkRes.ok, true, checkRes.detail);
+    assert.equal(checkRes.ok, false, 'unsafe rules keep the check red until the person removes them');
+    assert.match(checkRes.detail, /git restore/);
 
     rmSync(`${settingsPath}.bak`);
     const second = writeAgyAllowlist({ settingsPath, ...wanted, pruneCtx });
@@ -129,7 +124,7 @@ test('writeClaudeAllowlist with pruneCtx removes forbidden Bash and cross-projec
       },
     }));
 
-    const rules = claudeRulesFor(cfg, workA);
+    const rules = claudeRulesFor(cfg, workA, home);
     const res = writeClaudeAllowlist({
       settingsPath,
       workDir: workA,
@@ -156,7 +151,8 @@ test('writeClaudeAllowlist with pruneCtx removes forbidden Bash and cross-projec
   }
 });
 
-test('handleWritePermissionsCli prunes unsafe rules, masks paths in output, passes post-write check, and keeps target modules <= 400 lines', () => {
+// ADR-066: agy --write-permissions only adds rules; the unsafe ones stay and are named by the failed check (was: ADR-060 pruning).
+test('handleWritePermissionsCli keeps every rule of the shared agy file, masks paths in output, names the unsafe ones, and keeps target modules <= 400 lines', () => {
   const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'arch-prune-cli-')));
   try {
     const home = path.join(root, 'home');
@@ -177,22 +173,22 @@ test('handleWritePermissionsCli prunes unsafe rules, masks paths in output, pass
     const lines = [];
     const cfg = makeConfig();
     const out = handleWritePermissionsCli({ config: cfg, workDir: workA, home, log: (msg) => lines.push(String(msg)) });
-    assert.equal(out.ok, true);
-    assert.deepEqual(out.removedAllow, [`write_file(${workB})`, 'command(git restore)']);
+    assert.equal(out.ok, false, 'command(git restore) stays and keeps the check red');
+    assert.deepEqual(out.removedAllow, []);
     assert.equal(out.backup, true);
 
     const joined = lines.join('\n');
-    assert.match(joined, /removed 2/i);
+    assert.match(joined, /added \d+ rules/i);
     assert.match(joined, /settings\.json\.bak/);
     assert.match(joined, /~/);
     assert.match(joined, /<workDir>/);
     assert.equal(joined.includes(home), false, 'raw home path must be masked in CLI output');
     assert.equal(joined.includes(workA), false, 'raw workDir path must be masked in CLI output');
-    assert.doesNotMatch(joined, /^✗/m);
+    assert.match(joined, /^✗ [\s\S]*git restore/m);
 
     const linesSecond = [];
     const second = handleWritePermissionsCli({ config: cfg, workDir: workA, home, log: (msg) => linesSecond.push(String(msg)) });
-    assert.equal(second.ok, true);
+    assert.equal(second.ok, false);
     assert.deepEqual(second.removedAllow, []);
     assert.match(linesSecond.join('\n'), /all rules already present, file unchanged/);
 

@@ -84,6 +84,7 @@ test('T-041: isGuardShimFile and unwrapGit enforce SHIM_MAX_BYTES (16384) and SH
 
 test('T-041: askPermission, watch, and follow resolve intervals in order: explicit parameter -> AGENT_LOOP_* env var (>= 10ms) -> default', async () => {
   const workDir = path.join(tmp, 'proj');
+  const home = path.join(tmp, 'home');
   const runDir = path.join(workDir, '.agent-runs', '2026-10-30T00-00-00-000Z');
   mkdirSync(runDir, { recursive: true });
   writeFileSync(path.join(runDir, 'summary.md'), '■ Stop: Done\n');
@@ -149,9 +150,9 @@ test('T-041: askPermission, watch, and follow resolve intervals in order: explic
     options: [{ answer: '2', label: 'once', rule: 'npm run lint' }],
   };
   setTimeout(() => {
-    writeAnswer({ workDir, answer: '2' });
+    writeAnswer({ workDir, home, answer: '2' });
   }, 30);
-  const ans = await askPermission({ question, workDir, runDir, tty: false, timeoutMs: 2000, log: () => {} });
+  const ans = await askPermission({ question, workDir, runDir, home, tty: false, timeoutMs: 2000, log: () => {} });
   assert.equal(ans, '2', 'askPermission returns deterministic option 2 when answered');
 
   // askPermission: null returned when timeout expires without answer
@@ -159,6 +160,7 @@ test('T-041: askPermission, watch, and follow resolve intervals in order: explic
     question: { ...question, id: 'q-timeout' },
     workDir,
     runDir,
+    home,
     tty: false,
     timeoutMs: 30,
     pollMs: 15,

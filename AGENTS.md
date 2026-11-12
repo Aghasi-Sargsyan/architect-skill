@@ -12,7 +12,7 @@
 - `.agents/skills/architect/` — ядро скилла (`SKILL.md`, `EXECUTOR.md`, `MAINTAINING.md`, `README.ru.md`, `README.en.md`, `LICENSE`, `CHANGELOG.md`, `references/*.md`) и оркестратор (`orchestrator/*.mjs`, `orchestrator/adapters/*.mjs`, `orchestrator/schemas/*.json`).
 - Корневой `EXECUTOR.md` — побайтная копия `.agents/skills/architect/EXECUTOR.md`.
 - `.claude/skills/architect` — относительный симлинк на `.agents/skills/architect` (обнаружение скилла в Claude Code, `ADR-063`); правки делаются только в `.agents/skills/architect`.
-- Конфиг оркестратора — `.agents/orchestrator.json` (или `.architect/config.json`), личный gitignored-оверлей — `.agents/orchestrator.local.json` / `.architect/config.local.json`, логи прогонов — `.agent-runs/`.
+- Конфиг оркестратора — `.agents/orchestrator.json` (или `.architect/config.json`), личный gitignored-оверлей — `.agents/orchestrator.local.json` / `.architect/config.local.json`, логи прогонов — `.agent-runs/`; управляющий каталог цикла (shim-файлы, вопрос и ответ о разрешении) — `~/.config/architect/runs/<slug>-<hash8>/` вне проекта, права `0700` (`ADR-066`).
 - Файлы больше ~400 строк — архитектурный долг; при чтении сначала ищи по символу/grep, затем читай участок 30–80 строк.
 
 ## 3. Команды
@@ -35,7 +35,7 @@
   - пути кода — `.agents/skills/architect/orchestrator`; grep ретро по добавленным строкам: `git log -p --format='commit %h %s' <база>..HEAD -- .agents/skills/architect/orchestrator | grep -nE '^commit |^\+.*([:<,|=>&[(][[:space:]]*any\b|\bas[[:space:]]+any\b|as unknown as|@ts-(ignore|expect-error|nocheck)|eslint-disable|\.(skip|only)\(|(?:Object\.assign|(?:Object|Reflect)\.(?:defineProperty|defineProperties|setPrototypeOf))[[:space:]]*\([[:space:]]*(?:[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*prototype|globalThis)\b|\b(?:[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\.[[:space:]]*prototype|globalThis)[[:space:]]*(?:\.[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*|\[[^]]+\])[[:space:]]*=[^=]|(^|[^A-Za-z0-9_$])__proto__[[:space:]]*(=[^=]| :))'`.
 
 ## 5. Зоны высокого риска
-`.agents/skills/architect/orchestrator/{guards,guards-recovery,permissions,permissions-cli,runners,mechanics,selfcheck,evidence,audit,hooks,eval-fixtures,ask,plan,plan-validate,run,check,cli,cli-dispatch,events,layout,skill-targets,claude-setup,task-range,accept,monotonicity,check-task,git-policy,git-policy-rules,git-shim,command-tables}.mjs` · `.agents/skills/architect/orchestrator/adapters/` · `.agents/skills/architect/{SKILL,EXECUTOR}.md` и `.agents/skills/architect/references/` · `.agents/orchestrator.json`.
+`.agents/skills/architect/orchestrator/{guards,guards-recovery,permissions,permissions-cli,runners,mechanics,selfcheck,evidence,audit,hooks,eval-fixtures,ask,plan,plan-validate,run,check,cli,cli-dispatch,events,layout,skill-targets,claude-setup,task-range,accept,monotonicity,check-task,git-policy,git-policy-rules,git-shim,command-tables,control-dir,agy-settings}.mjs` · `.agents/skills/architect/orchestrator/adapters/` · `.agents/skills/architect/{SKILL,EXECUTOR}.md` и `.agents/skills/architect/references/` · `.agents/orchestrator.json`.
 
 ## 6. Git и секреты
 - Коммиты — только с явными путями: `git add <пути>`, затем `git commit --only <те же пути>`, после — `git show --stat HEAD`. `git add .` и `git add -A` не использовать.

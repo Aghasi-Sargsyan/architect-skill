@@ -15,6 +15,7 @@ export const AGY_SETTINGS_SHOWN = '~/.gemini/antigravity-cli/settings.json';
 export const agySettingsPath = (home = os.homedir()) => path.join(home, '.gemini', 'antigravity-cli', 'settings.json');
 
 export { BASE_COMMANDS, WRAPPERS, FILE_BINARIES, SUBCOMMAND_TOOLS, STANDALONE_TOOLS };
+export { foreignProjectRule } from './agy-settings.mjs';
 
 const SHELL_OPERATORS_RE = /&|\||;|>|<|\$\(|`/;
 const SHELL_OPERATORS_ERR = 'contains shell operators (; & && || | > < ` $() or newlines) — only simple commands are allowed';

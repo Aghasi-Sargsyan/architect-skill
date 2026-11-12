@@ -84,6 +84,7 @@ test('T-051: layout.mjs, prompts.mjs, ask.mjs, and selfcheck.mjs contain no hard
 
 test('T-051: askPermission hint and selfcheck.mjs config.example.json monotonicity work with skill installed in .claude/skills/architect/', async () => {
   const tmp = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'skill-claude-t051-')));
+  const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'skill-claude-t051-home-')));
   const g = (...args) => execFileSync(realGit, args, { cwd: tmp, encoding: 'utf8' }).trim();
   try {
     g('init', '-q', '-b', 'master');
@@ -98,7 +99,7 @@ test('T-051: askPermission hint and selfcheck.mjs config.example.json monotonici
     // Answer right after the question is written: its id gets a random suffix (C-13), so an answer written in advance never matches
     const logs = [];
     const qId = 'q-claude-1';
-    setTimeout(() => writeAnswer({ workDir: tmp, answer: '2' }), 30);
+    setTimeout(() => writeAnswer({ workDir: tmp, home, answer: '2' }), 30);
     const ans = await askPermission(
       {
         id: qId,
@@ -112,6 +113,7 @@ test('T-051: askPermission hint and selfcheck.mjs config.example.json monotonici
       {
         workDir: tmp,
         runDir,
+        home,
         orchestratorDir: claudeOrchDir,
         timeoutMs: 2000,
         pollMs: 10,
@@ -158,5 +160,6 @@ test('T-051: askPermission hint and selfcheck.mjs config.example.json monotonici
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   }
 });

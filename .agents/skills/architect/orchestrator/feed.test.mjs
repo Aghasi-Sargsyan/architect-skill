@@ -3,13 +3,19 @@ import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { questionPath } from './ask.mjs';
 import { JsonlTail, LineTail, createAgyFormatter, follow, milestones, statusText, watch } from './feed.mjs';
 
 let dir;
+let home;
 beforeEach(() => {
   dir = mkdtempSync(path.join(os.tmpdir(), 'orch-feed-'));
+  home = mkdtempSync(path.join(os.tmpdir(), 'orch-feed-home-'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+  rmSync(home, { recursive: true, force: true });
+});
 
 test('JsonlTail reads only complete lines, each once; a line cut mid-write waits for the next read', () => {
   const file = path.join(dir, 't.jsonl');
@@ -60,18 +66,19 @@ test('--watch: a question → exit 2 at once; no loop after the grace period →
   const run = path.join(runs, '2026-10-23T13-27-29-872Z');
   mkdirSync(run, { recursive: true });
   writeFileSync(path.join(run, 'summary.md'), '■ Стоп: T-001: принята (--only)\n');
-  const stopped = await watch({ workDir: dir, minutes: 1, pollMs: 10, graceMs: 50 });
+  const stopped = await watch({ workDir: dir, home, minutes: 1, pollMs: 10, graceMs: 50 });
   assert.deepEqual(stopped, { code: 3, text: '■ Стоп: T-001: принята (--only)' });
   writeFileSync(path.join(runs, '.lock'), String(process.pid)); // a question counts only while its loop is alive (C-17)
-  writeFileSync(path.join(runs, 'question.json'), JSON.stringify({ id: 'q', who: 'Исполнитель', taskId: 'T-001', command: 'pnpm test', options: [{ answer: '2', rule: 'pnpm test' }] }));
-  const asked = await watch({ workDir: dir, minutes: 1, pollMs: 10, graceMs: 50 });
+  mkdirSync(path.dirname(questionPath(dir, home)), { recursive: true });
+  writeFileSync(questionPath(dir, home), JSON.stringify({ id: 'q', who: 'Исполнитель', taskId: 'T-001', command: 'pnpm test', options: [{ answer: '2', rule: 'pnpm test' }] }));
+  const asked = await watch({ workDir: dir, home, minutes: 1, pollMs: 10, graceMs: 50 });
   assert.equal(asked.code, 2);
   assert.match(asked.text, /pnpm test[\s\S]*--answer <2\|3>/);
-  rmSync(path.join(runs, 'question.json'));
+  rmSync(questionPath(dir, home));
   writeFileSync(path.join(runs, '.lock'), String(process.pid));
   writeFileSync(path.join(run, 'run.log'), '[17:27:29] ▶ T-001 (средний): one; Исполнитель m\n');
   writeFileSync(path.join(run, 'feed.log'), 'a\nb\nc\nd\n');
-  const waited = await watch({ workDir: dir, minutes: 0.001, pollMs: 10, graceMs: 50 });
+  const waited = await watch({ workDir: dir, home, minutes: 0.001, pollMs: 10, graceMs: 50 });
   assert.equal(waited.code, 0, 'the window ended while the loop runs');
   assert.match(waited.text, /^(?:идёт|running) \d+ (?:мин|min): T-001 \(средний\): one; (?:Исполнитель|Executor) m \((?:вех|milestones): 0\)$/);
   const status = statusText(dir);
@@ -105,7 +112,7 @@ test('--watch: a milestone after --since → exit 4 with «(вех: N)»; the co
   writeFileSync(path.join(runs, '.lock'), String(process.pid));
   const log = path.join(run, 'run.log');
   writeFileSync(log, '[10:00:00] ▶ T-011 (средний): a; Исполнитель m\n');
-  const opts = { workDir: dir, minutes: 0.002, pollMs: 10, graceMs: 50 };
+  const opts = { workDir: dir, home, minutes: 0.002, pollMs: 10, graceMs: 50 };
   assert.match((await watch({ ...opts, since: 0 })).text, /\((?:вех|milestones): 0\)$/, 'the first task start is not a milestone');
   appendFileSync(log, '[10:09:30]   Архитектор: accepted, 1s\n[10:09:31] ▶ T-013 (средний): b; Исполнитель m\n');
   const missedBetweenCalls = await watch({ ...opts, since: 0 });
@@ -113,7 +120,8 @@ test('--watch: a milestone after --since → exit 4 with «(вех: N)»; the co
   assert.match(missedBetweenCalls.text, /^T-011 (?:принята \(10 мин\); дальше T-013 \(вех: 1\)|accepted \(10 min\); next T-013 \(milestones: 1\))$/);
   assert.equal((await watch({ ...opts, since: 1 })).code, 0, 'nothing new after since=1');
   assert.equal((await watch({ ...opts, since: 9 })).code, 0, 'a since from an earlier run starts from now');
-  writeFileSync(path.join(runs, 'question.json'), JSON.stringify({ id: 'q', who: 'Исполнитель', taskId: 'T-013', command: 'pnpm test', options: [{ answer: '2', rule: 'pnpm test' }] }));
+  mkdirSync(path.dirname(questionPath(dir, home)), { recursive: true });
+  writeFileSync(questionPath(dir, home), JSON.stringify({ id: 'q', who: 'Исполнитель', taskId: 'T-013', command: 'pnpm test', options: [{ answer: '2', rule: 'pnpm test' }] }));
   assert.match((await watch({ ...opts, since: 1 })).text, /--answer <2\|3> \((?:вех|milestones): 1\)$/);
 });
 
@@ -123,7 +131,7 @@ test('--watch started before the new run folder exists: the new run counts miles
   mkdirSync(old, { recursive: true });
   writeFileSync(path.join(old, 'run.log'), '[10:00:00] ▶ T-001 (низкий): a\n[10:05:00]   Архитектор: accepted, 1s\n[10:05:01] ▶ T-002 (низкий): b\n');
   writeFileSync(path.join(runs, '.lock'), String(process.pid));
-  const waiting = watch({ workDir: dir, minutes: 0.05, pollMs: 10, graceMs: 50 });
+  const waiting = watch({ workDir: dir, home, minutes: 0.05, pollMs: 10, graceMs: 50 });
   const fresh = path.join(runs, '2026-10-23T11-00-00-000Z');
   mkdirSync(fresh, { recursive: true });
   writeFileSync(path.join(fresh, 'run.log'), '[11:00:00] ▶ T-003 (низкий): c\n[11:02:00]   Архитектор: rework, 1s\n');

@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.50 / 1.8 -->
-# Architect + Executor Skill (`v3.50 / 1.8`)
+<!-- skill-readme-sync: v3.51 / 1.9 -->
+# Architect + Executor Skill (`v3.51 / 1.9`)
 
 A portable **Chief Architect + Executor** workflow skill with two independent installation levels:
 1. **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** works with **any AI coding agent** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf, etc.), **any tech stack**, and **any OS** (macOS, Linux, Windows) via manual chat or subagent handoff.
@@ -38,12 +38,18 @@ A portable **Chief Architect + Executor** workflow skill with two independent in
 | **Chief Architect** | Investigates context, challenges ideas, records ADRs, writes `PLAN.md` and `Frozen` reference tests, reviews diffs (`REVIEW`), resolves escalations, closes cycles | `SKILL.md` + `references/*.md` | `arch: ...` |
 | **Executor** | Implements a single atomic task `T-NNN` strictly within the files listed in `Change`, runs `Check`, commits, and returns a structured report (or stops on escalation) | `EXECUTOR.md` | `T-NNN: ...` / `T-NNN (fix K): ...` |
 
-### Key Safety Invariants
+### Key Guardrails
 - **Two-Phase Protocol (`§2.5`):** Phase 1 is strictly read-only. No files or commits are created until you explicitly approve an option.
 - **Frozen Files (`## Frozen`):** Top-level backticked paths (`- \`path\`` or globs `dir/*`, `dir/**`), reference tests (`*.test.*`) for high-risk code tasks, `EXECUTOR.md`, and the skill's own markdown files (`SKILL*.md`, `references/**`) cannot be modified by the Executor — enforced by prompt rules, `plan-validate.mjs`, and `mechanics.mjs`.
-- **Four-Layer Push & Path Guards (`guards.mjs`, `runners.mjs`):** While `AGENT_LOOP=1`, `PATH` shims, `.git/hooks/pre-push`, and `remote.<name>.pushurl` block `git push`, forbidden scripts, history rewrites, and reading files outside `workDir`.
+- **Four-Layer Push & Path Guards (`guards.mjs`, `runners.mjs`):** While `AGENT_LOOP=1`, `PATH` shims, `.git/hooks/pre-push`, and `remote.<name>.pushurl` block `git push`, forbidden scripts, history rewrites, and direct reads outside `workDir` by the wrapped tools.
 - **Zero Tolerance for Check Bypassing:** `mechanics.mjs` and `--self-check` scan diffs for `: any`, `as any`, `@ts-ignore`, `@ts-expect-error`, `.skip(`, `.only(`, deleted tests, `git commit --no-verify`, global prototype mutations, or silent `catch {}`.
 - **Whole-Task Checks & Orchestrator Acceptance (`task-range.mjs`, `accept.mjs`):** Checks cover every commit of a task since its base, so a restart never hides an earlier violation; in the loop the Architect review is read-only, and the orchestrator itself marks `[x]` and commits `arch: accept T-NNN`.
+
+### Threat Model
+- **Guardrails, not a security boundary:** the checks above stop model mistakes and rule bypasses. Only the runner's OS sandbox is a security boundary: the `claude` runner runs with it enabled, the `agy` runner runs without one.
+- **Untrusted content** (third-party code, issue text, web data): run the loop in a container, a VM, or a separate clone without network access or cloud keys.
+- **Data, not instructions:** the rules of both agents treat file contents, command output, and reports as data (`EXECUTOR.md` `1.9`, `SKILL.md` `v3.51`).
+- **Known limits:** `Verify` commands run with the orchestrator's own rights outside the runner sandbox; changes to git-ignored files (e.g. `node_modules/`) are invisible to the clean-tree check; a background process that outlives an agent turn is not tracked.
 
 ---
 

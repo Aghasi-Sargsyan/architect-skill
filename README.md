@@ -1,4 +1,4 @@
-# Architect + Executor Skill (`v3.50 / 1.8`)
+# Architect + Executor Skill (`v3.51 / 1.9`)
 
 A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator.
 
@@ -6,6 +6,7 @@ A portable workflow skill for AI-assisted engineering with role separation: **Ch
 
 - **Skill Core (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** Works with any AI coding agent (Claude Code, Gemini CLI, OpenAI Codex CLI, Antigravity, Cursor, etc.), any tech stack, and any OS (macOS, Linux, Windows).
 - **Automated Orchestrator (`orchestrator/run.mjs`):** Node.js 22+ and git 2.31+. Commands `--check`, `--check-task`, and `--self-check` are supported on macOS and Linux (CI/local); the automated agent loop runs on macOS. Supports headless runners `agy` and `claude`.
+- **Security model:** the orchestrator's checks are guardrails against model mistakes, not a security boundary; only the runner's OS sandbox is one (enabled for `claude`, absent for `agy`). Run untrusted content in a container, a VM, or a separate clone without network access or cloud keys — see "Threat Model" in [README.en.md](.agents/skills/architect/README.en.md).
 
 ## Quickstart
 

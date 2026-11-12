@@ -1,5 +1,5 @@
-<!-- skill-readme-sync: v3.50 / 1.8 -->
-# Скилл «Архитектор + Исполнитель» (`v3.50 / 1.8`)
+<!-- skill-readme-sync: v3.51 / 1.9 -->
+# Скилл «Архитектор + Исполнитель» (`v3.51 / 1.9`)
 
 Переносимый скилл разделения ролей **Главный Архитектор + Исполнитель** с двумя честными уровнями установки:
 1. **Ядро скилла (`SKILL.md` + `EXECUTOR.md` + `references/*.md`):** работает в **любом ИИ-агенте** (**Claude Code**, **Gemini CLI**, **Codex**, **Antigravity**, **Cursor**, Windsurf и др.), на **любом стеке** и в **любой ОС** (macOS, Linux, Windows) через ручную передачу задач или субагентов.
@@ -21,13 +21,9 @@
      ```bash
      tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/.agents/skills/architect" .claude/skills/ && rm -rf "$tmp"
      ```
-   - **Обновление уже установленного скилла (одной командой):** напишите в чате **`/architect update`** или выполните в терминале:
-     ```bash
-     node .agents/skills/architect/orchestrator/run.mjs --update
-     # или: npm run agents -- --update
-     ```
+   - **Обновление установленного скилла:** **`/architect update`** в чате или `--update` (раздел 3, пункт D).
 2. **Откройте агента и напишите `/architect`** (или *«прочитай `.agents/skills/architect/SKILL.md`»*):
-   - **Первый запуск в новом проекте:** в Фазе 1 (только чтение) Архитектор не трогает файлы, спрашивает **модель Исполнителя** и предлагает блок ролей в `AGENTS.md`. В Фазе 2 по умолчанию создаёт файлы в `.architect/` (`.architect/EXECUTOR.md`, `.architect/PLAN.md`) в коммите `arch: plan ...`, сам запускает `--init`, `--check` и `--dry-run`, спрашивая «да» только для `--write-permissions` (для миграции `classic`-проекта в `.architect/` напишите **`/architect compact`** или `--compact`).
+   - **Первый запуск в новом проекте:** в Фазе 1 Архитектор только читает, спрашивает **модель Исполнителя** и предлагает блок ролей в `AGENTS.md`. В Фазе 2 создаёт `.architect/EXECUTOR.md` и `.architect/PLAN.md` в коммите `arch: plan ...`, сам запускает `--init`, `--check` и `--dry-run` и спрашивает «да» только перед `--write-permissions` (перенос `classic`-проекта в `.architect/`: **`/architect compact`**).
 
 ---
 
@@ -38,12 +34,18 @@
 | **Главный Архитектор** | Исследует контекст, фильтрует идеи, ведёт ADR, пишет `PLAN.md` и эталонные тесты в `Frozen`, принимает работу по диффу (`REVIEW`), разбирает эскалации и закрывает цикл | `SKILL.md` + `references/*.md` | `arch: ...` |
 | **Исполнитель** | Выполняет ровно одну атомарную задачу `T-NNN` строго в пределах списка `Менять` (`Change`), прогоняет `Проверка` (`Check`), делает коммит и возвращает отчёт (или останавливается по эскалации) | `EXECUTOR.md` | `T-NNN: ...` / `T-NNN (fix K): ...` |
 
-### Ключевые гарантии безопасности
-- **Двухфазный протокол (`§2.5`):** Фаза 1 строго только для чтения. Ни один файл не создаётся и не меняется до явного одобрения варианта пользователем.
-- **Замороженные файлы (`## Frozen` / `## Заморожено`):** Пути в бэктиках (`- \`path\``, маски `dir/*`, `dir/**`), эталонные тесты `high`-задач, `EXECUTOR.md` и `.md`-файлы скилла (`SKILL*.md`, `references/**`) закрыты от Исполнителя промптом и механикой.
-- **Четырёхслойная защита от push и выхода за пределы проекта (`guards.mjs`, `runners.mjs`):** При `AGENT_LOOP=1` обёртки в `PATH`, `.git/hooks/pre-push` и `remote.<name>.pushurl` блокируют `git push`, опасные скрипты, переписывание истории и чтение файлов вне `workDir`.
-- **Нулевая терпимость к обходам проверок:** `mechanics.mjs` и `--self-check` проверяют дифф на `: any`, `as any`, `@ts-ignore`, `@ts-expect-error`, `.skip(`, `.only(`, удаление тестов, `git commit --no-verify`, мутацию глобальных прототипов и пустые `catch {}`.
-- **Вся задача и приёмка оркестратором:** проверки охватывают все коммиты задачи; ревью в цикле только читает, `[x]` и коммит приёмки делает оркестратор.
+### Ключевые ограждения
+- **Двухфазный протокол (`§2.5`):** в Фазе 1 ни один файл не меняется до явного одобрения варианта.
+- **`Frozen` / `Заморожено`:** пути в бэктиках (маски `dir/*`, `dir/**`), эталонные тесты `high`-задач, `EXECUTOR.md` и `.md`-файлы скилла закрыты от Исполнителя промптом и механикой.
+- **Push и обёртки (`guards.mjs`, `runners.mjs`):** при `AGENT_LOOP=1` обёртки в `PATH`, хук `pre-push` и `pushurl` блокируют `git push`, опасные скрипты, переписывание истории и прямое чтение вне `workDir` обёрнутыми командами.
+- **Обходы проверок:** `mechanics.mjs` и `--self-check` ищут `any`, `@ts-ignore`, `.skip(`, `.only(`, удаление тестов, `--no-verify`, мутацию прототипов и пустые `catch {}`.
+- **Вся задача:** проверки охватывают все коммиты задачи; ревью в цикле только читает, приёмку коммитит оркестратор.
+
+### Модель угроз
+- **Ограждение, а не граница безопасности:** проверки выше ловят ошибки модели и обходы правил. Граница — только ОС-песочница раннера: у `claude` она включена, у `agy` её нет.
+- **Недоверенные данные** (чужой код, текст задач, веб): цикл — в контейнере, ВМ или клоне без сети и облачных ключей.
+- **Данные, а не инструкции:** по правилам обоих агентов файлы, вывод команд и отчёты — данные (`EXECUTOR.md` `1.9`).
+- **Пределы:** `Verify` идёт с правами оркестратора вне песочницы; правки игнорируемых файлов (`node_modules/`) не видны проверке чистого дерева; фоновый процесс, переживший ход агента, не отслеживается.
 
 ---
 
@@ -90,7 +92,7 @@
    node .agents/skills/architect/orchestrator/run.mjs --update
    # или: npm run agents -- --update
    ```
-   Клонирует свежий коммит, обновляет папки скилла (`.agents/skills/architect` / `.claude/skills/architect`), пишет SHA в `.version`, синхронизирует `EXECUTOR.md` и хуки, не затрагивая конфиги (`config.json`, `config.local.json`) и историю. Команды `--check`, `--dry-run`, `--self-check` и старт цикла проверяют наличие новых коммитов раз в 24 часа (кэш в `.agent-runs/.update-check.json`) и выводят строку `! skill update available:`.
+   Клонирует свежий коммит, обновляет папки скилла, пишет SHA в `.version`, синхронизирует `EXECUTOR.md` и хуки, не трогая конфиги и историю. `--check`, `--dry-run`, `--self-check` и старт цикла раз в 24 часа сообщают о новых коммитах (`! skill update available:`).
 2. **Без Node.js:** однострочник из раздела 1 с `mktemp -d` (`rm -rf` перед `cp -R`), затем:
    ```bash
    cp .agents/skills/architect/EXECUTOR.md EXECUTOR.md
@@ -168,9 +170,9 @@
 ## 8. Когда скилл использовать и когда не использовать
 
 - **Полностью (Ядро + Оркестратор):** долгоживущие продукты с зонами высокого риска (права доступа, биллинг, миграции БД, конкурентность) на macOS с раннерами `agy` или `claude`.
-- **Только ядро (`SKILL.md` + `EXECUTOR.md`):** проекты любого размера, другие стеки и агенты (`Gemini CLI`, `Codex`, `Cursor`), Linux или Windows (двухфазное планирование, `Frozen`, изоляция контекста без цикла Node.js).
+- **Только ядро (`SKILL.md` + `EXECUTOR.md`):** проекты любого размера, другие стеки и агенты (`Gemini CLI`, `Codex`, `Cursor`), Linux или Windows — без цикла Node.js.
 - **Не использовать:** одноразовые прототипы, геймджемы, разовые скрипты и задачи с чисто визуальной приёмкой.
-- **Командные проекты с PR и CI:** командный режим (`--init --team`, раздел 9) или базовые практики ядра (Фаза 1 только для чтения, `Frozen`, изолированный Исполнитель).
+- **Командные проекты с PR и CI:** командный режим (`--init --team`, раздел 9) или базовые практики ядра.
 
 ---
 
@@ -194,13 +196,13 @@ node .agents/skills/architect/orchestrator/run.mjs --init --team
 4. **Закрытие цикла:** когда все задачи `[x]`, Архитектор коммитит `arch: close cycle <N>` в `cycle/<N>` и открывает PR `cycle/<N> → master`. CI гоняет `fullTestCommand` и `--self-check --base origin/master`; техлид вливает PR через **Create a merge commit**.
 
 ### Точные настройки GitHub для репозитория команды
-1. **Способы слияния PR ([Configuring commit merging for pull requests](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-merging-for-pull-requests)):**
+1. **Способы слияния PR ([docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-merging-for-pull-requests)):**
    - Включите **Allow merge commits**.
    - **Отключите Allow squash merging** и **Allow rebase merging**, чтобы сохранять атомарные коммиты `T-NNN:` и `arch:` для `--check-task` и `--self-check`.
-2. **Ruleset для `cycle/*` ([About rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets), [Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)):**
+2. **Ruleset для `cycle/*` ([rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets), [rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)):**
    - **Target branches:** `cycle/*`.
    - **Bypass list:** добавьте **Tech Lead / Architect** (чтобы Архитектор пушил `arch: plan`, `arch: accept T-NNN` и `arch: close cycle <N>` напрямую в `cycle/<N>`, а Исполнители работали только через PR).
    - **Rules:** включите *Require a pull request before merging* (только **Merge**), *Require status checks to pass* (`Task PR Gate (task/T-NNN -> cycle/*)`) и *Block force pushes*.
-3. **Ruleset / Branch Protection для `master` / `main` ([About protected branches](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)):**
+3. **Ruleset / Branch Protection для `master` / `main` ([docs](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)):**
    - **Target branches:** основная ветка (`master` или `main`), без обхода прямым пушем.
    - **Rules:** включите *Require a pull request before merging* (только **Merge**), *Require status checks to pass* (`Full Test Suite & Self-Check (master/main)`) и *Block force pushes*.
