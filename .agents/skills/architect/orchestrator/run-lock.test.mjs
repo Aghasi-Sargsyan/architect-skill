@@ -20,7 +20,9 @@ beforeEach(() => {
 afterEach(() => { rmSync(root, { recursive: true, force: true }); });
 
 const isAlive = (pid) => { try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; } };
-const startedAtOf = (pid) => spawnSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8' }).stdout.trim();
+const startedAtOf = (pid) => (spawnSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8' }).stdout ?? '').trim();
+// The claude sandbox (Seatbelt) refuses the setuid /bin/ps: there the owner cannot be disproved and the lock is kept (fail-safe).
+const PS_AVAILABLE = startedAtOf(process.pid) !== '';
 
 test('T-112: acquire writes the owner (pid and process start time) and release removes the lock', () => {
   const release = acquireRunLock(runsDir);
@@ -47,6 +49,12 @@ test('T-112: a lock with a live PID but another process start time is stale (PID
   writeFileSync(path.join(runsDir, '.lock'), JSON.stringify({ pid: process.pid, startedAt: 'Thu Jan  1 00:00:00 1970' }));
   const owner = readLockOwner(runsDir);
   assert.equal(owner.pid, process.pid);
+  if (!PS_AVAILABLE) {
+    assert.equal(owner.alive, true, 'without ps a live PID is kept as the owner (fail-safe)');
+    assert.equal(owner.verified, false, 'without ps the owner is not verified');
+    assert.throws(() => acquireRunLock(runsDir), /already running/);
+    return;
+  }
   assert.equal(owner.alive, false);
   const release = acquireRunLock(runsDir);
   assert.equal(readLockOwner(runsDir).alive, true);

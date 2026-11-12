@@ -241,6 +241,7 @@ test('lock: a second loop is refused while the first runs; a stale lock is taken
   release();
   writeFileSync(path.join(runs, '.lock'), '999999');
   const again = acquireLock(runs);
-  assert.equal(readFileSync(path.join(runs, '.lock'), 'utf8'), String(process.pid));
+  // ADR-068: the lock is JSON {pid, startedAt, token}; the owner is this process.
+  assert.equal(JSON.parse(readFileSync(path.join(runs, '.lock'), 'utf8')).pid, process.pid);
   again();
 });
