@@ -65,7 +65,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; the listed existing tests stay green; `selfcheck.mjs`, `selfcheck-base.mjs`, `cli.mjs` ≤ 400 lines.
   - Verify: `node --test .agents/skills/architect/orchestrator/selfcheck-base.test.mjs .agents/skills/architect/orchestrator/selfcheck.test.mjs .agents/skills/architect/orchestrator/selfcheck-range.test.mjs .agents/skills/architect/orchestrator/cli.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs .agents/skills/architect/orchestrator/audit.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs .agents/skills/architect/orchestrator/field-selfcheck-retro.test.mjs .agents/skills/architect/orchestrator/commit-hooks.test.mjs .agents/skills/architect/orchestrator/layout.test.mjs .agents/skills/architect/orchestrator/team-git.test.mjs`
 
-- [ ] T-122: Fail-closed git and JSON reads in the self-check and the red-check
+- [x] T-122: Fail-closed git and JSON reads in the self-check and the red-check
   - Risk: high.
   - Depends on: T-120, T-121
   - Read: `.agents/skills/architect/orchestrator/selfcheck-failclosed.test.mjs`, `.agents/skills/architect/orchestrator/git-read.mjs` (stub JSDoc = contract), `.agents/skills/architect/orchestrator/selfcheck.mjs` (`getModifiedOrDeletedFiles`, `runSelfCheckGit`, `checkPostReviewSelfCheck` — grep `catch`), `.agents/skills/architect/orchestrator/red-check.mjs` (plan candidates, `isFileNewOrModifiedSince`), `.agents/skills/architect/orchestrator/git.mjs` (`git`, lines 1–12).
