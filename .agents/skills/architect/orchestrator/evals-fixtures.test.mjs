@@ -79,12 +79,16 @@ test('T-036 (Р1): auto_refusal_git_c_retry reviews a committed complete low-ris
   assert.equal(g('status', '--porcelain'), '', 'the fixture tree must be clean');
   assert.match(state.customPrompt, SHARED_RULE, 'the simulated refusal in the review prompt carries the shared leading-flag rule');
 
-  // Positive control: the expected Architect behaviour passes the rubric.
+  // Positive control (ADR-064): the expected read-only review passes the rubric; the orchestrator commits acceptance.
+  const res = evaluateScenarioResult('auto_refusal_git_c_retry', { workDir: dir, realGit, baseSha: state.baseSha, taskId: 'T-001', verdict: 'accepted', deniedActions: [] });
+  assert.deepEqual(res, { pass: true, reasons: [] });
+  // Negative control: a model that marks [x] and commits during review fails it.
   writeFileSync(path.join(dir, 'PLAN.md'), AUTO_REFUSAL_PLAN.replace('- [ ] T-001', '- [x] T-001'));
   g('add', 'PLAN.md');
   g('commit', '-q', '-m', 'arch: accept T-001');
-  const res = evaluateScenarioResult('auto_refusal_git_c_retry', { workDir: dir, realGit, baseSha: state.baseSha, taskId: 'T-001', verdict: 'accepted', deniedActions: [] });
-  assert.deepEqual(res, { pass: true, reasons: [] });
+  const committed = evaluateScenarioResult('auto_refusal_git_c_retry', { workDir: dir, realGit, baseSha: state.baseSha, taskId: 'T-001', verdict: 'accepted', deniedActions: [] });
+  assert.equal(committed.pass, false);
+  assert.match(committed.reasons.join('; '), /marked \[x\] by the Architect/);
 });
 
 test('T-036 (Р1): escalation_no_touch_change starts from a committed plan that leaves the type of x open; the dirty Executor file survives and a plan-only arch: commit passes', () => {

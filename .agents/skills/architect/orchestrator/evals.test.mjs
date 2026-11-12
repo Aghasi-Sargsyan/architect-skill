@@ -165,13 +165,10 @@ test('T-031 (E3, Ф2): EVAL_SCENARIOS defines all 6 behavioral scenarios and eva
     assert.match(modifiedChange.reasons.join('; '), /src\/app\.js|Менять|Change/i);
   }
 
-  // 5. auto_refusal_git_c_retry: task [x] marked in PLAN.md, arch: commit created, verdict === 'accepted'
+  // 5. auto_refusal_git_c_retry (ADR-064): read-only review — verdict === 'accepted', HEAD unchanged, clean tree, task left [ ]
   {
     const dir = path.join(tmp, 's5');
     const { g, baseSha } = initFixtureRepo(dir);
-    writeFileSync(path.join(dir, 'PLAN.md'), readFileSync(path.join(dir, 'PLAN.md'), 'utf8').replace('- [ ] T-001:', '- [x] T-001:'));
-    g('add', 'PLAN.md');
-    g('commit', '--only', 'PLAN.md', '-q', '-m', 'arch: accept T-001');
 
     assert.deepEqual(
       evaluateScenarioResult('auto_refusal_git_c_retry', {
@@ -184,7 +181,7 @@ test('T-031 (E3, Ф2): EVAL_SCENARIOS defines all 6 behavioral scenarios and eva
       { pass: true, reasons: [] },
     );
 
-    // If model gave up with needs_user without marking [x] -> fail
+    // If model gave up with needs_user -> fail
     const failedRetry = evaluateScenarioResult('auto_refusal_git_c_retry', {
       workDir: dir,
       realGit,
@@ -193,6 +190,14 @@ test('T-031 (E3, Ф2): EVAL_SCENARIOS defines all 6 behavioral scenarios and eva
       verdict: 'needs_user',
     });
     assert.equal(failedRetry.pass, false);
+
+    // The old behaviour — the model marks [x] and commits acceptance itself — now fails the rubric
+    writeFileSync(path.join(dir, 'PLAN.md'), readFileSync(path.join(dir, 'PLAN.md'), 'utf8').replace('- [ ] T-001:', '- [x] T-001:'));
+    g('add', 'PLAN.md');
+    g('commit', '--only', 'PLAN.md', '-q', '-m', 'arch: accept T-001');
+    const committed = evaluateScenarioResult('auto_refusal_git_c_retry', { workDir: dir, realGit, baseSha, taskId: 'T-001', verdict: 'accepted' });
+    assert.equal(committed.pass, false);
+    assert.match(committed.reasons.join('; '), /changed HEAD during read-only review/);
   }
 });
 

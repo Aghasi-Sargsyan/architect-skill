@@ -156,7 +156,7 @@ test('T-043a: runTaskVerification executes allowed commands with shell:false, re
   assert.equal(timeoutRes.failedCommand, 'node --test slow.test.mjs');
 });
 
-test('T-043a (ADR-031): run.mjs uses pre-turn Verify commands even if Executor tampers with PLAN.md, triggers rework on Verify failure without calling Architect, and accepts after fix', () => {
+test('T-043a (ADR-031, ADR-064): run.mjs triggers rework on Verify failure without calling Architect, and after a read-only review the orchestrator commits acceptance', () => {
   const g = (...args) => execFileSync(realGit, args, { cwd: work, encoding: 'utf8', env }).trim();
   g('init', '-q', '-b', 'master');
 
@@ -167,7 +167,7 @@ test('T-043a (ADR-031): run.mjs uses pre-turn Verify commands even if Executor t
     path.join(work, 'check-a.test.mjs'),
     "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { readFileSync } from 'node:fs';\ntest('a.txt has expected value', () => {\n  assert.equal(readFileSync('a.txt', 'utf8'), 'expected\\n', 'A_TXT_MISMATCH');\n});\n",
   );
-  // Note: PLAN.md is listed in Change so checkExecutorRun allows the commit, testing specifically that run.mjs uses the pre-turn task.verifyCommands!
+  // ADR-061 R-7 / ADR-064: PLAN.md is never in Change; the fake Architect is read-only and the orchestrator commits acceptance.
   const initialPlan = `# PLAN
 
 ## Frozen
@@ -178,7 +178,7 @@ test('T-043a (ADR-031): run.mjs uses pre-turn Verify commands even if Executor t
 
 - [ ] T-001: update a.txt
   - Risk: high.
-  - Change: \`a.txt\`, \`PLAN.md\`.
+  - Change: \`a.txt\`.
   - Verify: \`node --test check-a.test.mjs\`.
 `;
   writeFileSync(path.join(work, 'PLAN.md'), initialPlan);
@@ -208,33 +208,24 @@ fs.writeFileSync(callsFile, JSON.stringify(calls, null, 2));
 const git = (...gArgs) => execFileSync(${JSON.stringify(realGit)}, gArgs, { encoding: 'utf8' }).trim();
 
 if (!isArchitect && calls.filter((c) => c.role === 'executor').length === 1) {
-  // Attempt 0: write wrong value to a.txt AND tamper with Verify in PLAN.md to 'git status --short'
+  // Attempt 0: write a wrong value to a.txt, so the pre-turn Verify command fails
   fs.writeFileSync('a.txt', 'wrong\\n');
-  const tamperedPlan = fs.readFileSync('PLAN.md', 'utf8').replace('node --test check-a.test.mjs', 'git status --short');
-  fs.writeFileSync('PLAN.md', tamperedPlan);
-  git('add', 'a.txt', 'PLAN.md');
-  git('commit', '--only', 'a.txt', 'PLAN.md', '-m', 'T-001: attempt 0 with tampered plan');
+  git('add', 'a.txt');
+  git('commit', '--only', 'a.txt', '-m', 'T-001: attempt 0 with wrong value');
   const sha = git('rev-parse', 'HEAD');
   const ans = JSON.stringify({ task_id: 'T-001', status: 'done', check_passed: true, self_check: true, retry_count: 0, commits: [sha], report_markdown: 'done attempt 0' });
   process.stdout.write(JSON.stringify({ status: 'SUCCESS', conversation_id: 'c-1', response: ans }));
 } else if (!isArchitect) {
-  // Attempt 1 (rework): fix a.txt and restore PLAN.md
+  // Attempt 1 (rework): fix a.txt
   fs.writeFileSync('a.txt', 'expected\\n');
-  const restoredPlan = fs.readFileSync('PLAN.md', 'utf8').replace('git status --short', 'node --test check-a.test.mjs');
-  fs.writeFileSync('PLAN.md', restoredPlan);
-  git('add', 'a.txt', 'PLAN.md');
-  git('commit', '--only', 'a.txt', 'PLAN.md', '-m', 'T-001 (fix 1): set expected value');
+  git('add', 'a.txt');
+  git('commit', '--only', 'a.txt', '-m', 'T-001 (fix 1): set expected value');
   const sha = git('rev-parse', 'HEAD');
   const ans = JSON.stringify({ task_id: 'T-001', status: 'done', check_passed: true, self_check: true, retry_count: 1, commits: [sha], report_markdown: 'done fix 1' });
   process.stdout.write(JSON.stringify({ status: 'SUCCESS', conversation_id: 'c-2', response: ans }));
 } else {
-  // Architect review after Verify passes
-  const planNow = fs.readFileSync('PLAN.md', 'utf8').replace('- [ ] T-001:', '- [x] T-001:');
-  fs.writeFileSync('PLAN.md', planNow);
-  git('add', 'PLAN.md');
-  git('commit', '--only', 'PLAN.md', '-m', 'arch: accept T-001');
-  const sha = git('rev-parse', 'HEAD');
-  const ans = JSON.stringify({ task_id: 'T-001', verdict: 'accepted', issues: [], rework_instructions: '', arch_commits: [sha], summary: 'accepted after Verify passed' });
+  // Architect review after Verify passes: read-only, no commit (the orchestrator commits acceptance)
+  const ans = JSON.stringify({ task_id: 'T-001', verdict: 'accepted', issues: [], rework_instructions: '', arch_commits: [], summary: 'accepted after Verify passed' });
   process.stdout.write(JSON.stringify({ status: 'SUCCESS', conversation_id: 'c-3', response: ans }));
 }
 `,
@@ -279,4 +270,7 @@ if (!isArchitect && calls.filter((c) => c.role === 'executor').length === 1) {
   );
   assert.match(calls[1].prompt, /A_TXT_MISMATCH/, 'rework prompt on round 1 must include Verify failure output tail');
   assert.match(calls[2].prompt, /Verify passed/i, 'Architect prompt on round 1 must confirm Verify passed');
+  assert.equal(g('log', '-1', '--format=%s'), 'arch: accept T-001', 'the orchestrator creates the acceptance commit');
+  assert.deepEqual(g('show', '--name-only', '--format=', 'HEAD').split('\n').filter(Boolean), ['PLAN.md']);
+  assert.equal(parsePlan(readFileSync(path.join(work, 'PLAN.md'), 'utf8')).tasks[0].done, true);
 });

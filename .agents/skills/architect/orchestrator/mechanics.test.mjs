@@ -5,7 +5,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { checkExecutorRun, checkArchitectRun, findBypasses } from './mechanics.mjs';
-import { parsePlan } from './plan.mjs';
 import { DEFAULTS } from './config.mjs';
 
 const realGit = execFileSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).trim();
@@ -104,24 +103,25 @@ test('findBypasses: only added lines, without the leading «+», file headers sk
   assert.deepEqual(findBypasses(diff, []), []);
 });
 
-test('architect review: accepted needs [x] and an arch: commit; non-arch commits and a missing task are violations', () => {
-  const b = base();
-  const ok = () => checkArchitectRun({ realGit, cwd: dir, base: b, task: TASK, verdict: 'accepted', plan: parsePlan(plan('x')) });
-  assert.match(ok().violations.join('\n'), /(?:нет коммита приёмки|no acceptance commit) \(arch:\)/);
-  write('PLAN.md', plan('x'));
-  commit('arch: приёмка T-007', ['PLAN.md']);
+// ADR-061 R-2 / ADR-064: in the automated loop the Architect review is read-only; the orchestrator commits acceptance.
+test('architect review is read-only: a moved HEAD or a dirty tree is a violation, an untouched repository is not', () => {
+  const expectedHead = base();
+  const ok = () => checkArchitectRun({ realGit, cwd: dir, expectedHead });
   assert.deepEqual(ok().violations, []);
-  const notMarked = checkArchitectRun({ realGit, cwd: dir, base: b, task: TASK, verdict: 'accepted', plan: parsePlan(plan(' ')) });
-  assert.match(notMarked.violations.join('\n'), /(?:не отмечена|not marked) \[x\]/);
-  const closed = checkArchitectRun({ realGit, cwd: dir, base: b, task: TASK, verdict: 'accepted', plan: parsePlan('# PLAN\n\n## Задачи\n') });
-  assert.match(closed.violations.join('\n'), /(?:пропала из|disappeared from) PLAN\.md/);
-  write('src/a.ts', 'arch edit\n');
-  commit('T-007: sneaky', ['src/a.ts']);
-  assert.match(ok().violations.join('\n'), /(?:не-arch коммит|non-arch commit)/);
+  write('PLAN.md', plan('x'));
+  assert.match(ok().violations.join('\n'), /working tree is not clean after review/);
+  commit('arch: приёмка T-007', ['PLAN.md']);
+  const moved = ok();
+  assert.match(moved.violations.join('\n'), new RegExp(`Architect review changed HEAD \\(read-only in the automated loop\\): ${expectedHead.slice(0, 7)} → [0-9a-f]{7}`));
+  assert.equal(moved.violations.length, 1);
 });
 
-test('rework verdict without commits is not a violation', () => {
-  const b = base();
-  const r = checkArchitectRun({ realGit, cwd: dir, base: b, task: TASK, verdict: 'rework', plan: parsePlan(plan(' ')) });
-  assert.deepEqual(r.violations, []);
+test('amending the Executor commit during review is caught as a moved HEAD (C-09)', () => {
+  write('src/a.ts', 'export const a = 2;\n');
+  commit('T-007: change a', ['src/a.ts']);
+  const expectedHead = base();
+  g('commit', '--amend', '-q', '-m', 'arch: accept T-007');
+  const r = checkArchitectRun({ realGit, cwd: dir, expectedHead });
+  assert.match(r.violations.join('\n'), /Architect review changed HEAD/);
+  assert.equal(r.violations.length, 1);
 });
