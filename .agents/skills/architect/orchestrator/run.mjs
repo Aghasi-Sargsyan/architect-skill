@@ -1,13 +1,13 @@
 // Orchestrator: Executor → mechanical checks → Architect review, one PLAN.md task at a time. Never pushes.
 // Usage: node run.mjs [config.json] [--init | --write-permissions | --check | --dry-run | --background] [--pause] [--only T-NNN]
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readPlan, nextTask } from './plan.mjs';
-import { git, gitRaw, head } from './git.mjs';
+import { git, gitRaw, head, commitsSince } from './git.mjs';
 import { checkExecutorRun, checkArchitectRun, inspectFailedExecutorTurn, runTaskVerification } from './mechanics.mjs';
 import { acquireLock, installGuards, which } from './guards.mjs';
 import { RUNS_DIR } from './config.mjs';
@@ -21,7 +21,10 @@ import { getAdapter } from './adapters/index.mjs';
 import { appendEvent, classifyStopReason, sendNotification } from './events.mjs';
 import { architectPrompt, executorPrompt, resumePrompt } from './prompts.mjs';
 import { parseArgs, nodeVersionProblem, runFastSelfCheck, runFullSelfCheck, formatSelfCheckReport, formatStartupNotices, safeLoadConfig } from './cli.mjs';
-import { checkPostReviewSelfCheck } from './selfcheck.mjs';
+import { parseWaivers } from './selfcheck.mjs';
+import { resolveTaskBase, checkTaskRange, formatRangeSummary } from './task-range.mjs';
+import { checkTestMonotonicity } from './monotonicity.mjs';
+import { commitAcceptance } from './accept.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -227,6 +230,17 @@ async function main() {
           stopReason = `${task.id}: mechanics violation (disallowed Verify command): ${preVerify.command} — ${preVerify.reason}`;
           break outer;
         }
+        // The task range (ADR-064) is shared by the resume check, the post-Executor check and the reviewer summary.
+        const rangeOpts = { realGit, cwd: workDir, task, frozen: plan.frozen, scanPaths, bypassPatterns: config.bypassRegexps, protectedConfigFiles: config.protectedConfigFiles, testFilePatterns: config.testFilePatterns, configPath, orchestratorDir: here };
+        const resumed = resolveTaskBase({ realGit, cwd: workDir, taskId: task.id });
+        if (resumed.firstTaskSha) {
+          const pre = checkTaskRange({ ...rangeOpts, baseSha: resumed.baseSha });
+          if (pre.violations.length) {
+            writeFileSync(path.join(runDir, `${task.id}-resume.violations.txt`), pre.violations.join('\n'));
+            stopReason = `${task.id}: resumed task has unresolved violations in task range ${pre.baseSha.slice(0, 7)}..${pre.headSha.slice(0, 7)}: ${pre.violations.join('; ')} — resolve them per references/auto-review.md "Task recovery" before restarting`;
+            break outer;
+          }
+        }
         log(`▶ ${task.id} (${task.risk}): ${task.title}; Executor ${executorModel}`);
         appendEvent(runDir, { type: 'task_started', taskId: task.id, risk: task.risk, title: task.title, model: executorModel });
         let rework = null;
@@ -257,7 +271,6 @@ async function main() {
           if (ex.json.status === 'escalation') { stopReason = `${task.id}: Executor escalation (report ${label}.report.md)`; break outer; }
 
           const mech = checkExecutorRun({ realGit, cwd: workDir, base: execBase, task, frozen: plan.frozen, scanPaths, bypassPatterns: config.bypassRegexps, protectedConfigFiles: config.protectedConfigFiles, configPath });
-          if (task.change?.some((f) => f === 'PLAN.md' || f === '.architect/PLAN.md')) mech.violations = mech.violations.filter((v) => !v.includes('modifies PLAN.md'));
           appendEvent(runDir, { type: 'mechanics_checked', taskId: task.id, round, ok: mech.violations.length === 0, commitsCount: mech.commits.length, violations: mech.violations });
           if (mech.violations.length) {
             writeFileSync(path.join(runDir, `${label}.violations.txt`), mech.violations.join('\n'));
@@ -269,6 +282,13 @@ async function main() {
               continue;
             }
             stopReason = `${task.id}: mechanics violation (attempt ${round + 1}/${config.maxFixRounds}): ${mech.violations.join('; ')}`;
+            break outer;
+          }
+          const taskBase = resolveTaskBase({ realGit, cwd: workDir, taskId: task.id });
+          const range = checkTaskRange({ ...rangeOpts, baseSha: taskBase.baseSha });
+          if (range.violations.length) {
+            writeFileSync(path.join(runDir, `${label}.violations.txt`), range.violations.join('\n'));
+            stopReason = `${task.id}: task range violation: ${range.violations.join('; ')} — see references/auto-review.md "Task recovery"`;
             break outer;
           }
           const verifyRes = runTaskVerification({ task, workDir, env: guards.env, config, timeoutMs: config.verifyTimeoutMs });
@@ -293,14 +313,11 @@ async function main() {
             continue;
           }
           appendEvent(runDir, { type: 'verify_checked', taskId: task.id, round, ok: true, resultsCount: verifyRes.results.length });
-          const bypassText = config.bypassRegexps.length && scanPaths.length
-            ? `no check bypasses (config bypassPatterns) in ${scanPaths.join(' ')}`
-            : 'automatic check bypass scan disabled in config — verify manually';
           const verifyText = `; Verify passed (${verifyRes.results.map((r) => `\`${r.command}\` (0, ${r.durationMs}ms)`).join(', ') || 'none'})`;
-          const mechText = `commits ${mech.commits.map((c) => `${c.sha.slice(0, 7)} "${c.subject}"`).join(', ')}; files only from Change; Frozen untouched; ${bypassText}; clean tree${verifyText}.`;
+          const mechText = `${formatRangeSummary(range, { scanPaths, bypassPatterns: config.bypassRegexps })}${verifyText}.`;
           log(`  mechanics: ok (${mech.commits.length} commit.); Verify: passed (${verifyRes.results.length})`);
 
-          const archBase = head(realGit, workDir);
+          const reviewHead = head(realGit, workDir);
           const reviewLabel = `${task.id}-review${round}`;
           const ar = await agent('architect', config.architect.model, architectPrompt(task, String(ex.json.report_markdown), mechText, executorModel, { planPath: layout.planPath, reviewPath: reviewFilePath(workDir, here), skillPath: skillFilePath(workDir, here) }), reviewLabel, task);
           const arTampered = guards.verify();
@@ -310,16 +327,23 @@ async function main() {
           appendEvent(runDir, { type: 'architect_finished', taskId: task.id, round, ok: true, verdict, seconds: ar.seconds, attempts: ar.attempts });
           writeFileSync(path.join(runDir, `${reviewLabel}.summary.md`), String(ar.json.summary));
           log(`  Architect: ${verdict}, ${ar.seconds}s, attempts ${ar.attempts} — ${String(ar.json.summary).slice(0, 160)}`);
-          const amech = checkArchitectRun({ realGit, cwd: workDir, base: archBase, task, verdict, plan: readPlan(workDir, layout.planPath) });
+          const amech = checkArchitectRun({ realGit, cwd: workDir, expectedHead: reviewHead });
           if (amech.violations.length) { stopReason = `${task.id}: post-review violation — ${amech.violations[0]}`; break outer; }
-          const postSc = checkPostReviewSelfCheck({ realGit, cwd: workDir, baseSha: archBase, config });
-          if (!postSc.ok) { stopReason = `${task.id}: post-review violation — ${postSc.violations[0]}`; break outer; }
+          if (verdict === 'accepted') {
+            // The review is read-only: the orchestrator checks test monotonicity over the whole task range, then marks [x] and commits.
+            const mono = checkTestMonotonicity({ realGit, cwd: workDir, baseSha: taskBase.baseSha, config, commits: commitsSince(realGit, workDir, taskBase.baseSha), waivers: parseWaivers(readFileSync(path.join(workDir, layout.planPath), 'utf8')) });
+            if (mono.length) { stopReason = `${task.id}: pre-acceptance violation — ${mono[0]}`; break outer; }
+            const acc = commitAcceptance({ realGit, cwd: workDir, planPath: layout.planPath, taskId: task.id, expectedHead: reviewHead, commitLanguage: config.commitLanguage });
+            if (!acc.ok) { stopReason = `${task.id}: acceptance commit failed — ${acc.error}`; break outer; }
+            log(`  acceptance: ${acc.subject} (${acc.sha.slice(0, 7)})`);
+          }
           summary.push(`${task.id}: ${verdict}${round ? ` after ${round} rework round(s)` : ''}`);
           if (verdict === 'accepted') break;
           if (verdict === 'needs_user') { stopReason = `${task.id}: Architect requests user decision — ${ar.json.summary}`; break outer; }
           if (round + 1 > config.maxFixRounds) { stopReason = `${task.id}: rework limit (${config.maxFixRounds}) exhausted`; break outer; }
           const issues = Array.isArray(ar.json.issues) ? ar.json.issues.join('\n') : '';
           rework = { round: round + 1, instructions: String(ar.json.rework_instructions || issues) };
+          writeFileSync(path.join(runDir, `${reviewLabel}.rework.md`), rework.instructions);
         }
         if (opts.only) { stopReason = `${opts.only}: accepted (--only)`; break; }
         if (rl) {

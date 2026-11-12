@@ -14,7 +14,7 @@ const ANSWER_HEADER = 'FINAL ANSWER FORMAT (required — the orchestrator parses
 
 export const ANSWER_FORMAT = {
   executor: (p = 'EXECUTOR.md') => `${ANSWER_HEADER}\nStrict JSON schema: task_id; status ("done" or "escalation"); commits — hashes of your commits; report_markdown — full text of the completion or escalation report according to ${p}.`,
-  architect: `${ANSWER_HEADER}\nStrict JSON schema: task_id; verdict ("accepted", "rework", or "needs_user"); issues; rework_instructions; arch_commits; summary.`,
+  architect: `${ANSWER_HEADER}\nStrict JSON schema: task_id; verdict ("accepted", "rework", or "needs_user"); issues; rework_instructions; arch_commits (always [] — the orchestrator commits acceptance); summary.`,
 };
 
 export function autoRefusalPrompt(role, { command, reason = null, suggestedCommand = null }) {
@@ -115,12 +115,12 @@ export function architectPrompt(
 
   return `Role: Chief Architect — automatic acceptance of task ${task.id}${taskTitle}.
 Step 1: Read ONLY ${effectiveReviewPath} and follow its acceptance checklist step by step.
-Step 2: Only if escalation is returned or you need to revise the plan/contract, additionally consult ${effectiveSkillPath}.
+Step 2: Only if escalation is returned or the contract itself looks wrong, additionally consult ${effectiveSkillPath}.
 
 You were launched by the orchestrator without user interaction: do not ask questions. If a user decision is required, return verdict "needs_user". Do NOT push.
 ${TOOLS_RULE}
-Perform acceptance according to ${effectiveReviewPath}. On verdict "accepted", mark ${task.id} [x] in ${planPath} and commit acceptance of ${task.id} according to skill rules; on "rework", formulate exact instructions for the Executor in rework_instructions.
-Even if no open tasks [ ] remain in ${planPath}, do NOT perform "Cycle Closure" (retro and archiving of ${planPath}) — stop after committing acceptance of ${task.id}.
+Perform acceptance according to ${effectiveReviewPath} in read-only mode: do NOT modify, stage or commit any file and do NOT run git commands that change HEAD, refs or the index. After your verdict "accepted" the orchestrator itself marks ${task.id} [x] in ${planPath} and creates the acceptance commit; any change to HEAD or the working tree during review is a violation that stops the loop. On "rework", formulate exact instructions for the Executor in rework_instructions. If the plan or contract must change, return verdict "needs_user".
+Even if no open tasks [ ] remain in ${planPath}, do NOT perform "Cycle Closure" (retro and archiving of ${planPath}).
 
 Executor of this task: model ${executorModel} — passed and confirmed by orchestrator (Executor profile corresponds to this model + tier pair).
 Orchestrator mechanics check (already completed):

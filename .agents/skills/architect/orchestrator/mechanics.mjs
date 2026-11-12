@@ -1,7 +1,7 @@
 // Deterministic checks the orchestrator runs itself, without a model.
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { git, commitsSince, porcelain, resolveMergeBase, findSquashViolations } from './git.mjs';
+import { git, head, commitsSince, porcelain, resolveMergeBase, findSquashViolations } from './git.mjs';
 import { alwaysFrozenFiles, isAlwaysFrozenFile } from './layout.mjs';
 import { which } from './guards.mjs';
 import { BASE_COMMANDS, commandProblem } from './permissions.mjs';
@@ -206,25 +206,18 @@ export function checkExecutorRun(opts) {
 }
 
 /**
- * Checks the Architect's review: clean tree, new commits only `arch: ...`,
- * and on "accepted" the task still exists in PLAN.md and is marked [x] (no cycle closure).
+ * Checks that the Architect review was read-only (ADR-061 R-2, ADR-064): HEAD is still `expectedHead`
+ * (a new commit or an amend moves it) and the working tree is clean. The orchestrator commits acceptance itself.
  */
-export function checkArchitectRun({ realGit, cwd, base, task, verdict, plan }) {
+export function checkArchitectRun({ realGit, cwd, expectedHead }) {
   const violations = [];
-  const commits = commitsSince(realGit, cwd, base);
-  for (const c of commits) {
-    if (!c.subject.startsWith('arch: ')) violations.push(`non-arch commit appeared after review: ${c.sha.slice(0, 7)}: "${c.subject}"`);
+  const current = head(realGit, cwd);
+  if (current !== expectedHead) {
+    violations.push(`Architect review changed HEAD (read-only in the automated loop): ${expectedHead.slice(0, 7)} → ${current.slice(0, 7)}`);
   }
-  const t = plan.tasks.find((x) => x.id === task.id);
-  if (!t) {
-    violations.push(`${task.id} disappeared from PLAN.md (cycle closure in automated mode is forbidden)`);
-  } else if (verdict === 'accepted' && !t.done) {
-    violations.push(`verdict is "accepted", but ${task.id} is not marked [x] in PLAN.md`);
-  }
-  if (verdict === 'accepted' && commits.length === 0) violations.push('verdict is "accepted", but no acceptance commit (arch:)');
   const status = porcelain(realGit, cwd);
   if (status) violations.push(`working tree is not clean after review:\n${status}`);
-  return { violations, commits };
+  return { violations };
 }
 
 export function inspectFailedExecutorTurn({
