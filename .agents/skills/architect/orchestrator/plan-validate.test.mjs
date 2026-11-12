@@ -263,7 +263,7 @@ test('C-04: validatePlan blocks open high-risk code tasks without referenceTests
       '## Tasks',
       '- [ ] T-013: Schema & policy docs',
       '  - Risk: high',
-      '  - Change: `db/001.sql`, `.agents/orchestrator.json`, `README.md`',
+      '  - Change: `db/001.sql`, `docs/policy.json`, `README.md`',
       '  - Verify: `npm test`',
     ].join('\n'));
     const v4 = validatePlan(nonExecPlan, { workDir: tmp });
