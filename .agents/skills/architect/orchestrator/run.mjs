@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { readPlan, nextTask } from './plan.mjs';
 import { git, head, commitsSince } from './git.mjs';
 import { checkExecutorRun, checkArchitectRun, inspectFailedExecutorTurn, runTaskVerification } from './mechanics.mjs';
-import { acquireLock, installGuards, which } from './guards.mjs';
+import { acquireLock, freshShimDir, installGuards, which } from './guards.mjs';
 import { RUNS_DIR } from './config.mjs';
 import { resolveConfigPath, reviewFilePath, skillFilePath } from './layout.mjs';
 import { EMPTY_CHANGE, UNPARSED_VERIFY, modelResolver, readiness, resolveEscalationResume } from './check.mjs';
@@ -116,7 +116,7 @@ async function main() {
     appendFileSync(feedFile, `${line}\n`);
   };
 
-  const guards = installGuards({ workDir, shimDir: path.join(runDir, 'shims'), blockedNpmScripts: config.blockedNpmScripts, realGit });
+  const guards = installGuards({ workDir, shimDir: freshShimDir({ workDir }), backupDir: runDir, blockedNpmScripts: config.blockedNpmScripts, realGit });
   for (const note of guards.notes) log(note);
   let cleaned = false;
   const cleanup = () => {

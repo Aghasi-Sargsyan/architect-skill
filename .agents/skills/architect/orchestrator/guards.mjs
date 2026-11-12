@@ -5,8 +5,9 @@
 //          Skipped when core.hooksPath points outside .git (e.g. a tracked .husky/): writing there would dirty the tree.
 // Layer 3: remote.<name>.pushurl of every remote points nowhere for the duration of the loop (catches everything else).
 // Layer 4 (in the project's dangerous CLIs themselves) is outside this module.
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { PATH_GUARDED_TOOLS, writePathShims, writeRunnerShims } from './runners.mjs';
@@ -18,10 +19,15 @@ export { unwrapGit, writeGitShim } from './git-shim.mjs';
 
 export { SHIM_MAX_BYTES, SHIM_HEADER_BYTES, isGuardShimFile } from './events.mjs';
 export { clearGuardsJournal, guardsJournalPath, recoverCrashedGuards, writeGuardsJournal } from './guards-recovery.mjs';
+export { freshShimDir } from './control-dir.mjs';
 
 export const DISABLED_PUSH_URL = '/dev/null/agent-loop-push-disabled';
-export const GUARDED_UNTRACKED_FILES = ['.claude/settings.json', '.claude/settings.local.json', 'CLAUDE.local.md', '.mcp.json', '.git/info/exclude'];
+export const GUARDED_UNTRACKED_FILES = [
+  '.claude/settings.json', '.claude/settings.local.json', 'CLAUDE.local.md', '.mcp.json', '.git/info/exclude',
+  '.agents/orchestrator.local.json', '.architect/config.local.json',
+];
 const HOOK_MARKER = '# agent-loop guard hook';
+const SHIM_NOT_A_FILE = 'not-a-regular-file';
 
 export function cleanShimPath(p = process.env.PATH ?? '', candidate = null) {
   return p
@@ -162,12 +168,35 @@ export function acquireLock(runsDir) {
   return () => rmSync(lock, { force: true });
 }
 
+/** SHA-256 of every entry directly in the shim directory; an entry that is not a regular file gets a fixed label. */
+function shimDigests(shimDir) {
+  const digests = new Map();
+  for (const entry of readdirSync(shimDir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    digests.set(entry.name, entry.isFile() ? createHash('sha256').update(readFileSync(path.join(shimDir, entry.name))).digest('hex') : SHIM_NOT_A_FILE);
+  }
+  return digests;
+}
+
+/** One problem per shim that was changed, removed or planted since the snapshot; a read error is thrown. */
+function verifyShims(shimDir, expected) {
+  const now = shimDigests(shimDir);
+  const problems = [];
+  for (const [name, digest] of expected) {
+    if (!now.has(name)) problems.push(`guard shim ${name} was removed during the turn`);
+    else if (now.get(name) !== digest) problems.push(`guard shim ${name} was modified during the turn`);
+  }
+  for (const name of now.keys()) {
+    if (!expected.has(name)) problems.push(`guard shim ${name} was created during the turn`);
+  }
+  return problems;
+}
+
 /**
  * Installs all in-repo guards. Returns the agent environment, a single restore function
- * and notes for the run log (a skipped layer).
+ * and notes for the run log (a skipped layer). Backups of changed guarded files go to backupDir.
  */
 export function installGuards({
-  workDir, shimDir, blockedScripts, blockedNpmScripts, sandboxRoot = defaultSandboxRoot(),
+  workDir, shimDir, backupDir = path.dirname(shimDir), blockedScripts, blockedNpmScripts, sandboxRoot = defaultSandboxRoot(),
   realGit = which('git'), realNpm = which('npm'), realGrep = whichOptional('grep'),
   realLs = whichOptional('ls'), realWc = whichOptional('wc'), realNode = whichOptional('node') || process.execPath,
 }) {
@@ -183,6 +212,7 @@ export function installGuards({
     try { exemptNodeScripts.push(realpathSync(s)); } catch { /* cleanup: close missing symlink */ continue; }
   }
   writePathShims({ shimDir, workDir, realBins, exemptNodeScripts: [...new Set(exemptNodeScripts)] });
+  const shimSnapshot = shimDigests(shimDir);
   writeGuardsJournal({ workDir, realGit });
   const hook = installPrePushHook({ workDir, realGit });
   let restorePushUrls;
@@ -194,13 +224,12 @@ export function installGuards({
     throw err;
   }
   const env = { ...process.env, AGENT_LOOP: '1', PATH: `${shimDir}${path.delimiter}${cleanShimPath(process.env.PATH)}` };
-  const backupDir = path.dirname(shimDir);
   const fileSnapshot = GUARDED_UNTRACKED_FILES.map((rel) => {
     const file = path.join(workDir, rel);
     const exists = existsSync(file);
     return { rel, file, exists, content: exists ? readFileSync(file, 'utf8') : null };
   });
-  const verify = () => verifyGuards({ workDir, realGit, hook, fileSnapshot, backupDir });
+  const verify = () => [...verifyGuards({ workDir, realGit, hook, fileSnapshot, backupDir }), ...verifyShims(shimDir, shimSnapshot)];
   const restore = () => {
     const errors = [];
     for (const fn of [restorePushUrls, hook.restore]) {
