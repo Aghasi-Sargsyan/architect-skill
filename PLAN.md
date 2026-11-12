@@ -41,7 +41,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: the frozen test is green; `run.mjs` ≤ 370 lines; existing Verify tests stay green.
   - Verify: `node --test .agents/skills/architect/orchestrator/mechanics-verify-output.test.mjs .agents/skills/architect/orchestrator/mechanics-verify.test.mjs .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs`
 
-- [ ] T-111: Bypass scanner ignores comments, strings and foreign languages
+- [x] T-111: Bypass scanner ignores comments, strings and foreign languages
   - Risk: high.
   - Depends on: T-110
   - Read: `.agents/skills/architect/orchestrator/mechanics.mjs` (`findBypasses`, `PROTO_BYPASS_RE`, `TEST_SKIP_ONLY_RE`), `.agents/skills/architect/orchestrator/config.example.json` (`bypassPatterns`, read-only), `.agents/skills/architect/orchestrator/mechanics-bypass-scope.test.mjs`, `.agents/skills/architect/orchestrator/mechanics-bypass.test.mjs`.
