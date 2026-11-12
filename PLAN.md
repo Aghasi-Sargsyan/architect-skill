@@ -70,7 +70,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
     - `node --test .agents/skills/architect/orchestrator/guards-shim-speed.test.mjs .agents/skills/architect/orchestrator/check-en.test.mjs .agents/skills/architect/orchestrator/skill-path.test.mjs .agents/skills/architect/orchestrator/field-permissions-prompts.test.mjs .agents/skills/architect/orchestrator/audit-hardening.test.mjs`
     - `node --test .agents/skills/architect/orchestrator/cli-exit-codes.test.mjs .agents/skills/architect/orchestrator/audit.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
 
-- [ ] T-102: Git-политика агентов `git-policy.mjs` и её подключение в `commandProblem`
+- [x] T-102: Git-политика агентов `git-policy.mjs` и её подключение в `commandProblem`
   - Риск: высокий.
   - Зависит от: —.
   - Читать: `.agents/skills/architect/orchestrator/git-policy.mjs` (контракт — JSDoc), `.agents/skills/architect/orchestrator/git-policy-rules.mjs`, `.agents/skills/architect/orchestrator/git-policy.test.mjs`, `.agents/skills/architect/orchestrator/permissions.mjs` (строки 1–150: таблицы, `unwrapTokens`, `commandProblem`).
