@@ -30,19 +30,16 @@
 ## Заморожено (Frozen — Исполнителю не трогать)
 - `EXECUTOR.md`
 - `.agents/skills/architect/orchestrator/control-dir.mjs`
-- `.agents/skills/architect/orchestrator/control-dir.test.mjs`
 - `.agents/skills/architect/orchestrator/find-executable.test.mjs`
 - `.agents/skills/architect/orchestrator/ask-control-dir.test.mjs`
-- `.agents/skills/architect/orchestrator/ask-question.test.mjs`
-- `.agents/skills/architect/orchestrator/ask.test.mjs`
-- `.agents/skills/architect/orchestrator/feed.test.mjs`
-- `.agents/skills/architect/orchestrator/run.test.mjs`
 - `.agents/skills/architect/orchestrator/guards-control-dir.test.mjs`
 - `.agents/skills/architect/orchestrator/adapters/claude-permissions.test.mjs`
 - `.agents/skills/architect/orchestrator/agy-shared-settings.test.mjs`
 - `.agents/skills/architect/orchestrator/write-permissions-prune.test.mjs`
 - `.agents/skills/architect/orchestrator/audit-hardening.test.mjs`
 - `.agents/skills/architect/orchestrator/prompts-untrusted.test.mjs`
+
+Существующие тесты с переданным `home` (`ask-question`, `ask`, `feed`, `run`, `guards-shim-speed`, `skill-path`) и `control-dir.test.mjs` зелёные до задач и не входят ни в одно поле `Менять`: Исполнитель их не меняет; в `Frozen` — только красные до реализации эталонные тесты (`red-check`).
 
 ## Rules
 For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invariants — AGENTS.md §2, §4, §6.
