@@ -115,7 +115,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
   - Done when: all six test files green; no real-time API in them; the isolated check in `packaging-clean.test.mjs` finishes in a few seconds instead of ~100 s.
   - Verify: `node --test .agents/skills/architect/orchestrator/packaging-clean.test.mjs .agents/skills/architect/orchestrator/evals-permissions.test.mjs .agents/skills/architect/orchestrator/adapters/agy-parse.test.mjs .agents/skills/architect/orchestrator/mechanics-frozen.test.mjs .agents/skills/architect/orchestrator/check.test.mjs .agents/skills/architect/orchestrator/run.test.mjs`
 
-- [ ] T-117: Rules, documentation and version v3.52 match the new behavior
+- [x] T-117: Rules, documentation and version v3.52 match the new behavior
   - Risk: high.
   - Depends on: T-110, T-111, T-112, T-113, T-114, T-115, T-116
   - Read: `.agents/skills/architect/MAINTAINING.md` §1 (version sync checklist), `.agents/skills/architect/references/orchestrator.md`, `.agents/skills/architect/CHANGELOG.md` (top 30 lines), `.agents/skills/architect/README.en.md`, `.agents/skills/architect/README.ru.md` (grep for `--check`, `--status`, `v3.51`), `README.md` (grep), `package.json`.
