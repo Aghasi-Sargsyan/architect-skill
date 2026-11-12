@@ -30,7 +30,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-110: `Verify`: large output is not a timeout; timeout stops the loop as an environment problem
+- [x] T-110: `Verify`: large output is not a timeout; timeout stops the loop as an environment problem
   - Risk: high.
   - Depends on: —
   - Read: `.agents/skills/architect/orchestrator/mechanics.mjs` (`runTaskVerification`, `extractOutputTail`), `.agents/skills/architect/orchestrator/run.mjs` (lines 290–312, the `verifyRes` branch), `.agents/skills/architect/orchestrator/mechanics-verify-output.test.mjs`.
