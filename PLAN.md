@@ -55,7 +55,7 @@ For Executor on task T-NNN: read EXECUTOR.md first and follow it; project invari
 
 ## Задачи
 
-- [ ] T-095: Модуль диапазона задачи `task-range.mjs`
+- [x] T-095: Модуль диапазона задачи `task-range.mjs`
   - Риск: высокий.
   - Зависит от: —.
   - Читать: `.agents/skills/architect/orchestrator/task-range.mjs` (контракт — JSDoc всех экспортов), `.agents/skills/architect/orchestrator/task-range.test.mjs`, `.agents/skills/architect/orchestrator/git.mjs` (строки 1–46: `git`, `commitsSince`), `.agents/skills/architect/orchestrator/mechanics.mjs` (строки 1–90: `matchesProtectedConfig`, `findBypasses`), `.agents/skills/architect/orchestrator/layout.mjs` (символ `isAlwaysFrozenFile`, строки 100–175), `.agents/skills/architect/orchestrator/plan.mjs` (символ `matchesFrozenPath`), `.agents/skills/architect/orchestrator/plan-validate.mjs` (символ `isHighRisk`).
