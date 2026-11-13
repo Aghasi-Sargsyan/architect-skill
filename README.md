@@ -1,6 +1,13 @@
 # Architect + Executor Skill (`v3.55 / 2.0`)
 
-A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator.
+A portable workflow skill for AI-assisted engineering with role separation: **Chief Architect** (investigation, ADRs, frozen reference tests, code review) and **Executor** (atomic task execution in isolated change boundaries). Includes a deterministic, zero-dependency Node.js orchestrator. The repository also ships the one-page **`architect-lite`** skill; each skill is installed and updated on its own, and both can live in one project.
+
+## Two Independent Skills
+
+| Skill | Use it when | Install | Update |
+|---|---|---|---|
+| **`architect`** (full, this page) | a cheaper model writes the code, a loop runs unattended, or a team needs a review trail | [Quickstart](#quickstart) | `/architect update` or `--update` ([Updating](#updating)) |
+| **`architect-lite`** (one page; [EN](lite/architect-lite/README.md), [RU](lite/architect-lite/README.ru.md)) | one capable model both designs and writes the code | [its own command](lite/architect-lite/README.md#install) | re-run that command ([Update](lite/architect-lite/README.md#update)) |
 
 ## System Requirements
 
@@ -59,10 +66,6 @@ node .agents/skills/architect/orchestrator/run.mjs --init --team
 - **Branches:** `cycle/<N>` for plan and frozen tests; developers branch `task/T-NNN` and open PRs into `cycle/<N>` with PR gate `--check-task T-NNN`.
 - **Local config:** `.architect/config.local.json` (or `.agents/orchestrator.local.json`, git-ignored) overrides personal runners/models without affecting team policy.
 - **GitHub settings:** Use Merge commit only (no squash/rebase). Configure [GitHub Rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets) for `cycle/*` (tech lead in bypass list) and `master` (require CI). See Section 9 of [README.en.md](.agents/skills/architect/README.en.md) / [README.ru.md](.agents/skills/architect/README.ru.md).
-
-## Lite Version
-
-When one capable model both designs and writes the code, use the one-page [`architect-lite`](lite/architect-lite/README.md) skill instead: agreement before code, a decision log, risk areas, and honest `NOT VERIFIED` reporting, with no Executor and no orchestrator. Both skills can be installed side by side.
 
 ## Documentation & License
 
