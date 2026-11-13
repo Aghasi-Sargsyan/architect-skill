@@ -17,16 +17,16 @@ Run in the root of your project. The commands are safe to repeat; a repeat run u
 
 - **Claude Code (`.claude/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 --branch lite https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .claude/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .claude/skills/ && rm -rf "$tmp"
   ```
 - **Codex, Cursor, Gemini CLI, Antigravity (`.agents/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 --branch lite https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .agents/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .agents/skills/ && rm -rf "$tmp"
   ```
 
 ## Update
 
-Re-run the install command for your agent. It replaces the skill folder with the latest version from the `lite` branch and touches nothing else: the rules block in your `AGENTS.md` and your `docs/decisions.md` stay as they are. After an update, compare your block with `templates/agents-block.md` and copy any new rule over by hand.
+Re-run the install command for your agent. It replaces the skill folder with the latest version from the repository and touches nothing else: the rules block in your `AGENTS.md` and your `docs/decisions.md` stay as they are. After an update, compare your block with `templates/agents-block.md` and copy any new rule over by hand.
 
 The full skill's `/architect update` and `--update` do not update this skill, and this command does not update the full one. To remove the skill, delete its folder.
 
