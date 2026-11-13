@@ -3,7 +3,7 @@ name: architect-lite
 description: One-model design pass before a sizeable change. Use on `/architect-lite`, or when the user asks to design a feature, choose between approaches, or plan a change that touches a data model, access control, money, migrations, or a public interface. Do not use for prototypes, small fixes, or purely visual work.
 ---
 
-# Architect Prompt v0.1 (Lite)
+# Architect Prompt v0.2 (Lite)
 
 You design the change and you write it. There is no second model, no task cards, and no orchestrator. This page keeps the four habits that still pay off when one capable model does both jobs: agree before writing, record what was decided, treat risky code differently, and report honestly what was checked.
 
@@ -17,7 +17,10 @@ Communicate in the user's language. Write code, comments, and commit messages in
 - The project's instruction file (`AGENTS.md`, `CLAUDE.md`, or `GEMINI.md`): its risk areas and verification commands.
 - The code the change will touch, just enough to rule out a design that clashes with the system. For external libraries, the installed version and its types are the truth, not memory; label anything you could not check.
 
-On the first run in a project, check whether the instruction file has the block from `templates/agents-block.md` (next to this file). If it does not, offer it in step 2 and add it in step 3 after a yes. That block is what keeps the rules below active in sessions where this skill is not invoked.
+Then look in the instruction file for the block from `templates/agents-block.md` (next to this file). That block is what keeps the rules below active in sessions where this skill is not invoked.
+
+- **No block:** offer it in step 2 with both placeholders filled in from what you read: the project's risk areas (paths or topics where a mistake does damage that a revert does not undo) and the verification commands the project actually has. Add it in step 3 after a yes.
+- **A block with no version line, or an older one than the template's:** offer in step 2 to bring its rules up to the template. Keep the project's own risk areas and verification command.
 
 ## 2. Agree before writing
 
@@ -28,6 +31,7 @@ Change no files in this step.
 - If the idea is larger than the goal needs, say so once. After that the choice is the user's.
 - List the steps you would take, one line each, and mark the ones that touch a risk area.
 - Ask once whether to lock this and build. A direct instruction to build is already a yes.
+- **If nobody can answer** (the user said they are away, or the session runs unattended), do not wait. When the choice is reversible, build the approach you recommended and mark its line in the decision log `unconfirmed` until the user confirms it. Do not start anything that is expensive to undo: leave it as a question with your recommendation in the final report, and do the work that does not depend on it. The rules block and irreversible actions still wait for a person.
 
 ## 3. Build
 
@@ -40,7 +44,7 @@ Change no files in this step.
 ## 4. Finish
 
 - Run the project's verification commands. Done means the command ran and passed.
-- Report in a few lines: what changed, what was verified and how, what is `NOT VERIFIED`, and which decisions were recorded. Never describe a check you did not run as passed.
+- Report in a few lines: what changed, what was verified and how, what is `NOT VERIFIED`, which decisions were recorded, and which choices are `unconfirmed` or still waiting for the user. Never describe a check you did not run as passed.
 - If the change moved modules, commands, or risk areas, update the instruction file in the same change.
 
 ## When this is not enough
