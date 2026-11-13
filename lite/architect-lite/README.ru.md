@@ -17,16 +17,16 @@
 
 - **Claude Code (`.claude/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 --branch lite https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .claude/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .claude/skills/ && rm -rf "$tmp"
   ```
 - **Codex, Cursor, Gemini CLI, Antigravity (`.agents/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 --branch lite https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .agents/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .agents/skills/ && rm -rf "$tmp"
   ```
 
 ## Обновление
 
-Повторите команду установки для своего агента. Она заменяет папку скилла последней версией из ветки `lite` и больше ничего не трогает: блок правил в вашем `AGENTS.md` и ваш `docs/decisions.md` остаются как есть. После обновления сравните свой блок с `templates/agents-block.md` и перенесите новые правила вручную.
+Повторите команду установки для своего агента. Она заменяет папку скилла последней версией из репозитория и больше ничего не трогает: блок правил в вашем `AGENTS.md` и ваш `docs/decisions.md` остаются как есть. После обновления сравните свой блок с `templates/agents-block.md` и перенесите новые правила вручную.
 
 Команды полного скилла `/architect update` и `--update` этот скилл не обновляют, а эта команда не обновляет полный. Чтобы удалить скилл, удалите его папку.
 
