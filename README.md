@@ -60,6 +60,10 @@ node .agents/skills/architect/orchestrator/run.mjs --init --team
 - **Local config:** `.architect/config.local.json` (or `.agents/orchestrator.local.json`, git-ignored) overrides personal runners/models without affecting team policy.
 - **GitHub settings:** Use Merge commit only (no squash/rebase). Configure [GitHub Rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets) for `cycle/*` (tech lead in bypass list) and `master` (require CI). See Section 9 of [README.en.md](.agents/skills/architect/README.en.md) / [README.ru.md](.agents/skills/architect/README.ru.md).
 
+## Lite Version
+
+When one capable model both designs and writes the code, use the one-page [`architect-lite`](lite/architect-lite/README.md) skill instead: agreement before code, a decision log, risk areas, and honest `NOT VERIFIED` reporting, with no Executor and no orchestrator. Both skills can be installed side by side.
+
 ## Documentation & License
 
 - Detailed English Guide: [.agents/skills/architect/README.en.md](.agents/skills/architect/README.en.md)

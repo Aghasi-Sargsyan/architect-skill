@@ -10,6 +10,7 @@
 ## 2. Стек и структура
 - Чистый Node.js 22+ (`node:fs`, `node:path`, `node:child_process`, `node:test`, `node:assert/strict`), ES-модули (`.mjs`), без внешних зависимостей.
 - `.agents/skills/architect/` — ядро скилла (`SKILL.md`, `EXECUTOR.md`, `MAINTAINING.md`, `README.ru.md`, `README.en.md`, `LICENSE`, `CHANGELOG.md`, `references/*.md`) и оркестратор (`orchestrator/*.mjs`, `orchestrator/adapters/*.mjs`, `orchestrator/schemas/*.json`).
+- `lite/architect-lite/` — отдельный одностраничный скилл для работы одной моделью (`SKILL.md`, `templates/agents-block.md`, `README.md`, `README.ru.md`); без Исполнителя и оркестратора. Лежит вне `.agents/skills/`, чтобы `--self-check` полного скилла находил свой `SKILL.md` первым; заголовок `# Architect Prompt vX.Y (Lite)` нужен тому же контролю версий — поднимай его при правке правил лёгкого скилла.
 - Корневой `EXECUTOR.md` — побайтная копия `.agents/skills/architect/EXECUTOR.md`.
 - `.claude/skills/architect` — относительный симлинк на `.agents/skills/architect` (обнаружение скилла в Claude Code, `ADR-063`); правки делаются только в `.agents/skills/architect`.
 - Конфиг оркестратора — `.agents/orchestrator.json` (или `.architect/config.json`), личный gitignored-оверлей — `.agents/orchestrator.local.json` / `.architect/config.local.json`, логи прогонов — `.agent-runs/`; управляющий каталог цикла (shim-файлы, вопрос и ответ о разрешении) — `~/.config/architect/runs/<slug>-<hash8>/` вне проекта, права `0700` (`ADR-066`).
