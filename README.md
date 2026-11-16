@@ -6,7 +6,7 @@ The repository ships two independent skills: the full [`architect`](https://gith
 
 ## What it does
 
-1. **Agreement before code.** The model reads the decision log and the relevant code, offers two or three approaches with their cost, and changes no files until you approve one. In an unattended run it does not wait: it builds reversible choices, marks them `unconfirmed` in the log, and leaves the expensive-to-undo ones as questions in its report.
+1. **Agreement before code.** The model reads the decision log and the relevant code, offers two or three approaches with their cost, and changes no files until you approve one. When nobody can answer (you said so, the instructions say the run is unattended, or the session cannot ask questions), it does not wait: it builds reversible choices, marks them `unconfirmed` in the log, and leaves the expensive-to-undo ones as questions in its report.
 2. **Decision log.** Every design decision goes to `docs/decisions.md`: one line if it is reversible, a short entry (chosen, rejected, why, revisit trigger) if it is expensive to undo.
 3. **Risk areas.** Where a mistake does damage that a revert does not undo (money, access control, stored data and migrations, formats and interfaces others rely on, concurrency, personal data), tests with expected outcomes are written before the implementation and are not edited to pass.
 4. **Honest finish.** Work is done when the verification command ran and passed. Anything else is reported as `NOT VERIFIED`.

@@ -2,7 +2,7 @@
 
 <!-- architect-lite-block-version: 0.2 -->
 
-- **Sizeable changes start with agreement.** For a new feature, a data-model change, or anything expensive to undo: read `docs/decisions.md`, propose options, and wait for approval before editing files. `/architect-lite` runs this pass. In an unattended run, do not wait: build reversible choices and mark them `unconfirmed` in the log, and leave expensive-to-undo ones as questions in the final report.
+- **Sizeable changes start with agreement.** For a new feature, a data-model change, or anything expensive to undo: read `docs/decisions.md`, propose options, and wait for approval before editing files. `/architect-lite` runs this pass. When nobody can answer (the user said so, the instructions say the run is unattended, or the session cannot ask questions), do not wait: build reversible choices and mark them `unconfirmed` in the log, and leave expensive-to-undo ones as questions in the final report.
 - **Decisions are recorded.** Add each design decision to `docs/decisions.md` (one line if reversible; chosen, rejected, why, and revisit trigger if not). Do not silently contradict a recorded decision; raise the conflict.
 - **Risk areas:** `<paths or topics where a mistake does damage that a revert does not undo: money, access control, stored data and migrations, formats and interfaces others rely on, concurrency, personal data>`. In these areas, tests with expected outcomes are written before the implementation, and their expected values are not edited to make them pass.
 - **No check bypasses:** do not skip, focus, or delete tests, disable type checks, or commit with `--no-verify`.

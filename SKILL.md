@@ -31,7 +31,7 @@ Change no files in this step.
 - If the idea is larger than the goal needs, say so once. After that the choice is the user's.
 - List the steps you would take, one line each, and mark the ones that touch a risk area.
 - Ask once whether to lock this and build. A direct instruction to build is already a yes.
-- **If nobody can answer** (the user said they are away, or the session runs unattended), do not wait. When the choice is reversible, build the approach you recommended and mark its line in the decision log `unconfirmed` until the user confirms it. Do not start anything that is expensive to undo: leave it as a question with your recommendation in the final report, and do the work that does not depend on it. The rules block and irreversible actions still wait for a person.
+- **If nobody can answer, do not wait.** This applies only on an explicit signal: the user said they will not be answering, the project's or the run's instructions say the run is unattended, or the session has no way to ask a question. Without one of these, ask as above. When the choice is reversible, build the approach you recommended and mark its line in the decision log `unconfirmed` until the user confirms it. Do not start anything that is expensive to undo: leave it as a question with your recommendation in the final report, and do the work that does not depend on it. The rules block and irreversible actions still wait for a person.
 
 ## 3. Build
 
