@@ -1,8 +1,6 @@
-# Architect Lite (`v0.2`)
+# Architect Lite (`v0.3`)
 
-A one-page version of the Architect skill for the case where one capable model both designs and writes the code. It has no Executor role, no `PLAN.md` task cards, and no orchestrator. Russian guide: [README.ru.md](README.ru.md).
-
-The repository ships two independent skills: the full [`architect`](https://github.com/Aghasi-Sargsyan/architect-skill) and this one. Install either one or both; each has its own install and update command.
+A one-page skill for the case where one capable model both designs and writes the code. It keeps four habits: agree before writing, record what was decided, treat risky code differently, and report honestly what was checked. Russian guide: [README.ru.md](README.ru.md).
 
 ## What it does
 
@@ -17,31 +15,36 @@ Run in the root of your project. The commands are safe to repeat; a repeat run u
 
 - **Claude Code (`.claude/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .claude/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-lite.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/architect-lite" .claude/skills/ && rm -rf "$tmp"
   ```
 - **Codex, Cursor, Gemini CLI, Antigravity (`.agents/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/lite/architect-lite" .agents/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-lite.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/architect-lite" .agents/skills/ && rm -rf "$tmp"
   ```
 
 ## Update
 
 Re-run the install command for your agent. It replaces the skill folder with the latest version from the repository and touches nothing else: the rules block in your `AGENTS.md` and your `docs/decisions.md` stay as they are. The block carries a version line. On its next run the skill compares that line with `templates/agents-block.md` and, if your block is older, offers to update its rules while keeping your risk areas and verification command.
 
-The full skill's `/architect update` and `--update` do not update this skill, and this command does not update the full one. To remove the skill, delete its folder.
+To remove the skill, delete its folder.
 
 ## Use
 
 1. Write `/architect-lite <what you want to build>` (or ask the agent to read `SKILL.md` in the skill folder).
-2. On the first run the model offers to add the block from [templates/agents-block.md](templates/agents-block.md) to your `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md`, with your project's risk areas and verification command already filled in from the code. Check both before you agree. This block keeps the rules active in every session, including the ones where you do not call the skill.
+2. On the first run the model offers to add the block from [templates/agents-block.md](architect-lite/templates/agents-block.md) to your `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md`, with your project's risk areas and verification command already filled in from the code. Check both before you agree. This block keeps the rules active in every session, including the ones where you do not call the skill.
 
 ## When to use it
 
 - **Use it** when the project will live longer than a couple of weeks, when a feature touches data, access, or money, or when earlier decisions start to conflict.
 - **Skip it** for a prototype, an MVP built from a ready reference, a small fix, or purely visual work.
-- **Use the full [`architect`](https://github.com/Aghasi-Sargsyan/architect-skill) skill instead** when a cheaper model writes the code, when a loop runs unattended, or when a team needs a review trail. Both skills can be installed side by side.
+- **It is not enough** when a cheaper model writes the code, when a loop runs unattended for hours, or when a team needs a review trail. The skill trusts the model to follow it and checks nothing mechanically.
 
 ## Changes
 
+- **v0.3:** the skill moved to its own repository, so the install command changed; the installed folder now holds only `SKILL.md` and the block template.
 - **v0.2:** an unattended run no longer stalls on the agreement step; the model fills in the block's risk areas and verification command from the project; the block has a version line, and the skill offers to update an older block.
 - **v0.1:** first version.
+
+## License
+
+[MIT](LICENSE)
