@@ -15,11 +15,11 @@ Run in the root of your project. The commands are safe to repeat; a repeat run u
 
 - **Claude Code (`.claude/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/architect" .claude/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/architect" .claude/skills/ && rm -rf "$tmp"
   ```
 - **Codex, Cursor, Gemini CLI, Antigravity (`.agents/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/architect" .agents/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-skill.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/architect" .agents/skills/ && rm -rf "$tmp"
   ```
 
 ## Update
