@@ -1,4 +1,4 @@
-# Architect Lite (`v0.3`)
+# Architect (`v0.3`)
 
 Одностраничный скилл для случая, когда одна сильная модель и проектирует, и пишет код. Он держит четыре привычки: согласовать до кода, записать решение, иначе обращаться с рискованным кодом и честно сообщить, что проверено. English guide: [README.md](README.md).
 
@@ -11,15 +11,15 @@
 
 ## Установка
 
-Запускайте в корне своего проекта. Команды можно повторять: повторный запуск обновляет скилл.
+Запускайте в корне своего проекта. Команды можно повторять: повторный запуск обновляет скилл. Они заменяют любой скилл, уже установленный в папку с именем `architect`.
 
 - **Claude Code (`.claude/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-lite.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/architect-lite" .claude/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/architect" .claude/skills/ && rm -rf "$tmp"
   ```
 - **Codex, Cursor, Gemini CLI, Antigravity (`.agents/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-lite.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/architect-lite" .agents/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/architect" .agents/skills/ && rm -rf "$tmp"
   ```
 
 ## Обновление
@@ -30,8 +30,8 @@
 
 ## Использование
 
-1. Напишите `/architect-lite <что хотите сделать>` (или попросите агента прочитать `SKILL.md` в папке скилла).
-2. При первом запуске модель предложит добавить блок из [templates/agents-block.md](architect-lite/templates/agents-block.md) в ваш `AGENTS.md`, `CLAUDE.md` или `GEMINI.md`, уже с зонами риска и командой проверки вашего проекта, которые она нашла в коде. Проверьте оба пункта, прежде чем согласиться. Этот блок держит правила активными в каждой сессии, в том числе там, где вы скилл не вызывали.
+1. Напишите `/architect <что хотите сделать>` (или попросите агента прочитать `SKILL.md` в папке скилла).
+2. При первом запуске модель предложит добавить блок из [templates/agents-block.md](architect/templates/agents-block.md) в ваш `AGENTS.md`, `CLAUDE.md` или `GEMINI.md`, уже с зонами риска и командой проверки вашего проекта, которые она нашла в коде. Проверьте оба пункта, прежде чем согласиться. Этот блок держит правила активными в каждой сессии, в том числе там, где вы скилл не вызывали.
 
 ## Когда использовать
 
@@ -41,7 +41,7 @@
 
 ## Изменения
 
-- **v0.3:** скилл переехал в собственный репозиторий, поэтому команда установки изменилась; в устанавливаемой папке теперь только `SKILL.md` и шаблон блока.
+- **v0.3:** скилл теперь называется `architect` (раньше `architect-lite`) и живёт в собственном репозитории, поэтому изменились команда установки и команда вызова; в устанавливаемой папке только `SKILL.md` и шаблон блока. Если у вас стоял `architect-lite`, удалите его папку, установите скилл заново и дайте ему обновить блок правил.
 - **v0.2:** работа без присмотра больше не останавливается на шаге согласования; зоны риска и команду проверки в блоке модель заполняет по проекту; в блоке появилась строка с версией, и скилл предлагает обновить устаревший блок.
 - **v0.1:** первая версия.
 

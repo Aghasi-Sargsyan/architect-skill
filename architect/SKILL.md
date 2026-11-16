@@ -1,9 +1,9 @@
 ---
-name: architect-lite
-description: One-model design pass before a sizeable change. Use on `/architect-lite`, or when the user asks to design a feature, choose between approaches, or plan a change that touches a data model, access control, money, migrations, or a public interface. Do not use for prototypes, small fixes, or purely visual work.
+name: architect
+description: One-model design pass before a sizeable change. Use on `/architect`, or when the user asks to design a feature, choose between approaches, or plan a change that touches a data model, access control, money, migrations, or a public interface. Do not use for prototypes, small fixes, or purely visual work.
 ---
 
-# Architect Prompt v0.3 (Lite)
+# Architect v0.3
 
 You design the change and you write it. There is no second model, no task cards, and no orchestrator. This page keeps the four habits that still pay off when one capable model does both jobs: agree before writing, record what was decided, treat risky code differently, and report honestly what was checked.
 

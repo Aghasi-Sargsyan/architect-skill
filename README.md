@@ -1,4 +1,4 @@
-# Architect Lite (`v0.3`)
+# Architect (`v0.3`)
 
 A one-page skill for the case where one capable model both designs and writes the code. It keeps four habits: agree before writing, record what was decided, treat risky code differently, and report honestly what was checked. Russian guide: [README.ru.md](README.ru.md).
 
@@ -11,15 +11,15 @@ A one-page skill for the case where one capable model both designs and writes th
 
 ## Install
 
-Run in the root of your project. The commands are safe to repeat; a repeat run updates the skill.
+Run in the root of your project. The commands are safe to repeat; a repeat run updates the skill. They replace any skill already installed in a folder named `architect`.
 
 - **Claude Code (`.claude/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-lite.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect-lite && cp -R "$tmp/architect-lite" .claude/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect.git "$tmp" && mkdir -p .claude/skills && rm -rf .claude/skills/architect && cp -R "$tmp/architect" .claude/skills/ && rm -rf "$tmp"
   ```
 - **Codex, Cursor, Gemini CLI, Antigravity (`.agents/skills/`):**
   ```bash
-  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect-lite.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect-lite && cp -R "$tmp/architect-lite" .agents/skills/ && rm -rf "$tmp"
+  tmp=$(mktemp -d) && git clone --depth 1 https://github.com/Aghasi-Sargsyan/architect.git "$tmp" && mkdir -p .agents/skills && rm -rf .agents/skills/architect && cp -R "$tmp/architect" .agents/skills/ && rm -rf "$tmp"
   ```
 
 ## Update
@@ -30,8 +30,8 @@ To remove the skill, delete its folder.
 
 ## Use
 
-1. Write `/architect-lite <what you want to build>` (or ask the agent to read `SKILL.md` in the skill folder).
-2. On the first run the model offers to add the block from [templates/agents-block.md](architect-lite/templates/agents-block.md) to your `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md`, with your project's risk areas and verification command already filled in from the code. Check both before you agree. This block keeps the rules active in every session, including the ones where you do not call the skill.
+1. Write `/architect <what you want to build>` (or ask the agent to read `SKILL.md` in the skill folder).
+2. On the first run the model offers to add the block from [templates/agents-block.md](architect/templates/agents-block.md) to your `AGENTS.md`, `CLAUDE.md`, or `GEMINI.md`, with your project's risk areas and verification command already filled in from the code. Check both before you agree. This block keeps the rules active in every session, including the ones where you do not call the skill.
 
 ## When to use it
 
@@ -41,7 +41,7 @@ To remove the skill, delete its folder.
 
 ## Changes
 
-- **v0.3:** the skill moved to its own repository, so the install command changed; the installed folder now holds only `SKILL.md` and the block template.
+- **v0.3:** the skill is now called `architect` (it was `architect-lite`) and lives in its own repository, so the install command and the slash command changed; the installed folder holds only `SKILL.md` and the block template. If you had `architect-lite`, delete its folder, install again, and let the skill update the rules block.
 - **v0.2:** an unattended run no longer stalls on the agreement step; the model fills in the block's risk areas and verification command from the project; the block has a version line, and the skill offers to update an older block.
 - **v0.1:** first version.
 
